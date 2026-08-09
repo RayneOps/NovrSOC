@@ -1,8 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Applies repo-wide (frontend/, backend/, and root) — patterns are unanchored on purpose
+# so they match node_modules/build output no matter which subproject it's under.
 
 # dependencies
-/node_modules
-/.pnp
+node_modules
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -11,14 +13,17 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage
 
-# next.js
-/.next/
-/out/
+# next.js (frontend)
+.next/
+out/
+
+# backend build output
+dist/
 
 # production
-/build
+build
 
 # misc
 .DS_Store

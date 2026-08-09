@@ -1,0 +1,1 @@
+export { NigeriaMap } from "./NigeriaMap";
