@@ -1,0 +1,15 @@
+# Also covered by the root .gitignore — kept here too since these are
+# the paths people expect to find in a Next.js app's own .gitignore.
+node_modules/
+.next/
+out/
+
+# env
+.env.local
+.env*.local
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+.vercel

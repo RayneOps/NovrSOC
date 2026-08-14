@@ -32,8 +32,8 @@ export interface ReportData {
 
 const SEV_COLOR: Record<string, string> = {
     Critical: 'bg-red-500/10 text-red-500 border-red-500/30',
-    High: 'bg-amber/10 text-amber border-amber/30',
-    Medium: 'bg-amber/10 text-amber border-amber/30',
+    High: 'bg-grey-100 text-amber border-amber/30',
+    Medium: 'bg-grey-100 text-amber border-amber/30',
     Low: 'bg-card-muted text-foreground-muted border-border',
 };
 
@@ -50,7 +50,7 @@ function Page({ children }: { children: React.ReactNode }) {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-    return <h2 className="text-sm font-black text-foreground uppercase tracking-widest border-l-4 border-green pl-3 mb-6">{children}</h2>;
+    return <h2 className="text-sm font-black text-foreground uppercase tracking-widest border-l-4 border-blue pl-3 mb-6">{children}</h2>;
 }
 
 export function SecurityReportTemplate({ report }: { report: ReportData }) {
@@ -61,7 +61,7 @@ export function SecurityReportTemplate({ report }: { report: ReportData }) {
             ? { label: 'Critical Attention Required', color: 'text-red-500', dot: 'bg-red-500' }
             : wazuh.high_alerts > 5
             ? { label: 'Elevated Risk', color: 'text-amber', dot: 'bg-amber' }
-            : { label: 'Stable', color: 'text-green', dot: 'bg-green' };
+            : { label: 'Stable', color: 'text-blue', dot: 'bg-blue' };
 
     const maxDaily = Math.max(...wazuh.daily_alerts.map((d) => d.count), 1);
 
@@ -82,7 +82,7 @@ export function SecurityReportTemplate({ report }: { report: ReportData }) {
         <div className="report-root bg-card text-foreground">
             {/* Cover Page */}
             <Page>
-                <div className="absolute top-0 left-0 right-0 h-2 bg-amber" />
+                <div className="absolute top-0 left-0 right-0 h-2 bg-grey-100" />
                 <div className="h-full flex flex-col items-center justify-center text-center gap-6">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/novrsoc.jpg" alt="NovrSOC" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
@@ -229,7 +229,7 @@ export function SecurityReportTemplate({ report }: { report: ReportData }) {
                         ) : (
                             wazuh.top_vulnerabilities.map((v, i) => (
                                 <tr key={i} className="border-b border-border">
-                                    <td className="px-3 py-2 font-mono font-bold text-green">{v.cve}</td>
+                                    <td className="px-3 py-2 font-mono font-bold text-blue">{v.cve}</td>
                                     <td className="px-3 py-2">
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${SEV_COLOR[v.severity] ?? SEV_COLOR.Low}`}>{v.severity}</span>
                                     </td>

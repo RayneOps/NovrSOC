@@ -17,12 +17,39 @@ import novrAiRouter from './routes/novr-ai';
 import ctipRouter from './routes/ctip';
 import threatIntelRouter from './routes/threat-intel';
 import wazuhRouter from './routes/wazuh';
+import geoRouter from './routes/geo';
+import brandRouter from './routes/brand';
+import domainSuiteRouter from './routes/domainSuite';
+import contactRouter from './routes/contact';
+import threatRouter from './routes/threat';
+import ctiRouter from './routes/cti';
+import urlscanRouter from './routes/urlscan';
+import webscanRouter from './routes/webscan';
+import emailSecurityRouter from './routes/emailSecurity';
+import vendorsRouter from './routes/vendors';
+import dataRecoveryRouter from './routes/dataRecovery';
+import slaRouter from './routes/sla';
+import alertsRouter from './routes/alerts';
+import threatManagementRouter from './routes/threatManagement';
+import incidentResponseRouter from './routes/incidentResponse';
+import weblogicRouter from './routes/weblogic';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000' }));
 app.use(express.json());
+
+// Health check endpoint (Railway uses this) — kept ahead of every other route so it's
+// always reachable even if a downstream router throws during registration.
+app.get('/health', (_req, res) => {
+    res.json({
+        status: 'healthy',
+        service: 'novrsoc-backend',
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+    });
+});
 
 app.get('/', (_req, res) => {
     res.json({ ok: true, service: 'novrsoc-backend' });
@@ -43,6 +70,22 @@ app.use('/api/novr-ai', novrAiRouter);
 app.use('/api/ctip', ctipRouter);
 app.use('/api/threat-intel', threatIntelRouter);
 app.use('/api/wazuh', wazuhRouter);
+app.use('/api/geo', geoRouter);
+app.use('/api/brand/domains', domainSuiteRouter);
+app.use('/api/brand', brandRouter);
+app.use('/api/contact', contactRouter);
+app.use('/api/threat', threatRouter);
+app.use('/api/cti', ctiRouter);
+app.use('/api/urlscan', urlscanRouter);
+app.use('/api/webscan', webscanRouter);
+app.use('/api/email', emailSecurityRouter);
+app.use('/api/vendors', vendorsRouter);
+app.use('/api/recovery', dataRecoveryRouter);
+app.use('/api/sla', slaRouter);
+app.use('/api/alerts', alertsRouter);
+app.use('/api/threats', threatManagementRouter);
+app.use('/api/incidents', incidentResponseRouter);
+app.use('/api/weblogic', weblogicRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

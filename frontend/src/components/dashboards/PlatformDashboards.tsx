@@ -56,7 +56,7 @@ export const SoarDashboard = () => {
                         {['Wazuh EDR Engine API Proxy', 'Office 365 Cloud Directory Service', 'Palo Alto NGFW Router Layer'].map((conn, i) => (
                             <div key={i} className="flex justify-between items-center p-3.5 bg-card-muted border border-border rounded-xl">
                                 <span className="font-semibold text-xs text-foreground">{conn}</span>
-                                <span className="flex items-center gap-1.5 text-green font-bold text-[10px]">
+                                <span className="flex items-center gap-1.5 text-blue font-bold text-[10px]">
                                     <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
                                     Connected
                                 </span>
@@ -135,7 +135,7 @@ export const NovrAiCommandCenter = () => {
                 {Object.values(data).map((kpi, idx) => <KpiCard key={idx} {...kpi} />)}
             </div>
 
-            <div className="bg-green from-white to-green/30 border border-green/30 rounded-xl p-6 shadow-sm">
+            <div className="bg-blue from-white to-blue/30 border border-blue/30 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                     <span className="text-purple text-xs font-black uppercase tracking-widest">⚡ NovrAI Cognitive Translation Engine</span>
                 </div>
@@ -151,7 +151,7 @@ export const NovrAiCommandCenter = () => {
                     </p>
 
                     <div className="mt-5 border-t border-border pt-5 space-y-3">
-                        <div className="inline-flex items-center gap-2 text-[10px] font-bold text-green bg-green/10 border border-green/30 px-3 py-1.5 rounded-full">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-bold text-blue bg-blue/10 border border-blue/30 px-3 py-1.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-green" />
                             NovrAI Synthesis Completed
                         </div>

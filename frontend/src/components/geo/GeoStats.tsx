@@ -8,7 +8,7 @@ export function GeoStats() {
     {
       title: "Countries",
       value: "187",
-      color: "emerald",
+      color: "blue",
     },
     {
       title: "Autonomous Systems",

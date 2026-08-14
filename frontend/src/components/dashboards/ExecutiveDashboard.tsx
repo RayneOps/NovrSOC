@@ -19,7 +19,7 @@ export const ExecutiveDashboard = () => {
                     <ChartWrapper title="Enterprise Risk Reduction Journey (90 Days Tracking)">
                         <div className="absolute inset-0 p-6 flex flex-col justify-between">
                             <div className="flex justify-end gap-2 text-xs font-semibold">
-                                <span className="px-2.5 py-1 bg-green/10 text-green rounded-full border border-green/30">30 Days</span>
+                                <span className="px-2.5 py-1 bg-blue/10 text-blue rounded-full border border-blue/30">30 Days</span>
                                 <span className="px-2.5 py-1 text-foreground-muted hover:text-foreground-muted cursor-pointer">60 Days</span>
                                 <span className="px-2.5 py-1 text-foreground-muted hover:text-foreground-muted cursor-pointer">90 Days</span>
                             </div>
@@ -50,8 +50,8 @@ export const ExecutiveDashboard = () => {
                             <p className="font-bold text-red-500">Revenue Stream Impact</p>
                             <p className="text-foreground-muted mt-1">Isolated. 0 active disruptions detected.</p>
                         </div>
-                        <div className="p-3.5 bg-green/10/60 border border-green/10 rounded-xl">
-                            <p className="font-bold text-green">Compliance Alignment</p>
+                        <div className="p-3.5 bg-blue/10/60 border border-blue/10 rounded-xl">
+                            <p className="font-bold text-blue">Compliance Alignment</p>
                             <p className="text-foreground-muted mt-1">Metrics healthy across all tracking frameworks.</p>
                         </div>
                     </div>
@@ -67,7 +67,7 @@ export const ExecutiveDashboard = () => {
                         <td className="px-6 py-4 font-semibold text-foreground text-sm">{row.unit}</td>
                         <td className="px-6 py-4 font-mono text-sm text-foreground">{row.risk}</td>
                         <td className="px-6 py-4 text-xs font-semibold text-foreground">{row.incidents}</td>
-                        <td className="px-6 py-4 text-xs font-mono font-bold text-green">{row.compliance}</td>
+                        <td className="px-6 py-4 text-xs font-mono font-bold text-blue">{row.compliance}</td>
                         <td className="px-6 py-4"><StatusBadge value={row.trend} /></td>
                     </tr>
                 )}

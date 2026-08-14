@@ -25,7 +25,7 @@ function ToolbarButton({ onClick, active, title, children }: {
       title={title}
       className={`p-2 rounded text-sm font-medium transition-colors ${
         active
-          ? 'bg-green/10 text-green'
+          ? 'bg-blue/10 text-blue'
           : 'text-foreground-muted hover:bg-card-muted'
       }`}
     >
@@ -42,7 +42,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-green underline',
+          class: 'text-blue underline',
           rel: 'noopener noreferrer',
           target: '_blank',
         },

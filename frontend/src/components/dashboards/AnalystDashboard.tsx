@@ -24,7 +24,7 @@ export const AnalystDashboard = () => {
                             <p className="font-bold text-foreground text-xs mt-2">APT35 Mimikatz Variant</p>
                         </div>
                         <div className="p-3.5 bg-card-muted border border-border rounded-xl">
-                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-amber/10 text-amber rounded-full border border-amber/30">
+                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-grey-100 text-amber rounded-full border border-amber/30">
                                 IP Infrastructure
                             </span>
                             <p className="font-bold text-foreground text-xs mt-2">Malicious C2 Node</p>
@@ -35,16 +35,16 @@ export const AnalystDashboard = () => {
                 <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-sm">
                     <h3 className="font-bold text-foreground text-[11px] tracking-widest uppercase mb-4">Live Correlation Chain</h3>
                     <div className="p-4 bg-card-muted rounded-xl border border-border h-56 flex flex-col justify-between font-mono text-xs">
-                        <div className="p-3 bg-card border-l-4 border-l-red-500 border border-border rounded-r-lg shadow-sm">
+                        <div className="p-3 bg-card border-l-4 border-l-red border border-border rounded-r-lg shadow-sm">
                             <span className="text-red-500 font-bold">[Step 1]</span>
                             <span className="text-foreground ml-1">External IP sweep hitting production gateway.</span>
                         </div>
-                        <div className="p-3 bg-card border-l-4 border-l-amber-500 border border-border rounded-r-lg shadow-sm">
+                        <div className="p-3 bg-card border-l-4 border-l-amber border border-border rounded-r-lg shadow-sm">
                             <span className="text-amber font-bold">[Step 2]</span>
                             <span className="text-foreground ml-1">Failed logins logged via Wazuh server profile.</span>
                         </div>
-                        <div className="p-3 bg-card border-l-4 border-l-blue-500 border border-border rounded-r-lg shadow-sm">
-                            <span className="text-green font-bold">[Step 3]</span>
+                        <div className="p-3 bg-card border-l-4 border-l-blue border border-border rounded-r-lg shadow-sm">
+                            <span className="text-blue font-bold">[Step 3]</span>
                             <span className="text-foreground ml-1">Endpoint isolated via local profile orchestrations.</span>
                         </div>
                     </div>

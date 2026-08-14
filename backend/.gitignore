@@ -2,3 +2,11 @@ node_modules
 dist
 .env
 *.tsbuildinfo
+
+# Downloaded via `npm run geoip:download` (services/maxmind.ts) — ~63MB binary, not source.
+geoip/
+*.mmdb
+
+# logs
+logs/
+*.log

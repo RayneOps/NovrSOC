@@ -10,7 +10,7 @@ const borderAccent: Record<string, string> = {
 
 function trendClasses(trend?: string) {
     if (!trend) return 'text-foreground-muted bg-card-muted border-border';
-    if (trend.startsWith('+')) return 'text-green bg-green/10 border-green/30';
+    if (trend.startsWith('+')) return 'text-blue bg-blue/10 border-blue/30';
     if (trend.startsWith('-')) return 'text-red bg-red/10 border-red/30';
     return 'text-foreground-muted bg-card-muted border-border';
 }

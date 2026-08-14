@@ -54,9 +54,9 @@ interface NetworkData {
 
 const sevBadge: Record<string, string> = {
     Critical: 'bg-red-500/10 text-red-500 border-red-500/30',
-    High: 'bg-amber/10 text-amber border-amber/30',
-    Medium: 'bg-amber/10 text-amber border-amber/30',
-    Low: 'bg-green/10 text-green border-green/30',
+    High: 'bg-grey-100 text-amber border-amber/30',
+    Medium: 'bg-grey-100 text-amber border-amber/30',
+    Low: 'bg-blue/10 text-blue border-blue/30',
 };
 
 const verdictEmoji: Record<string, string> = { Malicious: '🔴', Suspicious: '🟡', Unknown: '⚪', Internal: '⚪' };
@@ -118,9 +118,9 @@ function CopyBlock({ label, command }: { label: string; command: string }) {
         <div>
             <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider">{label}</p>
-                <button onClick={copy} className="text-[10px] font-bold text-green hover:underline">{copied ? 'Copied ✓' : 'Copy Command'}</button>
+                <button onClick={copy} className="text-[10px] font-bold text-blue hover:underline">{copied ? 'Copied ✓' : 'Copy Command'}</button>
             </div>
-            <div className="bg-grey-900 rounded-lg p-3 font-mono text-[10px] text-green break-all">{command}</div>
+            <div className="bg-grey-900 rounded-lg p-3 font-mono text-[10px] text-blue break-all">{command}</div>
         </div>
     );
 }
@@ -174,13 +174,13 @@ export const PortalDashboard = () => {
     const threatLevel = kpis ? (kpis.total === 0 ? 'Low' : kpis.total <= 5 ? 'Elevated' : 'High') : null;
 
     const kpiCards = [
-        { label: 'Protected Endpoints', value: loading ? '...' : String(agents?.total ?? 0), color: 'text-green', sub: undefined as string | undefined },
+        { label: 'Protected Endpoints', value: loading ? '...' : String(agents?.total ?? 0), color: 'text-blue', sub: undefined as string | undefined },
         { label: 'Active Incidents (24h)', value: loading ? '...' : String(kpis?.total ?? 0), color: 'text-amber', sub: undefined as string | undefined },
         { label: 'High Severity', value: loading ? '...' : String(kpis?.high ?? 0), color: 'text-red-500', sub: undefined as string | undefined },
         {
             label: 'Threats Blocked',
             value: threatsBlocked !== null ? `${threatsBlocked.toLocaleString()} threats blocked` : '...',
-            color: 'text-green',
+            color: 'text-blue',
             sub: 'Last 30 days, your endpoints only',
         },
     ];
@@ -198,7 +198,7 @@ export const PortalDashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {kpiCards.map(k => (
                     <div key={k.label} className="bg-card border border-border rounded-xl p-4">
-                        <div className="h-[3px] bg-green from-green via-green to-red-500 -mt-4 -mx-4 mb-4 rounded-t-xl" />
+                        <div className="h-[3px] bg-blue from-blue via-blue to-red-500 -mt-4 -mx-4 mb-4 rounded-t-xl" />
                         <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-1">{k.label}</p>
                         <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
                         {k.sub && <p className="text-[10px] text-foreground-muted mt-1">{k.sub}</p>}
@@ -231,8 +231,8 @@ export const PortalDashboard = () => {
             </div>
 
             {!loading && !hasAgents && (
-                <div className="bg-card border border-green/30 rounded-xl overflow-hidden">
-                    <div className="h-[3px] bg-green from-green via-green to-red-500" />
+                <div className="bg-card border border-blue/30 rounded-xl overflow-hidden">
+                    <div className="h-[3px] bg-blue from-blue via-blue to-red-500" />
                     <div className="p-6">
                         <h3 className="text-sm font-black text-foreground mb-1">Start Monitoring Your Environment</h3>
                         <p className="text-xs text-foreground-muted mb-4">Install the Cybernovr security agent on your endpoints to begin real-time monitoring.</p>
@@ -245,7 +245,7 @@ export const PortalDashboard = () => {
             )}
 
             <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="h-[3px] bg-green from-green via-green to-red-500" />
+                <div className="h-[3px] bg-blue from-blue via-blue to-red-500" />
                 <div className="p-4">
                     <p className="text-xs font-black text-foreground">Network Activity</p>
                     <p className="text-[10px] text-foreground-muted">Last 24 hours</p>
@@ -328,10 +328,10 @@ export const PortalDashboard = () => {
             </div>
 
             <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="h-[3px] bg-green from-green via-green to-red-500" />
+                <div className="h-[3px] bg-blue from-blue via-blue to-red-500" />
                 <div className="p-4 flex items-center justify-between">
                     <p className="text-xs font-black text-foreground">Recent Incidents</p>
-                    <Link href="/security-operations/incidents" className="text-[10px] font-bold text-green hover:underline">View All →</Link>
+                    <Link href="/security-operations/incidents" className="text-[10px] font-bold text-blue hover:underline">View All →</Link>
                 </div>
                 {loading ? (
                     <div className="p-6 space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-6 bg-card-muted rounded animate-pulse" />)}</div>
@@ -362,10 +362,10 @@ export const PortalDashboard = () => {
             </div>
 
             <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="h-[3px] bg-green from-green via-green to-red-500" />
+                <div className="h-[3px] bg-blue from-blue via-blue to-red-500" />
                 <div className="p-4 flex items-center justify-between">
                     <p className="text-xs font-black text-foreground">Recent Advisories</p>
-                    <Link href="/threat-intelligence/advisory" className="text-[10px] font-bold text-green hover:underline">View All →</Link>
+                    <Link href="/threat-intelligence/advisory" className="text-[10px] font-bold text-blue hover:underline">View All →</Link>
                 </div>
                 {loading ? (
                     <div className="p-6 space-y-2">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-6 bg-card-muted rounded animate-pulse" />)}</div>

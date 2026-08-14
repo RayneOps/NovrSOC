@@ -20,10 +20,10 @@ export function GeoSearch() {
         <div className="flex gap-3">
           <input
             placeholder="Search IP, Domain or ASN..."
-            className="flex-1 rounded-lg border border-border px-4 py-3 outline-none focus:ring-2 focus:ring-green"
+            className="flex-1 rounded-lg border border-border px-4 py-3 outline-none focus:ring-2 focus:ring-blue"
           />
 
-          <button className="flex items-center gap-2 bg-amber hover:bg-amber text-white px-5 rounded-lg font-semibold">
+          <button className="flex items-center gap-2 bg-grey-100 hover:bg-grey-100 text-white px-5 rounded-lg font-semibold">
             <Search size={18} />
             Search
           </button>

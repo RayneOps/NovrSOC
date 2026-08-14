@@ -7,16 +7,16 @@ import { KpiCard, type KpiCardProps } from '../shared/KpiCard';
 import { ChartWrapper } from '../shared/ChartWrapper';
 import { DataTable } from '../shared/DataTable';
 import { StatusBadge } from '../shared/StatusBadge';
-import { GaugeChart } from '../shared/GaugeChart';
 import { generalActivityLog } from '@/data/mockData';
 import { getPortalContext } from '@/lib/portal-context';
-import { Globe3D } from '../geo/Globe3D';
-import { NigeriaMap2 } from "../geo/NigeriaMap2";
+import { WorldGlobe } from '../geo/WorldGlobe';
+import { NigeriaThreatMap, type FeedAdvisory } from '../geo/NigeriaThreatMap';
+import { ComplianceSummary } from '../dashboard/ComplianceSummary';
 import { apiUrl } from '@/lib/api';
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
     <div className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm ${className}`}>
-        <div className="h-[3px] bg-amber" />
+        <div className="h-[3px] bg-grey-100" />
         {children}
     </div>
 );
@@ -26,262 +26,9 @@ const SectionHeader = ({ title, badge }: { title: string; badge?: string }) => (
         <div className="flex items-center gap-2 border-l-2 border-amber pl-2">
             <h3 className="text-xs font-black text-foreground uppercase tracking-widest">{title}</h3>
         </div>
-        {badge && <span className="text-[9px] font-bold px-2 py-0.5 bg-green/10 text-green border border-green/30 rounded-full uppercase tracking-wide">{badge}</span>}
+        {badge && <span className="text-[9px] font-bold px-2 py-0.5 bg-blue/10 text-blue border border-blue/30 rounded-full uppercase tracking-wide">{badge}</span>}
     </div>
 );
-
-/* ── Nigeria Threat Landscape ───────────────────────────── */
-interface FeedAdvisory {
-  id: number;
-  title: string;
-  severity: string;
-  published_at: string;
-}
-
-const sevColor = (s: string) =>
-  s === "Critical"
-    ? "#EF4444"
-    : s === "High"
-    ? "#D97706"
-    : s === "Medium"
-    ? "#D97706"
-    : "#16A34A";
-
-function feedTimeAgo(iso: string) {
-  const mins = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  );
-
-  if (mins < 60) return mins <= 1 ? "Just now" : `${mins} mins ago`;
-
-  const hrs = Math.floor(mins / 60);
-
-  if (hrs < 24) return `${hrs}h ago`;
-
-  const days = Math.floor(hrs / 24);
-
-  return `${days}d ago`;
-}
-
-export const NigeriaThreatMap = ({
-  advisories,
-}: {
-  advisories: FeedAdvisory[] | null;
-}) => {
-  const feed = (advisories ?? []).slice(0, 3);
-
-  return (
-    <Card>
-
-      <div className="p-6">
-
-        {/* Header */}
-
-        <div className="flex items-center justify-between mb-6">
-
-          <div>
-
-            <SectionHeader title="Nigeria National Threat Landscape" />
-
-            <p className="text-sm text-foreground-muted">
-              Real-time cyber activity across Nigerian states
-            </p>
-
-          </div>
-
-          <div className="text-right">
-
-            <p className="text-xs uppercase text-foreground-muted">
-              Threat Level
-            </p>
-
-            <h2 className="text-2xl font-black text-red-500">
-              HIGH
-            </h2>
-
-          </div>
-
-        </div>
-
-        {/* Main */}
-
-        <div className="grid lg:grid-cols-5 gap-6">
-
-          {/* MAP */}
-
-          <div className="lg:col-span-3">
-
-            <div className="rounded-xl border border-border bg-card-muted p-4">
-
-              {/* Replace this SVG with your real Nigeria SVG */}
-                <NigeriaMap2 />
-
-            </div>
-
-          </div>
-
-          {/* RIGHT */}
-
-          <div className="lg:col-span-2 flex flex-col gap-4 grid grid-cols-2">
-
-            {[
-                ["Threat Score","91","text-red-500"],
-                ["Today's Attacks","1,284","text-red-500"],
-                ["Critical States","5","text-amber"],
-                ["Malware","314","text-green"],
-                ["Botnets","88","text-green"],
-                ["Phishing","123","text-amber"],
-                ["Ransomware","21","text-red-500"],
-                ["DDoS","47","text-green"],
-            ].map(([title, value, color]) => (
-
-              <div
-                key={title}
-                className="rounded-xl border border-border p-4"
-              >
-
-                <p className="text-xs uppercase tracking-wide text-foreground-muted">
-                  {title}
-                </p>
-
-                <h3 className={`text-3xl font-black mt-2 ${color}`}>
-                  {value}
-                </h3>
-
-              </div>
-
-            ))}
-
-          </div>
-
-        </div>
-
-        {/* Legend */}
-
-        <div className="flex items-center gap-6 mt-6 text-sm">
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green" />
-            Malware
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-amber" />
-            Pishing
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-amber" />
-            Botnet
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500" />
-            RansomeWare
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green" />
-            DDoS
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-amber" />
-            Credential Theft
-          </div>
-
-        </div>
-
-
-
-        {/* State KPIs */}
-
-        <div className="grid grid-cols-6 gap-4 mt-6">
-
-          {[
-            ["Malware Lagos", 3750],
-            ["Phishing Lagos", 8000],
-            ["BotNet Kano", 950],
-            ["Ransomware Rivers", 1650],
-            ["DDoS Abuja", 1350],
-            ["Cred-Theft Lagos", 1800],
-          ].map(([state, score]) => (
-
-            <div
-              key={state}
-              className="rounded-xl border border-border p-4 text-center"
-            >
-
-              <p className="font-bold text-foreground">
-                {state}
-              </p>
-
-              <p className="text-1xl font-black text-red-500 mt-2">
-                {score}
-              </p>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </div>
-
-    </Card>
-  );
-};
-
-/* ── 1C: Compliance Snapshot ── */
-interface ComplianceScore { name: string; score: number; status: string }
-const COMPLIANCE_STATUS_STYLE: Record<string, string> = {
-    'Compliant': 'bg-green/10 text-green border border-green/30',
-    'Partial': 'bg-amber/10 text-amber border border-amber/30',
-    'Not Assessed': 'bg-card-muted text-foreground-muted border border-border',
-};
-
-const ComplianceCard = ({ f }: { f: ComplianceScore }) => (
-    <div className="bg-card border border-border rounded-xl p-3 flex flex-col items-center text-center hover:border-green/30 transition-colors group shadow-sm">
-        <div className="relative mb-1">
-            <GaugeChart value={f.score} size={56} strokeWidth={6} />
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-foreground">{f.score}%</span>
-        </div>
-        <p className="text-[9px] font-medium text-foreground-muted mt-1 leading-tight">{f.name}</p>
-        <span className={`mt-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${COMPLIANCE_STATUS_STYLE[f.status] ?? COMPLIANCE_STATUS_STYLE['Not Assessed']}`}>
-            {f.status}
-        </span>
-        <Link href="/compliance" className="mt-1.5 text-[8px] text-green opacity-0 group-hover:opacity-100 transition-opacity">Details →</Link>
-    </div>
-);
-
-const ComplianceSnapshot = ({ scores }: { scores: ComplianceScore[] | null }) => {
-    const rows = scores ?? [];
-    return (
-        <Card>
-            <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <SectionHeader title="Compliance Snapshot" />
-                    <Link href="/compliance" className="text-[10px] font-semibold text-green hover:underline">View All →</Link>
-                </div>
-                {scores === null ? (
-                    <div className="grid grid-cols-4 gap-3">
-                        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-card-muted rounded-xl animate-pulse" />)}
-                    </div>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-4 gap-3">
-                            {rows.slice(0, 4).map(f => <ComplianceCard key={f.name} f={f} />)}
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 mt-3">
-                            {rows.slice(4).map(f => <ComplianceCard key={f.name} f={f} />)}
-                        </div>
-                    </>
-                )}
-            </div>
-        </Card>
-    );
-};
 
 /* ── 1E: Onboarded Clients ── */
 interface OnboardedClient { id: number; name: string; industry: string | null; status: string; agentsTotal: number; activeIncidents: number; wazuhGroup: string | null }
@@ -289,8 +36,8 @@ interface ClientLiveData { endpoints: number; incidents: number }
 
 function clientStatusBadge(orgStatus: string, endpoints: number): { label: string; classes: string } {
     if (orgStatus !== 'active') return { label: 'Inactive', classes: 'text-foreground-muted bg-card-muted border-border' };
-    if (endpoints > 0) return { label: 'Active', classes: 'text-green bg-green/10 border-green/30' };
-    return { label: 'Pending', classes: 'text-amber bg-amber/10 border-amber/30' };
+    if (endpoints > 0) return { label: 'Active', classes: 'text-blue bg-blue/10 border-blue/30' };
+    return { label: 'Pending', classes: 'text-amber bg-grey-100 border-amber/30' };
 }
 
 const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient[] | null; loading: boolean }) => {
@@ -328,14 +75,14 @@ const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient
                         <SectionHeader title="Onboarded Clients" badge={clients ? `${clients.length} ${clients.length === 1 ? 'Client' : 'Clients'}` : undefined} />
                         <p className="text-[10px] text-foreground-muted">Client portfolio and monitoring status</p>
                     </div>
-                    <Link href="/customers" className="text-[10px] font-semibold text-green hover:underline">View All →</Link>
+                    <Link href="/admin/dashboard" className="text-[10px] font-semibold text-blue hover:underline">View All →</Link>
                 </div>
                 {loading ? (
                     <div className="space-y-2 py-2">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-6 bg-card-muted rounded animate-pulse" />)}</div>
                 ) : rows.length === 0 ? (
                     <div className="py-8 text-center">
                         <p className="text-[11px] text-foreground-muted mb-3">No clients onboarded yet. Go to Customers to add your first client.</p>
-                        <Link href="/customers" className="inline-block text-[10px] font-bold px-3 py-1.5 bg-red hover:bg-red-hover text-white rounded-lg transition-colors">Onboard First Client</Link>
+                        <Link href="/admin/dashboard" className="inline-block text-[10px] font-bold px-3 py-1.5 bg-red hover:bg-red-hover text-white rounded-lg transition-colors">Onboard First Client</Link>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -484,6 +231,9 @@ export const GeneralDashboard = () => {
             .finally(() => setTrendLoading(false));
     }, [trendRange]);
 
+    interface CtipCountry { country: string; name: string; count: number; flag: string }
+    interface WazuhAttackOrigin { country: string; name: string; count: number; label: string }
+
     const [ctipCountries, setCtipCountries] = useState<CtipCountry[] | null>(null);
 
     useEffect(() => {
@@ -539,25 +289,6 @@ export const GeneralDashboard = () => {
             .catch(() => setVendorRisk(null));
     }, []);
 
-    const [complianceScores, setComplianceScores] = useState<ComplianceScore[] | null>(null);
-
-    useEffect(() => {
-        const portal = getPortalContext();
-        const orgId = portal.isPortal ? portal.orgId : 1;
-        if (!orgId) { setComplianceScores([]); return; }
-        fetch(apiUrl(`/api/compliance?orgId=${orgId}`), { cache: 'no-store' })
-            .then(r => r.json())
-            .then((data: { shortName?: string; score?: number; assessed?: number }[]) => {
-                if (!Array.isArray(data)) { setComplianceScores([]); return; }
-                setComplianceScores(data.map((f) => ({
-                    name: f.shortName ?? '—',
-                    score: f.score ?? 0,
-                    status: (f.assessed ?? 0) === 0 ? 'Not Assessed' : (f.score ?? 0) >= 80 ? 'Compliant' : 'Partial',
-                })));
-            })
-            .catch(() => setComplianceScores([]));
-    }, []);
-
     const trendBars = trendData
         ? (() => {
             const maxAlerts = Math.max(...trendData.map(d => d.alerts), 1);
@@ -577,11 +308,11 @@ export const GeneralDashboard = () => {
     const platformOperational = wazuhAgents !== null && ctipStats !== null;
 
     const THREAT_VECTORS_FALLBACK = [
-        { label: "Malware", value: 342 },
-        { label: "Phishing", value: 281 },
-        { label: "Botnet", value: 197 },
-        { label: "Ransomware", value: 84 },
-        { label: "DDoS", value: 56 },
+        { label: "Malware", pct: 100, color: '#CC2B2B' },
+        { label: "Phishing", pct: 82, color: '#D97706' },
+        { label: "Botnet", pct: 58, color: '#2B3BCC' },
+        { label: "Ransomware", pct: 25, color: '#CC2B2B' },
+        { label: "DDoS", pct: 16, color: '#2B3BCC' },
         ];
 
     const kpiCards: KpiCardProps[] = [
@@ -653,10 +384,9 @@ export const GeneralDashboard = () => {
 
             <NigeriaThreatMap advisories={nigeriaAdvisories} />
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Globe3D ctipStats={ctipStats} countries={ctipCountries} wazuhOrigins={wazuhAttackOrigins} />
-                <ComplianceSnapshot scores={complianceScores} />
-            </div>
+            <WorldGlobe />
+
+            <ComplianceSummary />
 
             <OnboardedClientsWidget clients={clients} loading={clientsLoading} />
 
@@ -666,7 +396,7 @@ export const GeneralDashboard = () => {
                         <button key={val} onClick={() => setTrendRange(val)}
                             className={`text-[10px] font-bold px-2.5 py-1 rounded border transition-colors ${
                                 trendRange === val
-                                    ? 'bg-amber text-white border-amber'
+                                    ? 'bg-grey-100 text-white border-amber'
                                     : 'bg-card border-border text-foreground-muted hover:text-foreground'
                             }`}>
                             {label}
@@ -728,7 +458,7 @@ export const GeneralDashboard = () => {
                     <button key={val} onClick={() => setFeedRange(val)}
                         className={`text-[10px] font-bold px-2.5 py-1 rounded border transition-colors ${
                             feedRange === val
-                                ? 'bg-amber text-white border-amber'
+                                ? 'bg-grey-100 text-white border-amber'
                                 : 'bg-card border-border text-foreground-muted hover:text-foreground'
                         }`}>
                         {label}

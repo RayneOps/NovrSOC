@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import { nigeriaThreatData } from '@/lib/mock/nigeria-threat-data';
 
+type StateThreatInfo = typeof nigeriaThreatData[keyof typeof nigeriaThreatData];
+
 interface NigeriaMapProps {
   onStateSelect?: (state: string) => void;
+  // Live per-state data from GET /api/geo/nigeria/states, keyed the same way as
+  // nigeriaThreatData (e.g. 'Lagos', 'FCT', 'CrossRiver'). Entries here override the bundled
+  // mock for that state; states with no live row keep showing the mock, so the map always
+  // renders fully even before the backend/Supabase table is populated.
+  stateOverrides?: Partial<Record<string, StateThreatInfo>>;
 }
 
 export function NigeriaMap2({
   onStateSelect,
+  stateOverrides,
 }: NigeriaMapProps) {
 
   const [selectedState, setSelectedState] = useState<string>("Lagos");
@@ -16,17 +24,29 @@ export function NigeriaMap2({
     onStateSelect?.(stateName);
   };
 
+    const threatData: Record<string, StateThreatInfo> = { ...nigeriaThreatData, ...stateOverrides };
+
     const threatColors: Record<string, string> = {
-     Malware: "#16A34A",
+     Malware: "#CC2B2B",
      Phishing: "#D97706",
-     Botnet: "#f97316",
-     Ransomware: "#EF4444",
-     DDoS: "#9333ea",
+     Botnet: "#6B1FA8",
+     Ransomware: "#CC2B2B",
+     DDoS: "#2B3BCC",
      CredentialTheft: "#D97706",
     };
 
+    // Approximate marker positions (SVG-space, matches the 0 0 1000 812 viewBox below) for
+    // a handful of major cities — used to overlay live attack-origin bubbles on the map.
+    const CITY_MARKERS: { name: string; dataKey: keyof typeof nigeriaThreatData; x: number; y: number }[] = [
+      { name: 'Lagos', dataKey: 'Lagos', x: 220, y: 640 },
+      { name: 'Abuja (FCT)', dataKey: 'FCT', x: 380, y: 435 },
+      { name: 'Kano', dataKey: 'Kano', x: 460, y: 225 },
+      { name: 'Port Harcourt', dataKey: 'Rivers', x: 330, y: 700 },
+      { name: 'Kaduna', dataKey: 'Kaduna', x: 410, y: 320 },
+    ];
+
     const getStateColor = (state: string) => {
-    const info = nigeriaThreatData[state as keyof typeof nigeriaThreatData];
+    const info = threatData[state];
 
     if (!info) return "#CBD5E1";
 
@@ -352,6 +372,31 @@ export function NigeriaMap2({
             onClick={() => handleStateClick("Federal Capital Territory")}
             className="cursor-pointer transition-all duration-300 hover:opacity-80"
           />
+        </g>
+
+        {/* Live attack-origin bubbles, sized by count, colored by dominant threat type */}
+        <g id="attack-bubbles">
+          {CITY_MARKERS.map((city) => {
+            const info = threatData[city.dataKey];
+            const color = threatColors[info?.primaryThreat ?? 'Malware'] ?? '#7A8099';
+            const count = info?.attacks ?? 0;
+            const r = Math.max(8, Math.min(28, count / 20));
+            return (
+              <circle
+                key={city.name}
+                cx={city.x}
+                cy={city.y}
+                r={r}
+                fill={color}
+                opacity={0.7}
+                stroke="#FFFFFF"
+                strokeWidth={1.5}
+                className={count > 400 ? 'animate-pulse' : ''}
+              >
+                <title>{city.name}: {count.toLocaleString()} attacks</title>
+              </circle>
+            );
+          })}
         </g>
       </svg>
     </div>

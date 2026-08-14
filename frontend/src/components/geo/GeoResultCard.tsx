@@ -32,7 +32,7 @@ function Indicator({
         className={`px-2 py-1 rounded text-xs font-bold ${
           value
             ? "bg-red-500/10 text-red-500"
-            : "bg-green/10 text-green"
+            : "bg-blue/10 text-blue"
         }`}
       >
         {value ? "YES" : "NO"}
@@ -60,9 +60,9 @@ export function GeoResultCard({
   abuseScore,
 }: GeoResultCardProps) {
   const riskColor = {
-    Low: "bg-green/10 text-green",
-    Medium: "bg-amber/10 text-amber",
-    High: "bg-amber/10 text-amber",
+    Low: "bg-blue/10 text-blue",
+    Medium: "bg-grey-100 text-amber",
+    High: "bg-grey-100 text-amber",
     Critical: "bg-red-500/10 text-red-500",
   }[risk];
 

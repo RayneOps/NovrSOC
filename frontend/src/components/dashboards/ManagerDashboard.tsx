@@ -36,7 +36,7 @@ export const ManagerDashboard = () => {
                     <div className="space-y-5">
                         {[
                             { name: 'Mubarak A.', count: '4 Active Cases', width: '80%', color: 'bg-amber' },
-                            { name: 'Brain O.',   count: '3 Active Cases', width: '60%', color: 'bg-green' },
+                            { name: 'Brain O.',   count: '3 Active Cases', width: '60%', color: 'bg-blue' },
                         ].map((a, i) => (
                             <div key={i} className="text-xs">
                                 <div className="flex justify-between font-semibold mb-1.5">

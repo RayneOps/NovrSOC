@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { PageLayout } from '@/components/layout/PageLayout';
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
     return (
         <button
             onClick={() => onChange(!value)}
-            className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-amber' : 'bg-card-muted'}`}
+            className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-grey-100' : 'bg-card-muted'}`}
         >
             <span className={`absolute top-0.5 w-4 h-4 bg-card rounded-full shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0.5'}`} />
         </button>
@@ -17,7 +16,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <div className="h-[3px] bg-green from-green via-green to-red-500" />
+            <div className="h-[3px] bg-blue from-blue via-blue to-red-500" />
             <div className="p-5 space-y-4">
                 <p className="text-xs font-bold text-foreground uppercase tracking-wide">{title}</p>
                 {children}
@@ -59,7 +58,6 @@ export default function SettingsPage() {
     const [reportRet, setReportRet] = useState('730');
 
     return (
-        <PageLayout title="Settings">
             <div className="space-y-5">
                 <div>
                     <h1 className="text-lg font-black text-foreground">Platform Settings</h1>
@@ -69,7 +67,7 @@ export default function SettingsPage() {
                 <Section title="General Settings">
                     <Row label="Organisation Name">
                         <input value={orgName} onChange={e => setOrgName(e.target.value)}
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-56 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-56 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                     <Row label="Timezone">
                         <select value={timezone} onChange={e => setTimezone(e.target.value)}
@@ -103,11 +101,11 @@ export default function SettingsPage() {
                     </Row>
                     <Row label="SLA breach warning (minutes)">
                         <input type="number" value={slaWarn} onChange={e => setSlaWarn(e.target.value)} min="1"
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                     <Row label="Max open incidents before escalation">
                         <input type="number" value={maxOpen} onChange={e => setMaxOpen(e.target.value)} min="1"
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                 </Section>
 
@@ -126,18 +124,17 @@ export default function SettingsPage() {
                 <Section title="Data Retention">
                     <Row label="Alert retention (days)">
                         <input type="number" value={alertRet} onChange={e => setAlertRet(e.target.value)} min="1"
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                     <Row label="Log retention (days)">
                         <input type="number" value={logRet} onChange={e => setLogRet(e.target.value)} min="1"
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                     <Row label="Report retention (days)">
                         <input type="number" value={reportRet} onChange={e => setReportRet(e.target.value)} min="1"
-                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-green/20" />
+                            className="bg-card-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground w-24 focus:outline-none focus:ring-2 focus:ring-blue/20" />
                     </Row>
                 </Section>
             </div>
-        </PageLayout>
     );
 }

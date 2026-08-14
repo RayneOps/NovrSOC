@@ -13,7 +13,7 @@ export function Globe3D() {
           threat clustering and ASN intelligence.
         </p>
 
-        <p className="mt-6 text-green font-semibold">
+        <p className="mt-6 text-blue font-semibold">
           Coming in Backend Phase
         </p>
       </div>

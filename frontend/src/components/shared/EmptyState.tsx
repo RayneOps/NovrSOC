@@ -14,7 +14,7 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, action
     const actionClasses = 'text-xs font-bold px-4 py-2 bg-red hover:bg-red-hover text-white rounded-lg transition-colors';
     return (
         <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-            <Icon size={40} strokeWidth={1.5} className="text-green mb-4" />
+            <Icon size={40} strokeWidth={1.5} className="text-blue mb-4" />
             <h3 className="text-sm font-bold text-foreground mb-1">{title}</h3>
             {description && <p className="text-xs text-foreground-muted max-w-sm mb-4">{description}</p>}
             {actionLabel && (

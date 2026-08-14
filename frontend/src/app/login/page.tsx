@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
                 return;
             }
             localStorage.setItem('admin_token', data.token);
-            router.push('/dashboard');
+            router.push('/admin/dashboard');
         } catch {
             setError('Invalid credentials');
         } finally {
@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
                 return;
             }
             localStorage.setItem('admin_token', data.token);
-            router.push('/dashboard');
+            router.push('/admin/dashboard');
         } catch {
             setError('Google sign-in failed. Please try again.');
         }
@@ -129,13 +129,9 @@ export default function AdminLoginPage() {
                 width="100%"
             />
 
-            <p className="text-center text-xs text-foreground-muted mt-6">
-                Don&rsquo;t have an account?{' '}
-                <Link href="/signup" className="text-blue font-semibold hover:underline">Sign up</Link>
-            </p>
-            <p className="text-center text-[10px] text-foreground-muted mt-4">
+            <p className="text-center text-[10px] text-foreground-muted mt-6">
                 Client? Access your portal at{' '}
-                <Link href="/portal/login" className="text-blue font-semibold hover:underline">/portal/login</Link>
+                <Link href="/client/login" className="text-blue font-semibold hover:underline">/client/login</Link>
             </p>
             <p className="text-center text-[10px] text-foreground-muted mt-4">Powered by Cybernovr</p>
         </AuthShell>
