@@ -38,7 +38,14 @@ import assetsRouter from './routes/assets';
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
 
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000' }));
+// FRONTEND_ORIGIN accepts a comma-separated list so the deployed Vercel URL can be added
+// alongside localhost:3000 without breaking local dev (a single-string origin would force
+// picking one or the other).
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // Health check endpoint (Railway uses this) — kept ahead of every other route so it's
