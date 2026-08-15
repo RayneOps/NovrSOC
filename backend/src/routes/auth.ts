@@ -19,14 +19,16 @@ function issueDevToken(payload: Record<string, unknown>): string {
 
 // POST /api/auth/signin (admin/staff login proxy)
 router.post('/signin', async (req, res) => {
-    // Dev-mode bypass: only active outside production, and only when DEV_ADMIN_EMAIL /
-    // DEV_ADMIN_PASSWORD are explicitly set in the environment. If the submitted
-    // credentials match, issue a local dev JWT without ever calling the external API —
-    // this exists so the platform is loginable in local/dev setups with no real backend
-    // account provisioned yet. Never set these env vars in a production deployment.
+    // Admin bypass, gated purely on DEV_ADMIN_EMAIL / DEV_ADMIN_PASSWORD being set — not on
+    // NODE_ENV. Deliberately allowed in production: it's how this platform logs in at all
+    // right now, since no downstream account-backed auth exists yet at APP_API_BASE_URL.
+    // The env vars ARE the "is this enabled" flag — if they're set (anywhere, including
+    // Railway), matching credentials mint a super_admin token. Treat DEV_ADMIN_PASSWORD and
+    // DEV_TOKEN_SECRET (below) as real production secrets, not placeholders, and unset
+    // DEV_ADMIN_EMAIL/DEV_ADMIN_PASSWORD if this bypass should ever stop being reachable.
     const devEmail = process.env.DEV_ADMIN_EMAIL;
     const devPassword = process.env.DEV_ADMIN_PASSWORD;
-    if (process.env.NODE_ENV !== 'production' && devEmail && devPassword) {
+    if (devEmail && devPassword) {
         const { email, password } = req.body ?? {};
         if (email === devEmail && password === devPassword) {
             const name = process.env.DEV_ADMIN_NAME || 'Dev Admin';

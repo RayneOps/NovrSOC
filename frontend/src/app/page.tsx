@@ -216,8 +216,8 @@ export default function LandingPage() {
                     </div>
                     <div className="flex items-center justify-center gap-12">
                         {[
-                            { number: '22', label: 'Security Features' },
-                            { number: '6', label: 'Protection Domains' },
+                            { number: '22+', label: 'Security Features' },
+                            { number: '6+', label: 'Protection Domains' },
                             { number: 'AI', label: 'Real-Time Detection' },
                         ].map((stat) => (
                             <div key={stat.label} className="text-center">
