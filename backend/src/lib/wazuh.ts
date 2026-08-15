@@ -10,23 +10,32 @@ interface WazuhResponse {
     json: unknown;
 }
 
-function request(path: string, authHeader: string, method: 'GET' | 'POST' = 'GET'): Promise<WazuhResponse> {
+function request(path: string, authHeader: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<WazuhResponse> {
     return new Promise((resolve, reject) => {
+        const payload = body !== undefined ? JSON.stringify(body) : undefined;
+        const headers: Record<string, string> = { Authorization: authHeader };
+        if (payload !== undefined) {
+            headers['Content-Type'] = 'application/json';
+            headers['Content-Length'] = String(Buffer.byteLength(payload));
+        }
         const req = https.request(
             {
                 hostname: WAZUH_HOST,
                 port: WAZUH_PORT,
                 path,
                 method,
-                headers: { Authorization: authHeader },
+                headers,
+                // Wazuh ships with a self-signed cert by default — this app talks to a known,
+                // pinned-by-config host/port, not arbitrary user-supplied URLs, so disabling
+                // verification here is scoped to this client only (not process-wide).
                 rejectUnauthorized: false,
             },
             (res) => {
-                let body = '';
-                res.on('data', (chunk) => (body += chunk));
+                let respBody = '';
+                res.on('data', (chunk) => (respBody += chunk));
                 res.on('end', () => {
                     try {
-                        resolve({ status: res.statusCode ?? 500, json: JSON.parse(body) });
+                        resolve({ status: res.statusCode ?? 500, json: JSON.parse(respBody) });
                     } catch {
                         resolve({ status: res.statusCode ?? 500, json: null });
                     }
@@ -34,13 +43,16 @@ function request(path: string, authHeader: string, method: 'GET' | 'POST' = 'GET
             }
         );
         req.on('error', reject);
+        if (payload !== undefined) req.write(payload);
         req.end();
     });
 }
 
 let cachedToken: { token: string; expires: number } | null = null;
 
-async function getToken(): Promise<string> {
+/** POST /security/user/authenticate with Basic auth — returns a JWT, cached for ~14 min
+ *  (Wazuh's default token TTL is 15 min). */
+export async function authenticate(): Promise<string> {
     if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
     if (!WAZUH_PASS) throw new Error('WAZUH_API_PASSWORD (or WAZUH_PASS) environment variable is not set');
     const basic = 'Basic ' + Buffer.from(`${WAZUH_USER}:${WAZUH_PASS}`).toString('base64');
@@ -52,6 +64,11 @@ async function getToken(): Promise<string> {
 }
 
 export async function wazuhGet(path: string): Promise<WazuhResponse> {
-    const token = await getToken();
+    const token = await authenticate();
     return request(path, `Bearer ${token}`, 'GET');
+}
+
+export async function wazuhPost(path: string, body?: unknown): Promise<WazuhResponse> {
+    const token = await authenticate();
+    return request(path, `Bearer ${token}`, 'POST', body);
 }

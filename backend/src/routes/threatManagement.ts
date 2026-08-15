@@ -1,9 +1,13 @@
 import { Router } from 'express';
+import { search } from '../lib/wazuh-indexer';
 
-// SecOps Threat Management console — live security event stream from Wazuh/Zeek/Suricata.
-// Demo data for now (real sensor ingestion is a later pass, same pattern as elsewhere in
-// this backend). Not to be confused with routes/threat-intel.ts / routes/ctip.ts, which power
-// the separate CTIP-backed threat-intel dashboards.
+// SecOps Threat Management console — live security event stream from the Wazuh Indexer
+// (wazuh-alerts-4.x-*, same OpenSearch backend /api/wazuh/alerts-indexer queries), falling
+// back to demo data when the indexer isn't configured, unreachable, or has nothing indexed
+// yet. The Manager REST API's GET /alerts (services/wazuh.ts's getAlerts) 404s on this
+// deployment (Wazuh v4.7.5) — alert search only works through the indexer here. Not to be
+// confused with routes/threat-intel.ts / routes/ctip.ts, which power the separate
+// CTIP-backed threat-intel dashboards.
 
 const router = Router();
 
@@ -209,17 +213,122 @@ const MOCK_STATS = {
     mitre_tactics_seen: ['Command and Control', 'Credential Access', 'Persistence', 'Exfiltration'],
 };
 
-router.get('/alerts', (req, res) => {
+// Shape of a wazuh-alerts-4.x-* document as returned by the Indexer's _search — see
+// routes/wazuh.ts's /alerts-indexer, /trend, /incidents for the same interface pattern.
+interface IndexerAlertHit {
+    _id: string;
+    _source: {
+        timestamp?: string;
+        rule?: {
+            id?: number | string;
+            level?: number;
+            description?: string;
+            groups?: string[];
+            mitre?: { tactic?: string[]; technique?: string[] };
+        };
+        agent?: { id?: string; name?: string };
+        data?: { srcip?: string };
+        location?: string;
+    };
+}
+interface IndexerSearchResponse {
+    hits?: { hits?: IndexerAlertHit[]; total?: { value?: number } };
+}
+
+// Wazuh alerts don't carry a NovrSOC-side triage status/incident link — 'open' is the honest
+// default for anything freshly indexed. PATCH/create-incident below mutate whatever list is
+// currently cached here, live or mock, so triage actions still stick between requests even
+// though GET /alerts re-queries the indexer each time.
+function mapIndexerAlert(hit: IndexerAlertHit): ThreatAlert {
+    const src = hit._source;
+    const level = src.rule?.level ?? 0;
+    const severity: Severity = level >= 12 ? 'critical' : level >= 9 ? 'high' : level >= 6 ? 'medium' : 'low';
+    return {
+        id: hit._id,
+        rule_id: src.rule?.id != null ? String(src.rule.id) : '',
+        rule_level: level,
+        rule_description: src.rule?.description ?? 'Wazuh alert',
+        severity,
+        status: 'open',
+        mitre_tactic: src.rule?.mitre?.tactic?.[0] ?? '—',
+        mitre_technique: src.rule?.mitre?.technique?.[0] ?? '—',
+        source_ip: src.data?.srcip ?? null,
+        source_country: null,
+        source_isp: null,
+        destination_ip: '—',
+        destination_host: src.agent?.name ?? 'Unknown',
+        destination_port: null,
+        protocol: 'N/A',
+        agent_id: src.agent?.id ?? '',
+        agent_name: src.agent?.name ?? 'Unknown',
+        alert_count: 1,
+        raw_log: src.location ?? '',
+        detected_at: src.timestamp ?? new Date().toISOString(),
+        tags: src.rule?.groups ?? [],
+        abuseipdb_confidence: null,
+        vt_malicious: null,
+        otx_pulses: null,
+    };
+}
+
+function computeStats(alerts: ThreatAlert[]) {
+    const countBy = (pred: (a: ThreatAlert) => boolean) => alerts.filter(pred).length;
+    return {
+        total_alerts_24h: alerts.length,
+        critical: countBy((a) => a.severity === 'critical'),
+        high: countBy((a) => a.severity === 'high'),
+        medium: countBy((a) => a.severity === 'medium'),
+        low: countBy((a) => a.severity === 'low'),
+        open: countBy((a) => a.status === 'open'),
+        investigating: countBy((a) => a.status === 'investigating'),
+        acknowledged: countBy((a) => a.status === 'acknowledged'),
+        active_agents: new Set(alerts.map((a) => a.agent_id)).size,
+        mitre_tactics_seen: Array.from(new Set(alerts.map((a) => a.mitre_tactic).filter((t) => t && t !== '—'))),
+    };
+}
+
+// Cache of whatever list GET /alerts last served — MOCK_ALERTS until (and unless) a live
+// Wazuh fetch succeeds. /:id, PATCH, and create-incident all read/write this, not MOCK_ALERTS
+// directly, so they stay consistent with whatever the list view is currently showing.
+let liveAlerts: ThreatAlert[] = MOCK_ALERTS;
+let usingMockStats = true;
+
+async function loadAlerts(limit: number): Promise<ThreatAlert[]> {
+    try {
+        const result = await search<IndexerSearchResponse>('wazuh-alerts-4.x-*', {
+            size: limit,
+            sort: [{ timestamp: { order: 'desc' } }],
+            query: { match_all: {} },
+        });
+        const hits = result?.hits?.hits ?? [];
+        if (hits.length > 0) {
+            liveAlerts = hits.map(mapIndexerAlert);
+            usingMockStats = false;
+            return liveAlerts;
+        }
+    } catch {
+        // Indexer not configured, unreachable, or auth failed — fall through to mock below.
+    }
+    liveAlerts = MOCK_ALERTS;
+    usingMockStats = true;
+    return liveAlerts;
+}
+
+router.get('/alerts', async (req, res) => {
     const { severity, status, limit = '50' } = req.query;
-    let alerts = [...MOCK_ALERTS];
+    const parsedLimit = parseInt(String(limit), 10) || 50;
+
+    const all = await loadAlerts(parsedLimit);
+    let alerts = [...all];
     if (severity && severity !== 'all') alerts = alerts.filter((a) => a.severity === severity);
     if (status && status !== 'all') alerts = alerts.filter((a) => a.status === status);
-    alerts = alerts.slice(0, parseInt(String(limit), 10) || 50);
-    res.json({ alerts, stats: MOCK_STATS });
+    alerts = alerts.slice(0, parsedLimit);
+
+    res.json({ alerts, stats: usingMockStats ? MOCK_STATS : computeStats(all) });
 });
 
 router.get('/alerts/:id', (req, res) => {
-    const alert = MOCK_ALERTS.find((a) => a.id === req.params.id);
+    const alert = liveAlerts.find((a) => a.id === req.params.id);
     if (!alert) {
         res.status(404).json({ error: 'Alert not found' });
         return;
@@ -229,7 +338,7 @@ router.get('/alerts/:id', (req, res) => {
 
 router.patch('/alerts/:id', (req, res) => {
     const { status }: { status?: AlertStatus } = req.body ?? {};
-    const alert = MOCK_ALERTS.find((a) => a.id === req.params.id);
+    const alert = liveAlerts.find((a) => a.id === req.params.id);
     if (!alert) {
         res.status(404).json({ error: 'Alert not found' });
         return;
@@ -239,7 +348,7 @@ router.patch('/alerts/:id', (req, res) => {
 });
 
 router.post('/alerts/:id/create-incident', (req, res) => {
-    const alert = MOCK_ALERTS.find((a) => a.id === req.params.id);
+    const alert = liveAlerts.find((a) => a.id === req.params.id);
     if (!alert) {
         res.status(404).json({ error: 'Alert not found' });
         return;
@@ -248,7 +357,7 @@ router.post('/alerts/:id/create-incident', (req, res) => {
 });
 
 router.get('/stats', (_req, res) => {
-    res.json(MOCK_STATS);
+    res.json(usingMockStats ? MOCK_STATS : computeStats(liveAlerts));
 });
 
 export default router;

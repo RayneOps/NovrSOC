@@ -2,12 +2,29 @@ import { Router } from 'express';
 import { wazuhGet } from '../lib/wazuh';
 import { getAgentsForGroup, getAgentNamesForGroup } from '../lib/wazuh-group';
 import { search } from '../lib/wazuh-indexer';
+import { isConfigured as wazuhConfigured, getAgents as getWazuhAgents } from '../services/wazuh';
 
 const router = Router();
 const CTIP_URL = process.env.CTIP_API_URL || 'http://138.197.188.132:8001';
 
 const groupParam = (req: import('express').Request) =>
     typeof req.query.group === 'string' ? req.query.group : null;
+
+// GET /api/wazuh/status — connectivity test for the Manager REST API (services/wazuh.ts),
+// separate from the indexer-backed routes below which use lib/wazuh + lib/wazuh-indexer.
+router.get('/status', async (_req, res) => {
+    if (!wazuhConfigured()) {
+        res.json({ connected: false, agent_count: 0, active_agents: 0 });
+        return;
+    }
+    try {
+        const agents = await getWazuhAgents();
+        const active = agents.filter((a) => a.status === 'active').length;
+        res.json({ connected: true, agent_count: agents.length, active_agents: active });
+    } catch {
+        res.json({ connected: false, agent_count: 0, active_agents: 0 });
+    }
+});
 
 // GET /api/wazuh/alerts — talks to the Wazuh Manager REST API (port 55000), not the Indexer.
 router.get('/alerts', async (_req, res) => {

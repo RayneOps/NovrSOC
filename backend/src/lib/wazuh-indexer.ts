@@ -3,7 +3,9 @@ import https from 'https';
 const INDEXER_HOST = process.env.WAZUH_INDEXER_HOST || '164.92.203.205';
 const INDEXER_PORT = Number(process.env.WAZUH_INDEXER_PORT || 9200);
 const INDEXER_USER = process.env.WAZUH_INDEXER_USER || 'admin';
-const INDEXER_PASS = process.env.WAZUH_INDEXER_PASS;
+// Accepts either name — local .env has historically used WAZUH_INDEXER_PASS, Railway/newer
+// setup docs use WAZUH_INDEXER_PASSWORD for the same value.
+const INDEXER_PASS = process.env.WAZUH_INDEXER_PASSWORD || process.env.WAZUH_INDEXER_PASS;
 
 /**
  * Shared low-level query helper for the Wazuh Indexer (OpenSearch/Elasticsearch, port 9200).
