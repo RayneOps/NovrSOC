@@ -8,6 +8,14 @@ out/
 .env.local
 .env*.local
 
+# Exception: frontend/.env is committed deliberately. It holds only NEXT_PUBLIC_* values
+# (currently just the Google OAuth client ID) — those are baked into the client bundle and
+# shipped to every visitor's browser by Next.js design, so there's nothing to protect by
+# keeping this file untracked. It exists so Vercel has these vars at build time even if the
+# dashboard's own env var config is ever missing/wrong. NEVER put a secret in this file —
+# use .env.local (real secrets, gitignored above) or the platform's env var dashboard instead.
+!.env
+
 # misc
 .DS_Store
 *.tsbuildinfo

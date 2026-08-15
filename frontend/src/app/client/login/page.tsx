@@ -1,14 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import type { CredentialResponse } from '@react-oauth/google';
 import { setPortalSession } from '@/lib/portal-auth';
 import { apiUrl } from '@/lib/api';
 import { NovrSOCLogo } from '@/components/shared/NovrSOCLogo';
 import { AuthField } from '@/components/auth/AuthField';
+
+// See frontend/src/app/login/page.tsx for why this is dynamic + ssr:false.
+const GoogleLogin = dynamic(
+    () => import('@react-oauth/google').then((m) => ({ default: m.GoogleLogin })),
+    { ssr: false }
+);
 
 const FEATURE_PILLS = ['Real-time threat monitoring', 'Brand protection', 'Incident response'];
 

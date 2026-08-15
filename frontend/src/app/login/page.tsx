@@ -1,11 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import type { CredentialResponse } from '@react-oauth/google';
 import { apiUrl } from '@/lib/api';
+
+// Dynamically imported with ssr:false: @react-oauth/google's GoogleLogin throws "Google
+// OAuth components must be used within GoogleOAuthProvider" if it ever renders without a
+// live provider in context (e.g. NEXT_PUBLIC_GOOGLE_CLIENT_ID missing at build time) — this
+// keeps that failure mode from taking down static prerendering of this page. Only the
+// button itself is deferred to the client; the rest of the page still prerenders normally.
+const GoogleLogin = dynamic(
+    () => import('@react-oauth/google').then((m) => ({ default: m.GoogleLogin })),
+    { ssr: false }
+);
 import { AuthShell } from '@/components/auth/AuthShell';
 import { AuthField } from '@/components/auth/AuthField';
 
