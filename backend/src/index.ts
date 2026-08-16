@@ -38,14 +38,25 @@ import assetsRouter from './routes/assets';
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
 
-// FRONTEND_ORIGIN accepts a comma-separated list so the deployed Vercel URL can be added
-// alongside localhost:3000 without breaking local dev (a single-string origin would force
-// picking one or the other).
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
-app.use(cors({ origin: allowedOrigins }));
+// Origins allowed to call this API with credentials. Known Vercel deployments (prod +
+// preview) and local dev ports are listed explicitly; FRONTEND_URL and the legacy
+// comma-separated FRONTEND_ORIGIN are folded in too so a Railway env var can add one
+// without a code change or override what's hardcoded here.
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://socnovr.vercel.app',
+    'https://novrsoc-prev.vercel.app',
+    process.env.FRONTEND_URL,
+    ...(process.env.FRONTEND_ORIGIN?.split(',').map((o) => o.trim()) ?? []),
+].filter((o): o is string => Boolean(o));
+
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 // Health check endpoint (Railway uses this) — kept ahead of every other route so it's
