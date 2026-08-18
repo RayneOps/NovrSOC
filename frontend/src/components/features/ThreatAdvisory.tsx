@@ -270,7 +270,7 @@ export function ThreatAdvisory() {
                                                         View CISA KEV entry <ExternalLink size={11} />
                                                     </a>
                                                 )}
-                                                <button onClick={(e) => e.stopPropagation()} className="ml-auto text-xs bg-red hover:bg-red-hover text-white px-3 py-1.5 rounded-lg transition-colors">
+                                                <button onClick={(e) => e.stopPropagation()} className="ml-auto text-xs bg-orange hover:bg-orange-hover text-white px-3 py-1.5 rounded-lg transition-colors">
                                                     Create Ticket
                                                 </button>
                                                 <button onClick={(e) => e.stopPropagation()} className="text-xs border border-border text-foreground-muted px-3 py-1.5 rounded-lg hover:border-grey-300 transition-colors">

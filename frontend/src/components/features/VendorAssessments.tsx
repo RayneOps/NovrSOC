@@ -216,7 +216,7 @@ export function VendorAssessments() {
                     <button className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 border border-border text-foreground-muted rounded-lg hover:bg-card-muted transition-colors"><Download size={12} /> Export PDF Report</button>
                     <button className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 border border-blue text-blue rounded-lg hover:bg-blue/10 transition-colors"><Mail size={12} /> Send Vendor Security Requirements</button>
                     <button className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 border border-border text-foreground-muted rounded-lg hover:bg-card-muted transition-colors"><Calendar size={12} /> Schedule Re-assessment</button>
-                    <button className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-red hover:bg-red-hover text-white rounded-lg transition-colors"><ArrowUpRight size={12} /> Escalate to Management</button>
+                    <button className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-orange hover:bg-orange-hover text-white rounded-lg transition-colors"><ArrowUpRight size={12} /> Escalate to Management</button>
                 </div>
             </div>
         );

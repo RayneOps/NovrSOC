@@ -135,7 +135,7 @@ export default function ClientLoginPage() {
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="w-full py-2.5 bg-red hover:bg-red-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                            className="w-full py-2.5 bg-orange hover:bg-orange-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
                         >
                             {submitting ? 'Signing In…' : 'Sign In'}
                         </button>

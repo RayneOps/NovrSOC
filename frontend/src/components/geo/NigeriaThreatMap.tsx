@@ -81,11 +81,11 @@ const STATE_KPIS: [string, number][] = [
 
 const LEGEND: { label: string; color: string }[] = [
     { label: 'Malware', color: '#CC2B2B' },
-    { label: 'Phishing', color: '#D97706' },
-    { label: 'Botnet', color: '#6B1FA8' },
+    { label: 'Phishing', color: '#F59E0B' },
+    { label: 'Botnet', color: '#520385' },
     { label: 'Ransomware', color: '#CC2B2B' },
     { label: 'DDoS', color: '#2B3BCC' },
-    { label: 'Credential Theft', color: '#D97706' },
+    { label: 'Credential Theft', color: '#F59E0B' },
 ];
 
 const TIME_RANGES: { value: '1h' | '24h' | '7d'; label: string }[] = [
@@ -97,6 +97,7 @@ const TIME_RANGES: { value: '1h' | '24h' | '7d'; label: string }[] = [
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] | null }) => {
     const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d'>('24h');
+    const [colorMode, setColorMode] = useState<'threat' | 'region'>('threat');
     const [stateOverrides, setStateOverrides] = useState<Record<string, StateThreatInfo>>({});
 
     useEffect(() => {
@@ -140,6 +141,19 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                                 <p className="text-xs text-foreground-muted mt-0.5">Inbound attacks targeting NovrSOC-protected clients</p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <div className="flex items-center gap-0.5 bg-card-muted border border-border rounded-lg p-0.5 mr-1">
+                                    {(['threat', 'region'] as const).map((mode) => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setColorMode(mode)}
+                                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
+                                                colorMode === mode ? 'bg-purple text-white' : 'text-foreground-muted hover:text-foreground'
+                                            }`}
+                                        >
+                                            {mode}
+                                        </button>
+                                    ))}
+                                </div>
                                 {TIME_RANGES.map((r) => (
                                     <button
                                         key={r.value}
@@ -155,7 +169,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                         </div>
 
                         <div className="rounded-xl border border-border bg-card-muted p-4">
-                            <NigeriaMap2 stateOverrides={stateOverrides} />
+                            <NigeriaMap2 stateOverrides={stateOverrides} colorMode={colorMode} />
                         </div>
                     </div>
 

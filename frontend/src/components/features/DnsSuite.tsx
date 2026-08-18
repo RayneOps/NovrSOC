@@ -203,7 +203,7 @@ function DNSPageContent() {
                             <button
                                 onClick={() => analyse()}
                                 disabled={loading || !domain.trim()}
-                                className="px-6 py-2.5 bg-red hover:bg-red-hover disabled:opacity-60 text-white text-xs font-black rounded-lg transition-colors whitespace-nowrap"
+                                className="px-6 py-2.5 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white text-xs font-black rounded-lg transition-colors whitespace-nowrap"
                             >
                                 {loading ? '⏳ Analysing…' : 'Analyse Domain'}
                             </button>

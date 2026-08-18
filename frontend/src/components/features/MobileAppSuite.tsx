@@ -348,7 +348,7 @@ export function MobileAppSuite() {
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={() => setShowAddModal(false)} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
-                            <button onClick={addApp} disabled={saving || !name.trim()} className="flex-1 bg-red hover:bg-red-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                            <button onClick={addApp} disabled={saving || !name.trim()} className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
                                 {saving ? 'Saving…' : 'Save'}
                             </button>
                         </div>

@@ -122,7 +122,7 @@ export function DMARCSaaS() {
                     <h1 className="text-lg font-black text-foreground">DMARC SaaS</h1>
                     <p className="text-xs text-foreground-muted">Email Security · Aggregate and analyze DMARC reports to protect domains from email spoofing. Monitor authentication pass rates and enforce strict delivery policies.</p>
                 </div>
-                <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-red hover:bg-red-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors flex-shrink-0">
+                <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors flex-shrink-0">
                     <Plus size={14} />
                     Add Domain
                 </button>
@@ -348,7 +348,7 @@ export function DMARCSaaS() {
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={() => setShowAddModal(false)} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
-                            <button onClick={addDomain} disabled={!newDomain.trim()} className="flex-1 bg-red hover:bg-red-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">Start Monitoring</button>
+                            <button onClick={addDomain} disabled={!newDomain.trim()} className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">Start Monitoring</button>
                         </div>
                     </div>
                 </div>

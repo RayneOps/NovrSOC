@@ -139,7 +139,7 @@ export function UrlScanSuite() {
                             <button
                                 onClick={submitScan}
                                 disabled={scanning || !url.trim()}
-                                className="flex items-center gap-2 bg-red hover:bg-red-hover text-white px-5 py-2.5 rounded-lg text-xs font-black disabled:opacity-50 transition-colors min-w-[110px] justify-center"
+                                className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white px-5 py-2.5 rounded-lg text-xs font-black disabled:opacity-50 transition-colors min-w-[110px] justify-center"
                             >
                                 {scanning ? (<><RefreshCw size={14} className="animate-spin" /> Scanning…</>) : (<><Search size={14} /> Scan URL</>)}
                             </button>

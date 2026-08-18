@@ -126,7 +126,7 @@ export function ExecutiveMonitor() {
                     </button>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 bg-red hover:bg-red-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors"
+                        className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors"
                     >
                         <Plus size={14} />
                         Add Executive
@@ -267,7 +267,7 @@ export function ExecutiveMonitor() {
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={() => setShowAddModal(false)} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
-                            <button onClick={addExecutive} disabled={saving || !name.trim() || !email.trim()} className="flex-1 bg-red hover:bg-red-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                            <button onClick={addExecutive} disabled={saving || !name.trim() || !email.trim()} className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
                                 {saving ? 'Adding…' : 'Add Executive'}
                             </button>
                         </div>

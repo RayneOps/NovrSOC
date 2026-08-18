@@ -252,7 +252,7 @@ export function CtiPlatform() {
                             <button
                                 onClick={lookup}
                                 disabled={loading || !iocValue.trim()}
-                                className="flex items-center gap-2 bg-red hover:bg-red-hover text-white px-5 py-2 rounded-lg text-xs font-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px] justify-center"
+                                className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white px-5 py-2 rounded-lg text-xs font-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px] justify-center"
                             >
                                 {loading ? (<><RefreshCw size={14} className="animate-spin" /> Scanning…</>) : (<><Search size={14} /> Lookup</>)}
                             </button>

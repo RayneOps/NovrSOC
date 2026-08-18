@@ -5,12 +5,17 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* ---- Cybernovr brand palette (from official logo) — fixed, do not change per theme ---- */
+  /* ---- Cybernovr brand palette — fixed, do not change per theme ----
+     Updated 2026-08-17 to the official palette: purple deepened to #520385,
+     orange added as the dedicated CTA color (red is now reserved for
+     destructive/critical actions only — it used to double as the CTA color). */
   --brand-blue: #2B3BCC;
   --brand-red: #CC2B2B;
   --brand-red-hover: #B02424;
-  --brand-purple: #6B1FA8;
-  --brand-purple-hover: #5A1A8F;
+  --brand-purple: #520385;
+  --brand-purple-hover: #420270;
+  --brand-orange: #FF5500;
+  --brand-orange-hover: #E54D00;
   --brand-white: #FFFFFF;
   --brand-grey-50: #F8F9FC;
   --brand-grey-100: #EEF0F6;
@@ -22,13 +27,13 @@
   /* Semantic status colors — kept distinct from the brand triad on purpose:
      success/warning need to read as "good/caution" regardless of brand color. */
   --brand-success: #16A34A;
-  --brand-warning: #D97706;
+  --brand-warning: #F59E0B;
 
   /* ---- Semantic tokens — flip between light/dark. Light is the default theme. ---- */
   --surface: var(--brand-grey-50);
   --card: var(--brand-white);
   --card-muted: var(--brand-grey-100);
-  --border-default: var(--brand-grey-300);
+  --border-default: var(--brand-grey-100);
   --foreground: var(--brand-grey-800);
   --foreground-muted: var(--brand-grey-500);
 }
@@ -49,6 +54,8 @@
   --color-red-hover: var(--brand-red-hover);
   --color-purple: var(--brand-purple);
   --color-purple-hover: var(--brand-purple-hover);
+  --color-orange: var(--brand-orange);
+  --color-orange-hover: var(--brand-orange-hover);
   --color-green: var(--brand-success);
   --color-amber: var(--brand-warning);
   --color-grey-50: var(--brand-grey-50);

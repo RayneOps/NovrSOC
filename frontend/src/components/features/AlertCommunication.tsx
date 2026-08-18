@@ -317,7 +317,7 @@ export function AlertCommunication() {
                         <button
                             onClick={sendAlert}
                             disabled={sending || !sendForm.title}
-                            className="w-full flex items-center justify-center gap-2 bg-red hover:bg-red-hover text-white text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 bg-orange hover:bg-orange-hover text-white text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50 transition-colors"
                         >
                             {sending ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                             {sending ? 'Dispatching…' : 'Dispatch Alert'}

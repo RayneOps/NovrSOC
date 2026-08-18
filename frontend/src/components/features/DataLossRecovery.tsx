@@ -156,7 +156,7 @@ export function DataLossRecovery() {
                     </div>
                     <button
                         onClick={() => failedJobs[0] && retryJob(failedJobs[0].id)}
-                        className="flex items-center gap-1.5 bg-red hover:bg-red-hover text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        className="flex items-center gap-1.5 bg-orange hover:bg-orange-hover text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                     >
                         <RotateCcw size={12} />
                         Retry Now

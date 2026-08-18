@@ -233,7 +233,7 @@ export function MessagingSuite() {
                                         onKeyDown={(e) => e.key === 'Enter' && runRblCheck()}
                                         className="flex-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
                                     <button onClick={runRblCheck} disabled={rblChecking || !rblIp.trim()}
-                                        className="flex items-center gap-2 bg-red hover:bg-red-hover disabled:opacity-60 text-white px-5 py-2.5 rounded-lg text-xs font-black transition-colors">
+                                        className="flex items-center gap-2 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white px-5 py-2.5 rounded-lg text-xs font-black transition-colors">
                                         {rblChecking ? (<><RefreshCw size={14} className="animate-spin" /> Checking…</>) : (<><Search size={14} /> Check</>)}
                                     </button>
                                 </div>

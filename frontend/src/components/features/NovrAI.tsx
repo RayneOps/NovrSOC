@@ -175,7 +175,7 @@ export function NovrAI() {
                                 className="flex-1 bg-card-muted border border-border rounded-xl px-4 py-2.5 text-xs text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-blue/20 resize-none"
                             />
                             <button onClick={() => send(input)} disabled={loading || !input.trim()}
-                                className="px-4 py-2.5 bg-red hover:bg-red-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-colors">
+                                className="px-4 py-2.5 bg-orange hover:bg-orange-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-colors">
                                 Send
                             </button>
                         </div>

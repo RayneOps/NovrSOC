@@ -21,7 +21,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
                 <p className="text-xs font-bold text-foreground uppercase tracking-wide">{title}</p>
                 {children}
                 <div className="pt-2 border-t border-border">
-                    <button className="px-4 py-2 bg-red hover:bg-red-hover text-white text-xs font-bold rounded-lg transition-colors">
+                    <button className="px-4 py-2 bg-orange hover:bg-orange-hover text-white text-xs font-bold rounded-lg transition-colors">
                         Save Changes
                     </button>
                 </div>

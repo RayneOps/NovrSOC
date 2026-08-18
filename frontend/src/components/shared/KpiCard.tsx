@@ -4,8 +4,9 @@ import type { LucideIcon } from 'lucide-react';
 const borderAccent: Record<string, string> = {
     blue:   'border-l-blue',
     purple: 'border-l-purple',
-    orange: 'border-l-red',
+    orange: 'border-l-orange',
     red:    'border-l-red',
+    green:  'border-l-green',
 };
 
 function trendClasses(trend?: string) {

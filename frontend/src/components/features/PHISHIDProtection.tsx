@@ -206,7 +206,7 @@ export function PHISHIDProtection() {
                                 </tbody>
                             </table>
                             <div className="px-4 py-3 border-t border-border">
-                                <button className="text-xs font-bold px-3 py-2 bg-red hover:bg-red-hover text-white rounded-lg transition-colors">+ Deploy Extension</button>
+                                <button className="text-xs font-bold px-3 py-2 bg-orange hover:bg-orange-hover text-white rounded-lg transition-colors">+ Deploy Extension</button>
                             </div>
                         </div>
                     )}

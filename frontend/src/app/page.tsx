@@ -142,7 +142,7 @@ function ContactForm() {
             <button
                 type="submit"
                 disabled={status === 'sending'}
-                className="w-full bg-red hover:bg-red-hover disabled:opacity-60 text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
+                className="w-full bg-orange hover:bg-orange-hover disabled:opacity-60 text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
             >
                 {status === 'sending' ? 'Sending…' : 'Request a Demo'}
             </button>
@@ -179,7 +179,7 @@ export default function LandingPage() {
                         <Link href="/login" className="text-sm text-grey-500 hover:text-grey-800 transition-colors">Sign In</Link>
                         <a
                             href="#contact"
-                            className="bg-red hover:bg-red-hover text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+                            className="bg-orange hover:bg-orange-hover text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
                         >
                             Request Demo
                         </a>
@@ -203,7 +203,7 @@ export default function LandingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
                         <a
                             href="#contact"
-                            className="bg-red hover:bg-red-hover text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
+                            className="bg-orange hover:bg-orange-hover text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
                         >
                             Request a Demo
                         </a>
