@@ -141,15 +141,15 @@ export function RecoveryCredit() {
                 </div>
             )}
 
-            {/* UptimeRobot status */}
+            {/* Independent Uptime Monitor status */}
             <div className={`flex items-center gap-3 p-3 rounded-lg border text-xs ${
                 summary?.uptimerobot_status === 'connected' ? 'bg-green/10 border-green/30 text-green' : 'bg-card-muted border-border text-foreground-muted'
             }`}>
                 <Wifi size={14} />
                 <span>
-                    UptimeRobot: {summary?.uptimerobot_status === 'connected'
+                    Independent Uptime Monitor: {summary?.uptimerobot_status === 'connected'
                         ? 'Connected — independent uptime verification active'
-                        : 'Not connected — add UPTIMEROBOT_API_KEY for third-party verification'}
+                        : 'Not connected — third-party verification not yet configured'}
                 </span>
             </div>
 

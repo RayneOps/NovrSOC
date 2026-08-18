@@ -102,7 +102,7 @@ export function UrlScanSuite() {
         <div className="space-y-4">
             <div>
                 <h1 className="text-lg font-black text-foreground">URL Scan Suite</h1>
-                <p className="text-xs text-foreground-muted">Threat Intelligence · Submit suspicious URLs for instant threat analysis via URLHaus, ThreatFox, and Google Safe Browsing</p>
+                <p className="text-xs text-foreground-muted">Threat Intelligence · Submit suspicious URLs for instant multi-source threat analysis</p>
             </div>
 
             {/* Tabs */}
@@ -208,25 +208,25 @@ export function UrlScanSuite() {
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-amber" />
-                                            <span className="text-xs font-semibold text-foreground">URLHaus</span>
+                                            <span className="text-xs font-semibold text-foreground">Malicious URL Database</span>
                                         </div>
                                         {result.sources.urlhaus ? (
                                             <>
                                                 <div className="text-sm font-bold text-red-500">{result.sources.urlhaus.threat}</div>
                                                 <div className="text-xs text-foreground-muted mt-1">Status: {result.sources.urlhaus.status}</div>
                                                 <a href={result.sources.urlhaus.reference} target="_blank" rel="noopener noreferrer" className="text-xs text-blue flex items-center gap-1 mt-1 hover:text-purple">
-                                                    URLHaus report <ExternalLink size={10} />
+                                                    View full report <ExternalLink size={10} />
                                                 </a>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">Not in URLHaus database ✓</div>
+                                            <div className="text-xs text-foreground-muted">Not in Malicious URL Database ✓</div>
                                         )}
                                     </div>
 
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-blue" />
-                                            <span className="text-xs font-semibold text-foreground">ThreatFox</span>
+                                            <span className="text-xs font-semibold text-foreground">Malware Intelligence Feed</span>
                                         </div>
                                         {result.sources.threatfox ? (
                                             <>
@@ -234,14 +234,14 @@ export function UrlScanSuite() {
                                                 <div className="text-xs text-foreground-muted mt-1">{result.sources.threatfox.threat_type} · {result.sources.threatfox.confidence}% confidence</div>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">Not in ThreatFox database ✓</div>
+                                            <div className="text-xs text-foreground-muted">Not in Malware Intelligence Feed ✓</div>
                                         )}
                                     </div>
 
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-purple" />
-                                            <span className="text-xs font-semibold text-foreground">URLScan.io</span>
+                                            <span className="text-xs font-semibold text-foreground">URL Analysis Engine</span>
                                         </div>
                                         {result.sources.urlscan ? (
                                             <>
@@ -266,7 +266,7 @@ export function UrlScanSuite() {
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-red-500" />
-                                            <span className="text-xs font-semibold text-foreground">Google Safe Browsing</span>
+                                            <span className="text-xs font-semibold text-foreground">Threat Classification Engine</span>
                                         </div>
                                         {result.sources.safe_browsing ? (
                                             <>
@@ -274,7 +274,7 @@ export function UrlScanSuite() {
                                                 <div className="text-xs text-foreground-muted mt-1">{result.sources.safe_browsing.platform}</div>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">API key not configured</div>
+                                            <div className="text-xs text-foreground-muted">Not yet configured</div>
                                         )}
                                     </div>
 
@@ -303,7 +303,7 @@ export function UrlScanSuite() {
                                         target="_blank" rel="noopener noreferrer"
                                         className="ml-auto text-xs text-foreground-muted hover:text-blue flex items-center gap-1 transition-colors"
                                     >
-                                        View on URLHaus <ExternalLink size={11} />
+                                        View full report <ExternalLink size={11} />
                                     </a>
                                 </div>
                             </div>
@@ -314,7 +314,7 @@ export function UrlScanSuite() {
                         <div className="bg-card border border-border rounded-xl p-12 text-center">
                             <Shield size={40} className="text-border mx-auto mb-3" />
                             <div className="font-heading font-semibold text-foreground mb-1">Submit a URL to scan</div>
-                            <div className="text-sm text-foreground-muted">Paste any suspicious link above. We check it against URLHaus, ThreatFox, and Google Safe Browsing instantly.</div>
+                            <div className="text-sm text-foreground-muted">Paste any suspicious link above. We check it against multiple threat intelligence sources instantly.</div>
                         </div>
                     )}
                 </div>

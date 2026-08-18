@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { UserCheck, Plus, AlertTriangle, ShieldQuestion, Lock, RefreshCw, CheckCircle, Info } from 'lucide-react';
+import { UserCheck, Plus, AlertTriangle, ShieldQuestion, Lock, RefreshCw, CheckCircle, Info, X } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 
@@ -14,13 +14,27 @@ interface ExecBreach {
     is_verified: boolean;
 }
 
+interface ExecutiveSocial {
+    platform: 'twitter' | 'facebook' | 'instagram' | 'linkedin';
+    handle: string;
+}
+
+const SOCIAL_PLATFORMS: Record<ExecutiveSocial['platform'], { label: string; icon: string }> = {
+    twitter: { label: 'Twitter / X', icon: '𝕏' },
+    facebook: { label: 'Facebook', icon: 'f' },
+    instagram: { label: 'Instagram', icon: '📷' },
+    linkedin: { label: 'LinkedIn', icon: 'in' },
+};
+
 interface Executive {
     id: string;
     name: string;
     email: string;
     email_masked: string;
     role: string;
+    department: string;
     org: string;
+    socials: ExecutiveSocial[];
     status: 'monitored' | 'at_risk' | 'clear';
     last_scanned: string | null;
     breach_count: number;
@@ -52,10 +66,17 @@ export function ExecutiveMonitor() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [role, setRole] = useState('');
+    const [department, setDepartment] = useState('');
     const [org, setOrg] = useState('');
     const [saving, setSaving] = useState(false);
     const [scanningId, setScanningId] = useState<string | null>(null);
     const [scanningAll, setScanningAll] = useState(false);
+
+    // Add-social modal state — targetExecId is which executive card opened it
+    const [socialExecId, setSocialExecId] = useState<string | null>(null);
+    const [socialPlatform, setSocialPlatform] = useState<ExecutiveSocial['platform'] | null>(null);
+    const [socialHandle, setSocialHandle] = useState('');
+    const [savingSocial, setSavingSocial] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -78,13 +99,41 @@ export function ExecutiveMonitor() {
             await fetch(apiUrl('/api/brand/executives'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name.trim(), email: email.trim(), role: role.trim() || undefined, org: org.trim() || undefined }),
+                body: JSON.stringify({
+                    name: name.trim(),
+                    email: email.trim(),
+                    role: role.trim() || undefined,
+                    department: department.trim() || undefined,
+                    org: org.trim() || undefined,
+                }),
             });
-            setName(''); setEmail(''); setRole(''); setOrg('');
+            setName(''); setEmail(''); setRole(''); setDepartment(''); setOrg('');
             setShowAddModal(false);
             load();
         } finally {
             setSaving(false);
+        }
+    };
+
+    const resetSocialModal = () => {
+        setSocialExecId(null);
+        setSocialPlatform(null);
+        setSocialHandle('');
+    };
+
+    const addSocial = async () => {
+        if (!socialExecId || !socialPlatform || !socialHandle.trim()) return;
+        setSavingSocial(true);
+        try {
+            await fetch(apiUrl(`/api/brand/executives/${socialExecId}/socials`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: socialPlatform, handle: socialHandle.trim() }),
+            });
+            resetSocialModal();
+            load();
+        } finally {
+            setSavingSocial(false);
         }
     };
 
@@ -155,7 +204,7 @@ export function ExecutiveMonitor() {
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-bold text-foreground truncate">{exec.name}</p>
-                                            <p className="text-[11px] text-foreground-muted">{exec.role} · {exec.org}</p>
+                                            <p className="text-[11px] text-foreground-muted">{exec.role} · {exec.org}{exec.department && exec.department !== '—' ? ` · ${exec.department}` : ''}</p>
                                             <p className="text-[11px] text-foreground-muted font-mono">{exec.email_masked}</p>
                                         </div>
                                         <span className={`flex items-center gap-1.5 text-[10px] font-bold flex-shrink-0 ${style.text}`}>
@@ -163,6 +212,16 @@ export function ExecutiveMonitor() {
                                             {style.label}
                                         </span>
                                     </div>
+
+                                    {exec.socials.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2.5">
+                                            {exec.socials.map((s, i) => (
+                                                <span key={i} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-card-muted text-foreground rounded-full">
+                                                    <span className="text-blue">{SOCIAL_PLATFORMS[s.platform].icon}</span> {s.handle}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
 
                                     <div className="mt-3 pt-3 border-t border-border space-y-1.5 text-[11px]">
                                         <div className="flex items-center justify-between">
@@ -181,7 +240,7 @@ export function ExecutiveMonitor() {
 
                                         {exec.scan_status === 'complete' && (
                                             exec.breach_count === 0 ? (
-                                                <div className="flex items-center gap-1.5 text-blue mt-1"><CheckCircle size={12} /> No breaches found in 847 public breach databases</div>
+                                                <div className="flex items-center gap-1.5 text-blue mt-1"><CheckCircle size={12} /> No breaches found in 847 public breach databases checked</div>
                                             ) : (
                                                 <div className="mt-1.5 space-y-1">
                                                     <p className="text-red-500 font-bold flex items-center gap-1"><AlertTriangle size={12} /> {exec.breach_count} breach{exec.breach_count > 1 ? 'es' : ''} found:</p>
@@ -197,9 +256,15 @@ export function ExecutiveMonitor() {
                                         {exec.scan_status === 'pending' && !capabilities.hibp && (
                                             <div className="flex items-start gap-1.5 text-foreground-muted mt-1 bg-blue/5 border border-blue/20 rounded-lg p-2">
                                                 <Info size={12} className="text-blue flex-shrink-0 mt-0.5" />
-                                                <span>Breach database check requires an HIBP API key ($3.50/month · haveibeenpwned.com/API/Key)</span>
+                                                <span>Breach database check requires activation ($3.50/month)</span>
                                             </div>
                                         )}
+                                        <button
+                                            onClick={() => setSocialExecId(exec.id)}
+                                            className="text-[10px] font-bold text-blue hover:underline mt-1"
+                                        >
+                                            + Add Social
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -208,7 +273,7 @@ export function ExecutiveMonitor() {
                 )}
                 <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-blue/5 border border-blue/20 rounded-lg">
                     <Lock size={12} className="text-blue flex-shrink-0" />
-                    <p className="text-[10px] text-foreground-muted">Executive emails are only sent to HaveIBeenPwned for breach lookups when a scan is run — never stored or shared elsewhere.</p>
+                    <p className="text-[10px] text-foreground-muted">Executive emails are only sent to our Breach Intelligence Database for breach lookups when a scan is run — never stored or shared elsewhere.</p>
                 </div>
             </div>
 
@@ -225,7 +290,7 @@ export function ExecutiveMonitor() {
                 <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-3">Monitoring Capabilities</p>
                 <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between border-b border-border pb-2">
-                        <span className="flex items-center gap-2 text-foreground">{capabilities.hibp ? <CheckCircle size={14} className="text-blue" /> : <span className="text-red-500 font-bold">✗</span>} Breach Database (HIBP)</span>
+                        <span className="flex items-center gap-2 text-foreground">{capabilities.hibp ? <CheckCircle size={14} className="text-blue" /> : <span className="text-red-500 font-bold">✗</span>} Breach Database</span>
                         <span className="text-foreground-muted">{capabilities.hibp ? 'Active · 847 databases checked' : 'Not configured'}</span>
                     </div>
                     <div className="flex items-center justify-between border-b border-border pb-2">
@@ -260,6 +325,11 @@ export function ExecutiveMonitor() {
                                     className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
                             </div>
                             <div>
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Department</label>
+                                <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Finance"
+                                    className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
+                            </div>
+                            <div>
                                 <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Organisation</label>
                                 <input type="text" value={org} onChange={(e) => setOrg(e.target.value)} placeholder="Cybernovr"
                                     className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
@@ -269,6 +339,46 @@ export function ExecutiveMonitor() {
                             <button onClick={() => setShowAddModal(false)} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
                             <button onClick={addExecutive} disabled={saving || !name.trim() || !email.trim()} className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
                                 {saving ? 'Adding…' : 'Add Executive'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {socialExecId && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+                    <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-heading font-bold text-lg text-foreground">Add Social</h3>
+                            <button onClick={resetSocialModal} className="text-foreground-muted hover:text-foreground" aria-label="Close"><X size={16} /></button>
+                        </div>
+                        <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Select Platform</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1.5 mb-4">
+                            {(Object.keys(SOCIAL_PLATFORMS) as ExecutiveSocial['platform'][]).map((key) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSocialPlatform(key)}
+                                    className={`flex items-center justify-center gap-2 border rounded-lg py-2 text-xs font-bold transition-colors ${
+                                        socialPlatform === key ? 'border-blue bg-blue/10 text-blue' : 'border-border text-foreground hover:border-blue/50'
+                                    }`}
+                                >
+                                    <span className="text-sm">{SOCIAL_PLATFORMS[key].icon}</span> {SOCIAL_PLATFORMS[key].label}
+                                </button>
+                            ))}
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Handle</label>
+                            <input type="text" value={socialHandle} onChange={(e) => setSocialHandle(e.target.value)} placeholder="@rayneops"
+                                className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={resetSocialModal} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
+                            <button
+                                onClick={addSocial}
+                                disabled={savingSocial || !socialPlatform || !socialHandle.trim()}
+                                className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                            >
+                                {savingSocial ? 'Saving…' : 'Save'}
                             </button>
                         </div>
                     </div>

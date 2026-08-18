@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Smartphone, Plus, Apple, CheckCircle, ExternalLink, Search, Info, AlertTriangle } from 'lucide-react';
+import { Smartphone, Plus, Apple, CheckCircle, ExternalLink, Search, Info } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 
@@ -11,15 +11,23 @@ interface OfficialApp {
     bundle_id: string;
     platform: 'iOS' | 'Android';
     developer: string;
+    store_url_ios: string | null;
+    store_url_android: string | null;
+    added_at: string;
+    last_scanned: string | null;
     verified: boolean;
 }
 
 interface RogueApp {
+    id: string;
     name: string;
     platform: string;
     developer: string;
+    bundle_id: string;
     downloads: number;
     risk: string;
+    detected: string;
+    reason: string;
     store_url: string;
 }
 
@@ -67,7 +75,8 @@ export function MobileAppSuite() {
     const [bundleId, setBundleId] = useState('');
     const [platform, setPlatform] = useState<'iOS' | 'Android' | 'Both'>('iOS');
     const [developer, setDeveloper] = useState('');
-    const [storeUrl, setStoreUrl] = useState('');
+    const [appStoreUrl, setAppStoreUrl] = useState('');
+    const [playStoreUrl, setPlayStoreUrl] = useState('');
     const [saving, setSaving] = useState(false);
 
     const load = () => {
@@ -92,9 +101,16 @@ export function MobileAppSuite() {
             await Promise.all(platforms.map((p) => fetch(apiUrl('/api/brand/apps'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name.trim(), bundle_id: bundleId.trim() || undefined, platform: p, developer: developer.trim() || undefined }),
+                body: JSON.stringify({
+                    name: name.trim(),
+                    bundle_id: bundleId.trim() || undefined,
+                    platform: p,
+                    developer: developer.trim() || undefined,
+                    store_url_ios: appStoreUrl.trim() || undefined,
+                    store_url_android: playStoreUrl.trim() || undefined,
+                }),
             })));
-            setName(''); setBundleId(''); setDeveloper(''); setStoreUrl('');
+            setName(''); setBundleId(''); setDeveloper(''); setAppStoreUrl(''); setPlayStoreUrl('');
             setShowAddModal(false);
             load();
         } finally {
@@ -285,11 +301,14 @@ export function MobileAppSuite() {
                             </thead>
                             <tbody>
                                 {rogueApps.map((app) => (
-                                    <tr key={app.name} className="border-b border-border hover:bg-card-muted">
-                                        <td className="px-4 py-2.5 font-semibold text-foreground">{app.name}</td>
+                                    <tr key={app.id} className="border-b border-border hover:bg-card-muted">
+                                        <td className="px-4 py-2.5">
+                                            <p className="font-semibold text-foreground">{app.name}</p>
+                                            {app.reason && <p className="text-[10px] text-foreground-muted mt-0.5 max-w-[240px]">{app.reason}</p>}
+                                        </td>
                                         <td className="px-4 py-2.5 text-foreground-muted">{app.platform}</td>
                                         <td className="px-4 py-2.5 text-foreground-muted">{app.developer}</td>
-                                        <td className="px-4 py-2.5 text-foreground-muted">{app.downloads.toLocaleString()}</td>
+                                        <td className="px-4 py-2.5 text-foreground-muted">{app.downloads.toLocaleString()}+</td>
                                         <td className="px-4 py-2.5">
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${riskBadge(app.risk)}`}>{app.risk}</span>
                                         </td>
@@ -298,9 +317,8 @@ export function MobileAppSuite() {
                                                 <a href={app.store_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue hover:underline flex items-center gap-1">
                                                     View <ExternalLink size={10} />
                                                 </a>
-                                                <button className="text-[10px] font-bold text-red-500 hover:underline">Report</button>
+                                                <button className="text-[10px] font-bold text-red-500 hover:underline">Report to Store</button>
                                                 <button className="text-[10px] font-bold text-foreground-muted hover:text-foreground">Mark Safe</button>
-                                                <span className="text-[10px] text-foreground-muted flex items-center gap-1"><AlertTriangle size={10} /> Escalated</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -341,8 +359,13 @@ export function MobileAppSuite() {
                                     className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
                             </div>
                             <div>
-                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">App Store URL</label>
-                                <input type="text" value={storeUrl} onChange={(e) => setStoreUrl(e.target.value)} placeholder="https://apps.apple.com/..."
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">App Store URL <span className="normal-case text-foreground-muted/70">(optional)</span></label>
+                                <input type="text" value={appStoreUrl} onChange={(e) => setAppStoreUrl(e.target.value)} placeholder="https://apps.apple.com/..."
+                                    className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Play Store URL <span className="normal-case text-foreground-muted/70">(optional)</span></label>
+                                <input type="text" value={playStoreUrl} onChange={(e) => setPlayStoreUrl(e.target.value)} placeholder="https://play.google.com/..."
                                     className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue" />
                             </div>
                         </div>

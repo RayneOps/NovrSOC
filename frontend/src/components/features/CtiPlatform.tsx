@@ -65,7 +65,7 @@ const IOC_TYPES: { value: IOCType; label: string; placeholder: string }[] = [
 const TABS = [
     { id: 'search', label: 'IOC Search' },
     { id: 'feed', label: 'Live IOC Feed' },
-    { id: 'pulses', label: 'OTX Pulses' },
+    { id: 'pulses', label: 'Threat Feed Pulses' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -171,7 +171,7 @@ export function CtiPlatform() {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-lg font-black text-foreground">CTI Platform</h1>
-                    <p className="text-xs text-foreground-muted">Threat Intelligence · Search and correlate IOCs across OTX, AbuseIPDB, URLHaus, and ThreatFox</p>
+                    <p className="text-xs text-foreground-muted">Threat Intelligence · Search and correlate IOCs across 5 threat intelligence sources</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-foreground-muted">
                     <span className="w-2 h-2 rounded-full bg-green animate-pulse" />
@@ -312,7 +312,7 @@ export function CtiPlatform() {
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-purple" />
-                                            <span className="text-xs font-semibold text-foreground">AlienVault OTX</span>
+                                            <span className="text-xs font-semibold text-foreground">Global Threat Intelligence</span>
                                         </div>
                                         {result.sources.otx ? (
                                             <>
@@ -329,7 +329,7 @@ export function CtiPlatform() {
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-red-500" />
-                                            <span className="text-xs font-semibold text-foreground">AbuseIPDB</span>
+                                            <span className="text-xs font-semibold text-foreground">IP Reputation Engine</span>
                                         </div>
                                         {result.sources.abuseipdb ? (
                                             <>
@@ -347,7 +347,7 @@ export function CtiPlatform() {
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-blue" />
-                                            <span className="text-xs font-semibold text-foreground">VirusTotal</span>
+                                            <span className="text-xs font-semibold text-foreground">Multi-Engine Scanner</span>
                                         </div>
                                         {result.sources.virustotal ? (
                                             <>
@@ -369,14 +369,14 @@ export function CtiPlatform() {
                                                 )}
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">Not found in VirusTotal</div>
+                                            <div className="text-xs text-foreground-muted">Not found in Multi-Engine Scanner</div>
                                         )}
                                     </div>
 
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-amber" />
-                                            <span className="text-xs font-semibold text-foreground">URLHaus</span>
+                                            <span className="text-xs font-semibold text-foreground">Malicious URL Database</span>
                                         </div>
                                         {result.sources.urlhaus ? (
                                             <>
@@ -384,14 +384,14 @@ export function CtiPlatform() {
                                                 <div className="text-xs text-foreground-muted mt-1">Status: {result.sources.urlhaus.status}</div>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">Not in URLHaus database</div>
+                                            <div className="text-xs text-foreground-muted">Not in Malicious URL Database</div>
                                         )}
                                     </div>
 
                                     <div className="p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="w-2 h-2 rounded-full bg-blue" />
-                                            <span className="text-xs font-semibold text-foreground">ThreatFox</span>
+                                            <span className="text-xs font-semibold text-foreground">Malware Intelligence Feed</span>
                                         </div>
                                         {result.sources.threatfox ? (
                                             <>
@@ -399,7 +399,7 @@ export function CtiPlatform() {
                                                 <div className="text-xs text-foreground-muted mt-1">{result.sources.threatfox.threat_type} · {result.sources.threatfox.confidence}% confidence</div>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-foreground-muted">Not in ThreatFox database</div>
+                                            <div className="text-xs text-foreground-muted">Not in Malware Intelligence Feed</div>
                                         )}
                                     </div>
                                 </div>
@@ -414,7 +414,7 @@ export function CtiPlatform() {
                                         target="_blank" rel="noopener noreferrer"
                                         className="ml-auto text-xs text-foreground-muted hover:text-blue flex items-center gap-1 transition-colors"
                                     >
-                                        View on OTX <ExternalLink size={11} />
+                                        View in Threat Feed <ExternalLink size={11} />
                                     </a>
                                 </div>
                             </div>
@@ -519,9 +519,9 @@ export function CtiPlatform() {
                     ) : pulses.length === 0 ? (
                         <div className="bg-card border border-border rounded-xl p-10 text-center">
                             <Zap size={36} className="text-border mx-auto mb-3" />
-                            <div className="text-sm text-foreground-muted">No OTX pulses — subscribe to threat feeds in your OTX account</div>
+                            <div className="text-sm text-foreground-muted">No pulses found — subscribe to threat feeds to see live pulses here</div>
                             <a href="https://otx.alienvault.com/browse/pulses" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-3 text-xs text-blue hover:text-purple">
-                                Browse OTX Pulses <ExternalLink size={11} />
+                                Browse Threat Feed <ExternalLink size={11} />
                             </a>
                         </div>
                     ) : (

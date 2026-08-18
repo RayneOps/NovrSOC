@@ -105,12 +105,19 @@ interface ExecBreach {
     is_verified: boolean;
 }
 
+interface ExecutiveSocial {
+    platform: 'twitter' | 'facebook' | 'instagram' | 'linkedin';
+    handle: string;
+}
+
 interface MonitoredExecutive {
     id: string;
     name: string;
     email: string;
     role: string;
+    department: string;
     org: string;
+    socials: ExecutiveSocial[];
     status: 'monitored' | 'at_risk' | 'clear';
     added_at: string;
     last_scanned: string | null;
@@ -121,11 +128,13 @@ interface MonitoredExecutive {
 
 const executives: MonitoredExecutive[] = [
     {
-        id: '1', name: 'RayneOps', email: 'rayne@cybernovr.com', role: 'CEO', org: 'Cybernovr',
+        id: '1', name: 'RayneOps', email: 'rayne@cybernovr.com', role: 'CEO', department: 'Executive', org: 'Cybernovr',
+        socials: [{ platform: 'twitter', handle: '@rayneops' }, { platform: 'linkedin', handle: '/rayneops' }],
         status: 'monitored', added_at: '2026-01-01', last_scanned: null, breach_count: 0, breaches: [], scan_status: 'pending',
     },
     {
-        id: '2', name: 'Karl', email: 'karl@cybernovr.com', role: 'CTO', org: 'Cybernovr',
+        id: '2', name: 'Karl', email: 'karl@cybernovr.com', role: 'CTO', department: 'Engineering', org: 'Cybernovr',
+        socials: [],
         status: 'at_risk', added_at: '2026-01-01', last_scanned: '2026-08-01T09:00:00.000Z', breach_count: 1,
         breaches: [{ source: 'LinkedIn2024', title: 'LinkedIn 2024', breach_date: '2024-03-15', data_classes: ['Email', 'Password hash'], is_sensitive: false, is_verified: true }],
         scan_status: 'complete',
@@ -150,7 +159,7 @@ router.get('/executives', (_req, res) => {
 });
 
 router.post('/executives', (req, res) => {
-    const { name, email, role, org }: { name?: string; email?: string; role?: string; org?: string } = req.body ?? {};
+    const { name, email, role, department, org }: { name?: string; email?: string; role?: string; department?: string; org?: string } = req.body ?? {};
     if (!name || !email) {
         res.status(400).json({ error: 'name and email are required' });
         return;
@@ -160,7 +169,9 @@ router.post('/executives', (req, res) => {
         name,
         email,
         role: role ?? 'Executive',
+        department: department ?? '—',
         org: org ?? 'Cybernovr',
+        socials: [],
         status: 'monitored',
         added_at: new Date().toISOString().split('T')[0],
         last_scanned: null,
@@ -170,6 +181,23 @@ router.post('/executives', (req, res) => {
     };
     executives.push(entry);
     res.status(201).json(entry);
+});
+
+// POST /api/brand/executives/:id/socials — attach a social handle to an executive
+router.post('/executives/:id/socials', (req, res) => {
+    const exec = executives.find((e) => e.id === req.params.id);
+    if (!exec) {
+        res.status(404).json({ error: 'Executive not found' });
+        return;
+    }
+    const { platform, handle }: { platform?: ExecutiveSocial['platform']; handle?: string } = req.body ?? {};
+    if (!platform || !handle) {
+        res.status(400).json({ error: 'platform and handle required' });
+        return;
+    }
+    if (!exec.socials) exec.socials = [];
+    exec.socials.push({ platform, handle });
+    res.json({ success: true, socials: exec.socials });
 });
 
 router.get('/executives/alerts', (_req, res) => {
@@ -252,17 +280,40 @@ interface MonitoredApp {
     bundle_id: string;
     platform: 'iOS' | 'Android';
     developer: string;
+    store_url_ios: string | null;
+    store_url_android: string | null;
+    added_at: string;
+    last_scanned: string | null;
     verified: boolean;
 }
 
 const apps: MonitoredApp[] = [
-    { id: '1', name: 'NovrSOC', bundle_id: 'com.cybernovr.novrsoc', platform: 'iOS', developer: 'Cybernovr Ltd', verified: true },
-    { id: '2', name: 'NovrSOC', bundle_id: 'com.cybernovr.novrsoc', platform: 'Android', developer: 'Cybernovr Ltd', verified: true },
+    {
+        id: 'app_001', name: 'NovrSOC Mobile', bundle_id: 'com.cybernovr.novrsoc', platform: 'iOS', developer: 'Cybernovr Ltd',
+        store_url_ios: 'https://apps.apple.com/app/novrsoc', store_url_android: 'https://play.google.com/store/apps/details?id=com.cybernovr.novrsoc',
+        added_at: '2026-01-15', last_scanned: '2026-08-15', verified: true,
+    },
+    {
+        id: 'app_001b', name: 'NovrSOC Mobile', bundle_id: 'com.cybernovr.novrsoc', platform: 'Android', developer: 'Cybernovr Ltd',
+        store_url_ios: 'https://apps.apple.com/app/novrsoc', store_url_android: 'https://play.google.com/store/apps/details?id=com.cybernovr.novrsoc',
+        added_at: '2026-01-15', last_scanned: '2026-08-15', verified: true,
+    },
+    {
+        id: 'app_002', name: 'Cybernovr Security', bundle_id: 'com.cybernovr.security', platform: 'Android', developer: 'Cybernovr Ltd',
+        store_url_ios: null, store_url_android: 'https://play.google.com/store/apps/details?id=com.cybernovr.security',
+        added_at: '2026-03-01', last_scanned: '2026-08-15', verified: true,
+    },
 ];
 
 const MOCK_ROGUE_APPS = [
-    { name: 'NovrSOC Pro Security', platform: 'Android', developer: 'UnknownDev2024', downloads: 2400, risk: 'HIGH', store_url: 'https://play.google.com/store' },
-    { name: 'CyberNovr VPN', platform: 'iOS', developer: 'AppStudio Ltd', downloads: 890, risk: 'MEDIUM', store_url: 'https://apps.apple.com' },
+    {
+        id: 'rogue_001', name: 'NovrSOC Pro Security', platform: 'Google Play', developer: 'UnknownDev2024', bundle_id: 'com.unknowndev.novrsocpro',
+        downloads: 100, risk: 'HIGH', detected: '2026-08-10', reason: 'Uses Cybernovr brand name and similar icon without authorization', store_url: 'https://play.google.com',
+    },
+    {
+        id: 'rogue_002', name: 'CyberNovr VPN Shield', platform: 'App Store', developer: 'ShieldApps Inc', bundle_id: 'com.shieldapps.cybernovrvpn',
+        downloads: 50, risk: 'MEDIUM', detected: '2026-08-13', reason: 'Uses Cybernovr name in app title — possible brand confusion', store_url: 'https://apps.apple.com',
+    },
 ];
 
 router.get('/apps', (_req, res) => {
@@ -270,12 +321,23 @@ router.get('/apps', (_req, res) => {
 });
 
 router.post('/apps', (req, res) => {
-    const { name, bundle_id, platform, developer } = req.body ?? {};
+    const { name, bundle_id, platform, developer, store_url_ios, store_url_android } = req.body ?? {};
     if (!name || !platform) {
         res.status(400).json({ error: 'name and platform are required' });
         return;
     }
-    const entry: MonitoredApp = { id: newId(), name, bundle_id: bundle_id ?? '—', platform, developer: developer ?? '—', verified: false };
+    const entry: MonitoredApp = {
+        id: newId(),
+        name,
+        bundle_id: bundle_id ?? '—',
+        platform,
+        developer: developer ?? '—',
+        store_url_ios: store_url_ios ?? null,
+        store_url_android: store_url_android ?? null,
+        added_at: new Date().toISOString().split('T')[0],
+        last_scanned: null,
+        verified: false,
+    };
     apps.push(entry);
     res.status(201).json(entry);
 });

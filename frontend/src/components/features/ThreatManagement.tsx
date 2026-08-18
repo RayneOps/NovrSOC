@@ -280,15 +280,15 @@ export function ThreatManagement() {
                                     <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Threat Intelligence</p>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div className="border border-border rounded-lg p-2.5 text-center">
-                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">AbuseIPDB</p>
+                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">IP Reputation</p>
                                             <p className={`text-lg font-black mt-0.5 ${scoreColor(selected.abuseipdb_confidence)}`}>{selected.abuseipdb_confidence ?? '—'}{selected.abuseipdb_confidence !== null ? '%' : ''}</p>
                                         </div>
                                         <div className="border border-border rounded-lg p-2.5 text-center">
-                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">VirusTotal</p>
+                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">Multi-Engine Scan</p>
                                             <p className={`text-lg font-black mt-0.5 ${scoreColor(selected.vt_malicious !== null ? selected.vt_malicious * 1.5 : null)}`}>{selected.vt_malicious ?? '—'}{selected.vt_malicious !== null ? '/94' : ''}</p>
                                         </div>
                                         <div className="border border-border rounded-lg p-2.5 text-center">
-                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">OTX Pulses</p>
+                                            <p className="text-[9px] text-foreground-muted uppercase tracking-wider">Threat Feed Pulses</p>
                                             <p className={`text-lg font-black mt-0.5 ${scoreColor(selected.otx_pulses !== null ? selected.otx_pulses * 4 : null)}`}>{selected.otx_pulses ?? '—'}</p>
                                         </div>
                                     </div>

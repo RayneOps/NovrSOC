@@ -47,7 +47,7 @@ const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 const TABS = [
     { id: 'recent', label: 'Recent CVEs' },
-    { id: 'kev', label: 'CISA KEV Catalog' },
+    { id: 'kev', label: 'Known Exploited Vulnerabilities' },
     { id: 'assets', label: 'Asset Vulnerabilities' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
@@ -258,7 +258,7 @@ export function ThreatAdvisory() {
                                                     onClick={(e) => e.stopPropagation()}
                                                     className="flex items-center gap-1 text-xs text-blue hover:text-purple"
                                                 >
-                                                    View on NVD <ExternalLink size={11} />
+                                                    View Vulnerability Details <ExternalLink size={11} />
                                                 </a>
                                                 {cve.is_kev && (
                                                     <a
@@ -267,7 +267,7 @@ export function ThreatAdvisory() {
                                                         onClick={(e) => e.stopPropagation()}
                                                         className="flex items-center gap-1 text-xs text-red-500 hover:text-red-hover"
                                                     >
-                                                        View CISA KEV entry <ExternalLink size={11} />
+                                                        View Known Exploited Vulnerabilities entry <ExternalLink size={11} />
                                                     </a>
                                                 )}
                                                 <button onClick={(e) => e.stopPropagation()} className="ml-auto text-xs bg-orange hover:bg-orange-hover text-white px-3 py-1.5 rounded-lg transition-colors">
