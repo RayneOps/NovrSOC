@@ -38,20 +38,26 @@ interface MonitoredSocial {
 }
 
 const socials: MonitoredSocial[] = [
-    { id: '1', platform: 'twitter', handle: '@cybernovr', display_name: 'Cybernovr', profile_url: 'https://x.com/cybernovr', exec_names: [], keywords: ['cybernovr', 'novrsoc'], followers: 4200, verified: true, last_checked: '1 hour ago' },
-    { id: '2', platform: 'linkedin', handle: 'Cybernovr', display_name: 'Cybernovr', profile_url: 'https://linkedin.com/company/cybernovr', exec_names: [], keywords: ['cybernovr'], followers: 1800, verified: true, last_checked: '1 hour ago' },
+    { id: '1', platform: 'twitter', handle: '@cybernovr', display_name: 'Cybernovr', profile_url: 'https://x.com/cybernovr', exec_names: [], keywords: ['cybernovr', 'novrsoc'], followers: 2841, verified: false, last_checked: '1 hour ago' },
+    { id: '2', platform: 'linkedin', handle: 'cybernovr', display_name: 'Cybernovr', profile_url: 'https://linkedin.com/company/cybernovr', exec_names: [], keywords: ['cybernovr'], followers: 847, verified: false, last_checked: '1 hour ago' },
+    { id: '3', platform: 'facebook', handle: 'cybernovr', display_name: 'Cybernovr Official', profile_url: 'https://facebook.com/cybernovr', exec_names: [], keywords: ['cybernovr'], followers: 1204, verified: false, last_checked: '2 hours ago' },
+    { id: '4', platform: 'instagram', handle: '@cybernovr_hq', display_name: 'Cybernovr HQ', profile_url: 'https://instagram.com/cybernovr_hq', exec_names: [], keywords: ['cybernovr'], followers: 623, verified: false, last_checked: '2 hours ago' },
 ];
 
 const MOCK_IMPERSONATION = [
-    { handle: '@cybernovr_security', platform: 'Twitter', score: 87, followers: 12, created: '2026-07-30' },
-    { handle: 'Cybernovr Official', platform: 'Facebook', score: 74, followers: 230, created: '2026-06-15' },
-    { handle: '@cybernovr.ng', platform: 'Instagram', score: 61, followers: 45, created: '2026-08-01' },
+    { id: 'imp_001', handle: '@cybernovr_ng', platform: 'Twitter', score: 87, followers: 23, created: '2026-08-01', status: 'open', risk: 'HIGH' },
+    { id: 'imp_002', handle: 'Cybernovr Security', platform: 'Facebook', score: 74, followers: 142, created: '2026-07-20', status: 'reported', risk: 'MEDIUM' },
+    { id: 'imp_003', handle: '@cybernovr.official', platform: 'Instagram', score: 61, followers: 8, created: '2026-08-08', status: 'open', risk: 'MEDIUM' },
+    { id: 'imp_004', handle: '@cybernovrAfrica', platform: 'Twitter', score: 55, followers: 67, created: '2026-07-15', status: 'dismissed', risk: 'LOW' },
 ];
 
 const MOCK_MENTIONS = [
-    { text: 'Anyone using @cybernovr for SOC? thinking of switching from our current MSSP', platform: 'Twitter', sentiment: 'Positive', time: '12m ago' },
-    { text: 'cybernovr.com support hasn’t replied in 2 days, kind of annoying tbh', platform: 'Twitter', sentiment: 'Negative', time: '3h ago' },
-    { text: 'NovrSOC dashboard update looks clean', platform: 'LinkedIn', sentiment: 'Positive', time: '1d ago' },
+    { text: 'Just signed up for @cybernovr — best SOC platform in Nigeria!', platform: 'Twitter', sentiment: 'Positive', reach: 1200, time: '2h ago' },
+    { text: 'Anyone using @cybernovr for their company security?', platform: 'Twitter', sentiment: 'Neutral', reach: 340, time: '4h ago' },
+    { text: 'Warning: fake @cybernovr account spotted — @cybernovr_ng', platform: 'Twitter', sentiment: 'Negative', reach: 890, time: '7h ago' },
+    { text: 'Cybernovr is revolutionizing SOC-as-a-service in Africa', platform: 'LinkedIn', sentiment: 'Positive', reach: 2100, time: '1d ago' },
+    { text: 'Has anyone dealt with this Cybernovr company? Legit?', platform: 'Facebook', sentiment: 'Neutral', reach: 450, time: '1d ago' },
+    { text: 'Partnered with @cybernovr_hq for our cybersecurity needs 🔐', platform: 'Instagram', sentiment: 'Positive', reach: 780, time: '2d ago' },
 ];
 
 router.get('/socials', (_req, res) => {
@@ -110,6 +116,13 @@ interface ExecutiveSocial {
     handle: string;
 }
 
+interface AuthAnomaly {
+    type: string;
+    message: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    time: string;
+}
+
 interface MonitoredExecutive {
     id: string;
     name: string;
@@ -124,20 +137,41 @@ interface MonitoredExecutive {
     breach_count: number;
     breaches: ExecBreach[];
     scan_status: 'pending' | 'scanning' | 'complete' | 'error';
+    auth_anomalies: AuthAnomaly[];
+    risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 const executives: MonitoredExecutive[] = [
     {
-        id: '1', name: 'RayneOps', email: 'rayne@cybernovr.com', role: 'CEO', department: 'Executive', org: 'Cybernovr',
-        socials: [{ platform: 'twitter', handle: '@rayneops' }, { platform: 'linkedin', handle: '/rayneops' }],
-        status: 'monitored', added_at: '2026-01-01', last_scanned: null, breach_count: 0, breaches: [], scan_status: 'pending',
+        id: '1', name: 'Abubakar Usman Damilare', email: 'rayne@cybernovr.com', role: 'Chief Executive Officer', department: 'Executive', org: 'Cybernovr',
+        socials: [{ platform: 'twitter', handle: '@rayneops' }, { platform: 'linkedin', handle: '/in/rayneops' }],
+        status: 'monitored', added_at: '2026-01-01', last_scanned: '2026-08-16T06:00:00.000Z', breach_count: 0, breaches: [], scan_status: 'complete',
+        auth_anomalies: [], risk_level: 'LOW',
     },
     {
-        id: '2', name: 'Karl', email: 'karl@cybernovr.com', role: 'CTO', department: 'Engineering', org: 'Cybernovr',
-        socials: [],
-        status: 'at_risk', added_at: '2026-01-01', last_scanned: '2026-08-01T09:00:00.000Z', breach_count: 1,
-        breaches: [{ source: 'LinkedIn2024', title: 'LinkedIn 2024', breach_date: '2024-03-15', data_classes: ['Email', 'Password hash'], is_sensitive: false, is_verified: true }],
+        id: '2', name: 'Karl Mensah', email: 'karl@cybernovr.com', role: 'Chief Technology Officer', department: 'Engineering', org: 'Cybernovr',
+        socials: [{ platform: 'twitter', handle: '@karl_cto' }],
+        status: 'at_risk', added_at: '2026-01-01', last_scanned: '2026-08-16T06:00:00.000Z', breach_count: 1,
+        breaches: [{ source: 'LinkedIn2024', title: 'LinkedIn 2021', breach_date: '2021-06-22', data_classes: ['Email addresses', 'Phone numbers', 'Professional information'], is_sensitive: false, is_verified: true }],
         scan_status: 'complete',
+        auth_anomalies: [{ type: 'UNUSUAL_LOCATION', message: 'Login from London, UK (unusual — previous logins from Lagos)', severity: 'MEDIUM', time: '2026-08-14T23:41:02.000Z' }],
+        risk_level: 'MEDIUM',
+    },
+    {
+        id: '3', name: 'Amina Bello', email: 'amina@cybernovr.com', role: 'Chief Financial Officer', department: 'Finance', org: 'Cybernovr',
+        socials: [{ platform: 'linkedin', handle: '/in/aminabello' }],
+        status: 'at_risk', added_at: '2026-01-01', last_scanned: '2026-08-16T06:00:00.000Z', breach_count: 2,
+        breaches: [
+            { source: 'Adobe2013', title: 'Adobe 2013', breach_date: '2013-10-04', data_classes: ['Email addresses', 'Encrypted passwords'], is_sensitive: false, is_verified: true },
+            { source: 'Dropbox2012', title: 'Dropbox 2012', breach_date: '2012-07-01', data_classes: ['Email addresses', 'Hashed passwords'], is_sensitive: false, is_verified: true },
+        ],
+        scan_status: 'complete', auth_anomalies: [], risk_level: 'MEDIUM',
+    },
+    {
+        id: '4', name: 'Emeka Okonkwo', email: 'emeka@cybernovr.com', role: 'Head of Sales', department: 'Commercial', org: 'Cybernovr',
+        socials: [{ platform: 'twitter', handle: '@emeka_sales' }, { platform: 'instagram', handle: '@emekaokonkwo' }, { platform: 'linkedin', handle: '/in/emekaokonkwo' }],
+        status: 'monitored', added_at: '2026-01-01', last_scanned: '2026-08-16T06:00:00.000Z', breach_count: 0, breaches: [], scan_status: 'complete',
+        auth_anomalies: [], risk_level: 'LOW',
     },
 ];
 
@@ -178,6 +212,8 @@ router.post('/executives', (req, res) => {
         breach_count: 0,
         breaches: [],
         scan_status: 'pending',
+        auth_anomalies: [],
+        risk_level: 'LOW',
     };
     executives.push(entry);
     res.status(201).json(entry);
@@ -252,6 +288,7 @@ router.post('/executives/:id/scan', async (req, res) => {
             exec.last_scanned = scanResult.scanned_at;
             exec.scan_status = 'complete';
             exec.status = exec.breach_count > 0 ? 'at_risk' : 'clear';
+            exec.risk_level = exec.breaches.some((b) => b.is_sensitive) ? 'HIGH' : exec.breach_count > 0 ? 'MEDIUM' : 'LOW';
         } catch {
             exec.scan_status = 'error';
         }
@@ -440,9 +477,12 @@ interface CodeSignature {
 }
 
 const signatures: CodeSignature[] = [
-    { id: '1', type: 'REGEX', pattern: 'AKIA[0-9A-Z]{16}', description: 'AWS Access Key', matches: 1 },
-    { id: '2', type: 'STRING', pattern: '"cybernovr.com"', description: 'Domain in code', matches: 3 },
-    { id: '3', type: 'REGEX', pattern: 'sk-[a-zA-Z0-9]{48}', description: 'OpenAI API Key', matches: 0 },
+    { id: '1', type: 'REGEX', pattern: 'AKIA[0-9A-Z]{16}', description: 'AWS Access Key', matches: 0 },
+    { id: '2', type: 'REGEX', pattern: '"api_key"\\s*:\\s*"[^"]+"', description: 'API Key Pattern', matches: 2 },
+    { id: '3', type: 'STRING', pattern: 'cybernovr.com', description: 'Brand Domain', matches: 2 },
+    { id: '4', type: 'REGEX', pattern: 'postgresql://.*:.*@', description: 'Database URL', matches: 0 },
+    { id: '5', type: 'REGEX', pattern: 'JWT_SECRET\\s*=\\s*\\S+', description: 'JWT Secret', matches: 0 },
+    { id: '6', type: 'REGEX', pattern: '-----BEGIN.*PRIVATE KEY', description: 'Private Key Block', matches: 0 },
 ];
 
 const MOCK_LEAKS = [
@@ -532,24 +572,40 @@ router.post('/search', async (req, res) => {
     }
 
     if (!googleConfigured()) {
-        // Demo data — configure GOOGLE_API_KEY and GOOGLE_SEARCH_CX for live results
+        // Demo data — Web Intelligence Engine not yet configured for live results
+        const lower = brand_name.toLowerCase();
         res.json({
             configured: false,
             results: [
                 {
-                    title: `${brand_name} — Fake Discount Store`,
-                    url: `https://www.${brand_name.toLowerCase()}-deals-ng.com/products`,
-                    snippet: `Get ${brand_name} products at 80% discount. Limited time offer...`,
-                    domain: `${brand_name.toLowerCase()}-deals-ng.com`,
+                    id: 'v_001', type: 'PHISHING', severity: 'CRITICAL',
+                    title: `Fake ${brand_name} Login Portal`,
+                    url: `https://${lower}-login-secure.ru/verify`,
+                    domain: `${lower}-login-secure.ru`,
+                    snippet: `Cloned version of the ${brand_name} login page designed to harvest admin credentials. Hosted on a domain registered 4 days ago.`,
+                    detected: '2026-08-12', status: 'active', threat_score: 94,
+                    evidence: ['Login form submits to an external IP', `${brand_name} logo copied`, 'SSL cert issued 4 days ago'],
                 },
                 {
-                    title: `${brand_name} Review — Is it legit? | Nairaland`,
-                    url: `https://www.nairaland.com/security/${brand_name.toLowerCase()}-review`,
-                    snippet: `I've been using ${brand_name} for months. Here's my honest review...`,
-                    domain: 'nairaland.com',
+                    id: 'v_002', type: 'COUNTERFEIT', severity: 'HIGH',
+                    title: `Unauthorized ${brand_name} Reseller`,
+                    url: `https://${lower}-africa.com/pricing`,
+                    domain: `${lower}-africa.com`,
+                    snippet: `Site claims to sell ${brand_name} licenses at 40% discount. No authorization on file.`,
+                    detected: '2026-08-10', status: 'active', threat_score: 72,
+                    evidence: [`Uses ${brand_name} logo`, 'Claims official partnership', 'Fake pricing page'],
+                },
+                {
+                    id: 'v_003', type: 'IMPERSONATION', severity: 'MEDIUM',
+                    title: `Brand Impersonation Blog`,
+                    url: `https://${lower}-ng.blogspot.com`,
+                    domain: `${lower}-ng.blogspot.com`,
+                    snippet: `Blog claims to publish official ${brand_name} Nigeria security updates and advisories.`,
+                    detected: '2026-08-08', status: 'under_review', threat_score: 45,
+                    evidence: [`Uses ${brand_name} name in title`, 'No authorization', 'Spreading misinformation'],
                 },
             ],
-            note: 'Demo data — configure GOOGLE_API_KEY and GOOGLE_SEARCH_CX for live results',
+            note: 'Demo data — Web Intelligence Engine not yet configured for live results',
         });
         return;
     }

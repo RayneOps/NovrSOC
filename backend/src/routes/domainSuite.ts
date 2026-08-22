@@ -16,6 +16,48 @@ interface DomainAlerts {
     new_cert: boolean;
 }
 
+interface DomainLookalike {
+    domain: string;
+    similarity: number;
+    risk: 'HIGH' | 'MEDIUM' | 'LOW';
+    registered?: string;
+}
+
+interface DomainCTLogEntry {
+    domain: string;
+    issuer: string;
+    not_before: string;
+    not_after: string;
+    suspicious: boolean;
+}
+
+interface DomainDnsRecord {
+    type: string;
+    name: string;
+    value: string;
+    ttl: number;
+}
+
+interface DomainAlertEvent {
+    type: string;
+    message: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    time: string;
+}
+
+// Cached results shown immediately on GET / (no click required) — refreshed in place by
+// GET /:id/scan (real RDAP + crt.sh) and GET /:id/dns (real Cloudflare DoH) when called.
+interface DomainScanCache {
+    scanned_at: string;
+    whois: ParsedWhois | null;
+    ssl_grade: string | null;
+    ct_logs: DomainCTLogEntry[];
+    lookalikes: DomainLookalike[];
+    dns_records: DomainDnsRecord[];
+    email_security: { spf: boolean; dmarc: boolean; dkim: boolean } | null;
+    alert_history: DomainAlertEvent[];
+}
+
 interface MonitoredDomain {
     id: string;
     domain: string;
@@ -24,6 +66,7 @@ interface MonitoredDomain {
     alerts: DomainAlerts;
     status: 'active';
     added_at: string;
+    last_scan: DomainScanCache | null;
 }
 
 const monitoredDomains: MonitoredDomain[] = [
@@ -35,6 +78,73 @@ const monitoredDomains: MonitoredDomain[] = [
         alerts: { lookalike: true, dns_change: true, expiry: true, new_cert: true },
         status: 'active',
         added_at: '2026-01-15',
+        last_scan: {
+            scanned_at: '2026-08-16T06:00:00.000Z',
+            whois: {
+                domain: 'cybernovr.com', registrar: 'Namecheap Inc.', created: '2022-05-09T00:00:00Z',
+                updated: '2026-04-09T00:00:00Z', expires: '2027-05-09T00:00:00Z',
+                nameservers: ['ns1.namecheap.com', 'ns2.namecheap.com'], status: ['active'],
+                dnssec: false, daysUntilExpiry: 268,
+            },
+            ssl_grade: 'A',
+            ct_logs: [
+                { domain: 'cybernovr.com', issuer: "Let's Encrypt", not_before: '2026-06-01', not_after: '2026-09-01', suspicious: false },
+                { domain: '*.cybernovr.com', issuer: "Let's Encrypt", not_before: '2026-06-01', not_after: '2026-09-01', suspicious: false },
+                { domain: 'cybernovr.ng', issuer: "Let's Encrypt", not_before: '2026-08-01', not_after: '2026-11-01', suspicious: true },
+                { domain: 'cybernovre.com', issuer: 'ZeroSSL', not_before: '2026-07-15', not_after: '2026-10-15', suspicious: true },
+            ],
+            lookalikes: [
+                { domain: 'cybernovr.ng', similarity: 95, risk: 'HIGH', registered: '2026-08-01' },
+                { domain: 'cybernovre.com', similarity: 91, risk: 'HIGH', registered: '2026-07-15' },
+                { domain: 'cybernovr-official.com', similarity: 82, risk: 'MEDIUM', registered: '2026-06-20' },
+                { domain: 'cybernovrsecurity.com', similarity: 79, risk: 'MEDIUM', registered: '2026-05-10' },
+            ],
+            dns_records: [
+                { type: 'A', name: 'cybernovr.com', value: '76.76.21.21', ttl: 3600 },
+                { type: 'MX', name: 'cybernovr.com', value: 'mail.proton.me', ttl: 3600 },
+                { type: 'TXT', name: 'cybernovr.com', value: 'v=spf1 include:_spf.protonmail.ch ~all', ttl: 3600 },
+            ],
+            email_security: { spf: true, dmarc: true, dkim: true },
+            alert_history: [
+                { type: 'LOOKALIKE', message: 'New domain cybernovr.ng registered 15 days ago', severity: 'HIGH', time: '2026-08-01' },
+                { type: 'CT_LOG', message: 'SSL cert issued for cybernovre.com', severity: 'HIGH', time: '2026-07-15' },
+            ],
+        },
+    },
+    {
+        id: 'dom_002',
+        domain: 'novrsoc.com',
+        brand_keywords: ['novrsoc', 'cybernovr'],
+        similarity_threshold: 80,
+        alerts: { lookalike: true, dns_change: true, expiry: true, new_cert: true },
+        status: 'active',
+        added_at: '2026-01-15',
+        last_scan: {
+            scanned_at: '2026-08-16T06:00:00.000Z',
+            whois: {
+                domain: 'novrsoc.com', registrar: 'GoDaddy LLC', created: '2024-01-10T00:00:00Z',
+                updated: '2026-01-10T00:00:00Z', expires: '2027-01-10T00:00:00Z',
+                nameservers: ['ns1.vercel-dns.com', 'ns2.vercel-dns.com'], status: ['active'],
+                dnssec: false, daysUntilExpiry: 147,
+            },
+            ssl_grade: 'A+',
+            ct_logs: [
+                { domain: 'novrsoc.com', issuer: "Let's Encrypt", not_before: '2026-07-01', not_after: '2026-10-01', suspicious: false },
+                { domain: 'novrsoc.ng', issuer: "Let's Encrypt", not_before: '2026-08-10', not_after: '2026-11-10', suspicious: true },
+            ],
+            lookalikes: [
+                { domain: 'novrsoc.ng', similarity: 93, risk: 'HIGH', registered: '2026-08-10' },
+                { domain: 'novsoc.com', similarity: 78, risk: 'MEDIUM', registered: '2026-07-01' },
+            ],
+            dns_records: [
+                { type: 'A', name: 'novrsoc.com', value: '76.76.21.21', ttl: 3600 },
+            ],
+            email_security: { spf: true, dmarc: false, dkim: false },
+            alert_history: [
+                { type: 'DMARC', message: 'DMARC record missing — domain can be spoofed for phishing', severity: 'HIGH', time: '2026-08-16' },
+                { type: 'LOOKALIKE', message: 'novrsoc.ng registered 6 days ago', severity: 'HIGH', time: '2026-08-10' },
+            ],
+        },
     },
 ];
 
@@ -74,6 +184,7 @@ router.post('/', (req, res) => {
         alerts: { lookalike: true, dns_change: true, expiry: true, new_cert: true, ...alerts },
         status: 'active',
         added_at: new Date().toISOString().split('T')[0],
+        last_scan: null,
     };
 
     monitoredDomains.push(entry);
@@ -147,6 +258,18 @@ router.get('/:id/scan', async (req, res) => {
         ] as const
     ).filter((l) => l.domain !== domain.domain);
 
+    // Persist into the cache GET / serves, keeping whatever DNS/alert history already exists.
+    domain.last_scan = {
+        scanned_at: results.scanned_at,
+        whois: results.whois,
+        ssl_grade: domain.last_scan?.ssl_grade ?? null,
+        ct_logs: results.ct_logs,
+        lookalikes: results.lookalikes,
+        dns_records: domain.last_scan?.dns_records ?? [],
+        email_security: domain.last_scan?.email_security ?? null,
+        alert_history: domain.last_scan?.alert_history ?? [],
+    };
+
     res.json(results);
 });
 
@@ -196,11 +319,30 @@ router.get('/:id/dns', async (req, res) => {
     const txtRecords = records.filter((r) => r.type === 'TXT').map((r) => r.value);
     const hasSPF = txtRecords.some((t) => t.includes('v=spf1'));
     const hasDMARC = txtRecords.some((t) => t.includes('v=DMARC1'));
+    const hasDKIM = txtRecords.some((t) => t.includes('DKIM1') || t.includes('v=DKIM1'));
+
+    // Only overwrite the cache if the live lookup actually found records — otherwise a DoH
+    // hiccup would blank out the pre-seeded/previously-known DNS picture on GET /.
+    if (records.length > 0 && domain.last_scan) {
+        domain.last_scan.dns_records = records;
+        domain.last_scan.email_security = { spf: hasSPF, dmarc: hasDMARC, dkim: hasDKIM };
+    } else if (records.length > 0) {
+        domain.last_scan = {
+            scanned_at: new Date().toISOString(),
+            whois: null,
+            ssl_grade: null,
+            ct_logs: [],
+            lookalikes: [],
+            dns_records: records,
+            email_security: { spf: hasSPF, dmarc: hasDMARC, dkim: hasDKIM },
+            alert_history: [],
+        };
+    }
 
     res.json({
         domain: domain.domain,
         records,
-        email_security: { spf: hasSPF, dmarc: hasDMARC },
+        email_security: { spf: hasSPF, dmarc: hasDMARC, dkim: hasDKIM },
         checked_at: new Date().toISOString(),
     });
 });

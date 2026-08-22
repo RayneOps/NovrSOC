@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { UserCheck, Plus, AlertTriangle, ShieldQuestion, Lock, RefreshCw, CheckCircle, Info, X } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ExportButton } from '@/components/shared/ExportButton';
 
 interface ExecBreach {
     source: string;
@@ -19,11 +20,24 @@ interface ExecutiveSocial {
     handle: string;
 }
 
+interface AuthAnomaly {
+    type: string;
+    message: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    time: string;
+}
+
 const SOCIAL_PLATFORMS: Record<ExecutiveSocial['platform'], { label: string; icon: string }> = {
     twitter: { label: 'Twitter / X', icon: '𝕏' },
     facebook: { label: 'Facebook', icon: 'f' },
     instagram: { label: 'Instagram', icon: '📷' },
     linkedin: { label: 'LinkedIn', icon: 'in' },
+};
+
+const RISK_STYLE: Record<'LOW' | 'MEDIUM' | 'HIGH', string> = {
+    LOW: 'bg-blue/10 text-blue border-blue/30',
+    MEDIUM: 'bg-grey-100 text-amber border-amber/30',
+    HIGH: 'bg-red-500/10 text-red-500 border-red-500/30',
 };
 
 interface Executive {
@@ -40,6 +54,8 @@ interface Executive {
     breach_count: number;
     breaches: ExecBreach[];
     scan_status: 'pending' | 'scanning' | 'complete' | 'error';
+    auth_anomalies: AuthAnomaly[];
+    risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 interface Capabilities {
@@ -159,13 +175,14 @@ export function ExecutiveMonitor() {
     };
 
     return (
-        <div className="space-y-4">
+        <div id="report-content" className="space-y-4">
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-lg font-black text-foreground">Executive Monitor</h1>
                     <p className="text-xs text-foreground-muted">Brand Protection · Monitor executive identities for breach exposure and impersonation</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <ExportButton elementId="report-content" filename="executive-monitor" title="Executive Monitor" />
                     <button
                         onClick={scanAll}
                         disabled={scanningAll || executives.length === 0}
@@ -203,7 +220,10 @@ export function ExecutiveMonitor() {
                                             {initials(exec.name)}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold text-foreground truncate">{exec.name}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-sm font-bold text-foreground truncate">{exec.name}</p>
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${RISK_STYLE[exec.risk_level]}`}>{exec.risk_level} RISK</span>
+                                            </div>
                                             <p className="text-[11px] text-foreground-muted">{exec.role} · {exec.org}{exec.department && exec.department !== '—' ? ` · ${exec.department}` : ''}</p>
                                             <p className="text-[11px] text-foreground-muted font-mono">{exec.email_masked}</p>
                                         </div>
@@ -236,6 +256,16 @@ export function ExecutiveMonitor() {
                                         </div>
                                         <p className="text-foreground-muted">Last scanned: {exec.last_scanned ? new Date(exec.last_scanned).toLocaleString() : 'Never'}</p>
                                         <p className="text-foreground-muted">Auth Anomalies: {capabilities.wazuh ? 'Monitoring' : 'Wazuh offline'}</p>
+                                        {exec.auth_anomalies.length > 0 && (
+                                            <div className="space-y-1">
+                                                {exec.auth_anomalies.map((a, i) => (
+                                                    <div key={i} className="flex items-start gap-1.5">
+                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${a.severity === 'HIGH' ? 'bg-red-500 text-white' : 'bg-grey-100 text-amber'}`}>{a.severity}</span>
+                                                        <span className="text-foreground-muted">{a.message}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         <p className="text-foreground-muted">Dark Web: {capabilities.darkweb ? 'Monitoring' : 'Not configured'}</p>
 
                                         {exec.scan_status === 'complete' && (

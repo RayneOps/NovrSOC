@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Smartphone, Plus, Apple, CheckCircle, ExternalLink, Search, Info } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ExportButton } from '@/components/shared/ExportButton';
 
 interface OfficialApp {
     id: string;
@@ -138,10 +139,13 @@ export function MobileAppSuite() {
     const isOfficial = (developer: string) => officialDevelopers.size > 0 && officialDevelopers.has(developer.toLowerCase());
 
     return (
-        <div className="space-y-4">
-            <div>
-                <h1 className="text-lg font-black text-foreground">Mobile App Suite</h1>
-                <p className="text-xs text-foreground-muted">Brand Protection · Detect fake and malicious mobile apps impersonating your brand</p>
+        <div id="report-content" className="space-y-4">
+            <div className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-lg font-black text-foreground">Mobile App Suite</h1>
+                    <p className="text-xs text-foreground-muted">Brand Protection · Detect fake and malicious mobile apps impersonating your brand</p>
+                </div>
+                <ExportButton elementId="report-content" filename="mobile-app-suite" title="Mobile App Suite" />
             </div>
 
             {/* Info banner */}

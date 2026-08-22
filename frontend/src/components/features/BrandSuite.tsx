@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Shield, Pencil, X, Upload, Search, ExternalLink, CheckCircle, AlertTriangle, History, FileText } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { ExportButton } from '@/components/shared/ExportButton';
 
 // Mock brand-wide violation report — a real report generator (aggregating scan history +
 // takedown status) is a later pass; this shows the shape/UX of what it will look like.
@@ -79,10 +80,17 @@ interface BrandAssets {
 }
 
 interface SearchHit {
+    id?: string;
+    type?: 'PHISHING' | 'COUNTERFEIT' | 'IMPERSONATION';
+    severity?: 'CRITICAL' | 'HIGH' | 'MEDIUM';
     title: string;
     url: string;
     snippet: string;
     domain: string;
+    detected?: string;
+    status?: string;
+    threat_score?: number;
+    evidence?: string[];
 }
 
 interface ScanRecord {
@@ -90,6 +98,14 @@ interface ScanRecord {
     pages_checked: number;
     violations_found: number;
 }
+
+// Pre-seeded so the Scan History tab isn't empty before the user has run a scan this session.
+const SEED_SCAN_HISTORY: ScanRecord[] = [
+    { ran_at: '2026-08-16T06:00:00.000Z', pages_checked: 847, violations_found: 3 },
+    { ran_at: '2026-08-09T06:00:00.000Z', pages_checked: 812, violations_found: 2 },
+    { ran_at: '2026-08-02T06:00:00.000Z', pages_checked: 799, violations_found: 0 },
+    { ran_at: '2026-07-26T06:00:00.000Z', pages_checked: 834, violations_found: 1 },
+];
 
 const TABS = [
     { id: 'violations', label: 'Web Scan Results' },
@@ -112,8 +128,25 @@ export function BrandSuite() {
     const [scanning, setScanning] = useState(false);
     const [configured, setConfigured] = useState(true);
     const [violations, setViolations] = useState<SearchHit[]>([]);
-    const [scanHistory, setScanHistory] = useState<ScanRecord[]>([]);
+    const [scanHistory, setScanHistory] = useState<ScanRecord[]>(SEED_SCAN_HISTORY);
     const [showBrandReport, setShowBrandReport] = useState(false);
+
+    const scanFor = async (brandName: string, officialDomain: string) => {
+        setScanning(true);
+        try {
+            const res = await fetch(apiUrl('/api/brand/search'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ brand_name: brandName, official_domains: [officialDomain], search_type: 'counterfeit' }),
+            });
+            const data = await res.json();
+            setConfigured(data?.configured !== false);
+            setViolations(Array.isArray(data?.results) ? data.results : []);
+            setScanHistory((prev) => [{ ran_at: new Date().toISOString(), pages_checked: data?.total_results ?? data?.results?.length ?? 0, violations_found: data?.results?.length ?? 0 }, ...prev]);
+        } finally {
+            setScanning(false);
+        }
+    };
 
     const load = () => {
         setLoading(true);
@@ -124,6 +157,8 @@ export function BrandSuite() {
                 setDomainInput(data.official_domain);
                 setBrandNameInput(data.brand_name);
                 setKeywords(data.trademark_keywords ?? []);
+                // Show violations immediately on page load, not just after a manual scan.
+                scanFor(data.brand_name, data.official_domain);
             })
             .catch(() => setAssets(null))
             .finally(() => setLoading(false));
@@ -164,21 +199,8 @@ export function BrandSuite() {
 
     const runWebScan = async () => {
         if (!assets) return;
-        setScanning(true);
-        try {
-            const res = await fetch(apiUrl('/api/brand/search'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ brand_name: assets.brand_name, official_domains: [assets.official_domain], search_type: 'counterfeit' }),
-            });
-            const data = await res.json();
-            setConfigured(data?.configured !== false);
-            setViolations(Array.isArray(data?.results) ? data.results : []);
-            setScanHistory((prev) => [{ ran_at: new Date().toISOString(), pages_checked: data?.total_results ?? data?.results?.length ?? 0, violations_found: data?.results?.length ?? 0 }, ...prev]);
-            setTab('violations');
-        } finally {
-            setScanning(false);
-        }
+        await scanFor(assets.brand_name, assets.official_domain);
+        setTab('violations');
     };
 
     if (loading || !assets) {
@@ -194,19 +216,22 @@ export function BrandSuite() {
     }
 
     return (
-        <div className="space-y-4">
+        <div id="report-content" className="space-y-4">
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-lg font-black text-foreground">Brand Suite</h1>
                     <p className="text-xs text-foreground-muted">Brand Protection · Logo misuse, counterfeit sites, and trademark infringement</p>
                 </div>
-                <button
-                    onClick={() => setShowBrandReport(true)}
-                    className="flex items-center gap-2 border border-purple text-purple hover:bg-purple/5 text-xs font-black px-4 py-2.5 rounded-lg transition-colors flex-shrink-0"
-                >
-                    <FileText size={14} />
-                    View Brand Report
-                </button>
+                <div className="flex items-center gap-2">
+                    <ExportButton elementId="report-content" filename="brand-suite" title="Brand Suite" />
+                    <button
+                        onClick={() => setShowBrandReport(true)}
+                        className="flex items-center gap-2 border border-purple text-purple hover:bg-purple/5 text-xs font-black px-4 py-2.5 rounded-lg transition-colors flex-shrink-0"
+                    >
+                        <FileText size={14} />
+                        View Brand Report
+                    </button>
+                </div>
             </div>
 
             {/* Brand Assets panel */}
@@ -284,10 +309,33 @@ export function BrandSuite() {
             </div>
 
             {tab === 'violations' && (
-                <div>
+                <div className="space-y-3">
                     {!configured && violations.length > 0 && (
-                        <p className="text-[11px] text-amber mb-2">Demo data — Web Intelligence Engine not yet configured for live results.</p>
+                        <p className="text-[11px] text-amber">Demo data — Web Intelligence Engine not yet configured for live results.</p>
                     )}
+
+                    {/* Scan stats summary */}
+                    {scanHistory.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="bg-card border border-border rounded-xl p-3 text-center">
+                                <p className="text-xl font-black text-foreground">{scanHistory[0].pages_checked}</p>
+                                <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Pages Checked</p>
+                            </div>
+                            <div className="bg-card border border-border rounded-xl p-3 text-center">
+                                <p className="text-xl font-black text-red-500">{violations.length}</p>
+                                <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Violations Found</p>
+                            </div>
+                            <div className="bg-card border border-border rounded-xl p-3 text-center">
+                                <p className="text-xl font-black text-purple">{violations.filter((v) => v.severity === 'CRITICAL').length}</p>
+                                <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Critical</p>
+                            </div>
+                            <div className="bg-card border border-border rounded-xl p-3 text-center">
+                                <p className="text-xl font-black text-blue">{new Date(scanHistory[0].ran_at).toLocaleDateString()}</p>
+                                <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Last Scan</p>
+                            </div>
+                        </div>
+                    )}
+
                     {violations.length === 0 ? (
                         <div className="bg-card border border-border rounded-xl py-12 text-center">
                             <Shield className="w-8 h-8 text-foreground-muted mx-auto mb-2" />
@@ -296,17 +344,31 @@ export function BrandSuite() {
                     ) : (
                         <div className="space-y-3">
                             {violations.map((v, i) => (
-                                <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
+                                <div key={v.id ?? i} className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
                                     <div className="w-14 h-14 rounded-lg bg-card-muted flex-shrink-0" />
                                     <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <p className="text-sm font-bold text-foreground truncate">{v.title}</p>
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-red-500/10 text-red-500 border-red-500/30">COUNTERFEIT</span>
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${BRAND_SEVERITY_STYLE[v.severity ?? 'MEDIUM'] ?? 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
+                                                {v.type ?? 'COUNTERFEIT'}
+                                            </span>
+                                            {v.threat_score !== undefined && (
+                                                <span className="text-[9px] font-bold text-foreground-muted">Threat score: {v.threat_score}</span>
+                                            )}
                                         </div>
                                         <a href={v.url} target="_blank" rel="noreferrer" className="text-[11px] text-blue hover:underline flex items-center gap-1 mt-0.5">
                                             {v.domain} <ExternalLink size={10} />
                                         </a>
                                         <p className="text-xs text-foreground-muted mt-1.5">{v.snippet}</p>
+                                        {v.evidence && v.evidence.length > 0 && (
+                                            <ul className="mt-1.5 space-y-0.5">
+                                                {v.evidence.map((e, ei) => (
+                                                    <li key={ei} className="text-[10px] text-foreground-muted flex items-start gap-1">
+                                                        <span className="text-foreground-muted/60">•</span> {e}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
                                         <div className="flex items-center gap-3 mt-2">
                                             <button className="text-[10px] font-bold text-blue hover:underline">View Page</button>
                                             <button className="text-[10px] font-bold text-red-500 hover:underline">Report</button>

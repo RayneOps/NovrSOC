@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AtSign, Plus, BadgeCheck, FileText, X } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ExportButton } from '@/components/shared/ExportButton';
 
 // Mock monitoring report — a real per-account report generator is a later pass; this shows
 // the shape/UX of what that report will look like once it exists.
@@ -64,19 +65,29 @@ interface SocialAccount {
 }
 
 interface Impersonation {
+    id?: string;
     handle: string;
     platform: string;
     score: number;
     followers: number;
     created: string;
+    status?: 'open' | 'reported' | 'dismissed';
+    risk?: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 interface Mention {
     text: string;
     platform: string;
     sentiment: 'Positive' | 'Negative' | 'Neutral';
+    reach?: number;
     time: string;
 }
+
+const STATUS_STYLE: Record<string, string> = {
+    open: 'bg-red-500/10 text-red-500 border-red-500/30',
+    reported: 'bg-blue/10 text-blue border-blue/30',
+    dismissed: 'bg-card-muted text-foreground-muted border-border',
+};
 
 const SENTIMENT_STYLE: Record<string, string> = {
     Positive: 'bg-blue/10 text-blue border-blue/30',
@@ -170,21 +181,48 @@ export function SocialSuite() {
         }
     };
 
+    const openImpersonations = impersonations.filter((i) => i.status !== 'dismissed').length;
+    const totalReach = mentions.reduce((sum, m) => sum + (m.reach ?? 0), 0);
+
     return (
-        <div className="space-y-4">
+        <div id="report-content" className="space-y-4">
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-lg font-black text-foreground">Social Suite</h1>
                     <p className="text-xs text-foreground-muted">Brand Protection · Monitor social channels for impersonation and abuse</p>
                 </div>
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors"
-                >
-                    <Plus size={14} />
-                    Add Account
-                </button>
+                <div className="flex items-center gap-2">
+                    <ExportButton elementId="report-content" filename="social-suite" title="Social Suite" />
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors"
+                    >
+                        <Plus size={14} />
+                        Add Account
+                    </button>
+                </div>
             </div>
+
+            {!loading && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-card border border-border rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-foreground">{accounts.length}</p>
+                        <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Accounts Monitored</p>
+                    </div>
+                    <div className="bg-card border border-border rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-red-500">{openImpersonations}</p>
+                        <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Open Impersonations</p>
+                    </div>
+                    <div className="bg-card border border-border rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-purple">{mentions.length}</p>
+                        <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Mentions Tracked</p>
+                    </div>
+                    <div className="bg-card border border-border rounded-xl p-3 text-center">
+                        <p className="text-xl font-black text-blue">{totalReach.toLocaleString()}</p>
+                        <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Est. Reach</p>
+                    </div>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex items-center gap-1 border-b border-border">
@@ -255,14 +293,14 @@ export function SocialSuite() {
                                 <table className="w-full text-xs">
                                     <thead>
                                         <tr className="border-b border-border">
-                                            {['Account', 'Platform', 'Score', 'Followers', 'Created', 'Actions'].map((h) => (
+                                            {['Account', 'Platform', 'Score', 'Followers', 'Created', 'Status', 'Actions'].map((h) => (
                                                 <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-foreground-muted uppercase tracking-wider">{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {impersonations.map((item) => (
-                                            <tr key={item.handle} className="border-b border-border hover:bg-card-muted">
+                                            <tr key={item.id ?? item.handle} className="border-b border-border hover:bg-card-muted">
                                                 <td className="px-4 py-2.5 font-mono text-foreground">{item.handle}</td>
                                                 <td className="px-4 py-2.5 text-foreground-muted">{item.platform}</td>
                                                 <td className="px-4 py-2.5">
@@ -270,6 +308,11 @@ export function SocialSuite() {
                                                 </td>
                                                 <td className="px-4 py-2.5 text-foreground-muted">{item.followers.toLocaleString()}</td>
                                                 <td className="px-4 py-2.5 text-foreground-muted">{item.created}</td>
+                                                <td className="px-4 py-2.5">
+                                                    {item.status && (
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border capitalize ${STATUS_STYLE[item.status]}`}>{item.status}</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-2.5">
                                                     <div className="flex items-center gap-3">
                                                         <button className="text-[10px] font-bold text-blue hover:underline">Report</button>
@@ -299,6 +342,12 @@ export function SocialSuite() {
                                                 <span className="text-[10px] text-foreground-muted">{m.platform}</span>
                                                 <span className="text-[10px] text-foreground-muted">·</span>
                                                 <span className="text-[10px] text-foreground-muted">{m.time}</span>
+                                                {m.reach !== undefined && (
+                                                    <>
+                                                        <span className="text-[10px] text-foreground-muted">·</span>
+                                                        <span className="text-[10px] text-foreground-muted">{m.reach.toLocaleString()} reach</span>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex-shrink-0 ${SENTIMENT_STYLE[m.sentiment]}`}>{m.sentiment}</span>
