@@ -1,6 +1,9 @@
 import https from 'https';
 
-const INDEXER_HOST = process.env.WAZUH_INDEXER_HOST || '164.92.203.205';
+// No hardcoded host fallback on purpose — see lib/wazuh.ts's identical comment. A missing
+// WAZUH_INDEXER_HOST env var should fail loudly (below), not silently reach out to whatever
+// box happened to be at this IP when it was last written; that box has already moved once.
+const INDEXER_HOST = process.env.WAZUH_INDEXER_HOST || '';
 const INDEXER_PORT = Number(process.env.WAZUH_INDEXER_PORT || 9200);
 const INDEXER_USER = process.env.WAZUH_INDEXER_USER || 'admin';
 // Accepts either name — local .env has historically used WAZUH_INDEXER_PASS, Railway/newer
@@ -15,6 +18,10 @@ const INDEXER_PASS = process.env.WAZUH_INDEXER_PASSWORD || process.env.WAZUH_IND
  */
 export function search<T = unknown>(index: string, body: unknown): Promise<T | null> {
     return new Promise((resolve, reject) => {
+        if (!INDEXER_HOST) {
+            reject(new Error('WAZUH_INDEXER_HOST environment variable is not set'));
+            return;
+        }
         if (!INDEXER_PASS) {
             reject(new Error('WAZUH_INDEXER_PASS environment variable is not set'));
             return;
