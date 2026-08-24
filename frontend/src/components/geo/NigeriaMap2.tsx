@@ -1,7 +1,31 @@
 import React, { useState } from 'react';
-import { nigeriaThreatData } from '@/lib/mock/nigeria-threat-data';
 
-type StateThreatInfo = typeof nigeriaThreatData[keyof typeof nigeriaThreatData];
+// One state's real, live-aggregated data from GET /api/dashboard/nigeria-threats (Wazuh
+// Indexer, last 24h, genuinely Nigerian-geolocated events only — see that route for why
+// there's no mock/estimated fallback baked in here anymore).
+export interface NigeriaStateData {
+  name: string;
+  code: string;
+  threats: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'clean';
+  top_threat_type: string;
+  top_rule: string;
+  ips_monitored: number;
+  latest_alert: string | null;
+  threat_types: Record<string, number>;
+}
+
+const SEVERITY_COLORS: Record<NigeriaStateData['severity'], string> = {
+  critical: '#CC2B2B',
+  high: '#FF5500',
+  medium: '#F59E0B',
+  low: '#2B3BCC',
+  clean: '#CBD5E1',
+};
 
 // Capital/region/code metadata for all 37 states — keyed by the exact `name` used on each
 // <path> below (not nigeriaThreatData's abbreviated keys, which don't cover every state).
@@ -56,49 +80,49 @@ const REGION_COLORS: Record<string, string> = {
 };
 
 interface NigeriaMapProps {
-  onStateSelect?: (state: string) => void;
-  // Live per-state data from GET /api/geo/nigeria/states, keyed the same way as
-  // nigeriaThreatData (e.g. 'Lagos', 'FCT', 'CrossRiver'). Entries here override the bundled
-  // mock for that state; states with no live row keep showing the mock, so the map always
-  // renders fully even before the backend/Supabase table is populated.
-  stateOverrides?: Partial<Record<string, StateThreatInfo>>;
-  // 'threat' fills each state by its dominant threat type (default); 'region' fills by
-  // geopolitical zone instead — useful as a plain reference view with no data attached.
+  onStateSelect?: (state: NigeriaStateData) => void;
+  // Real per-state data from GET /api/dashboard/nigeria-threats — always 37 entries (the
+  // route zero-fills every state), so an empty array here means "hasn't loaded yet", not
+  // "no states exist". No mock fallback: a state legitimately at zero renders as clean/grey.
+  liveStates?: NigeriaStateData[];
+  // 'threat' fills each state by live severity (default); 'region' fills by geopolitical
+  // zone instead — useful as a plain reference view with no data attached.
   colorMode?: 'threat' | 'region';
+  // Popup is fully controlled by the parent (not local state here) — NigeriaThreatMap also
+  // opens it from its "highest attack states" bottom bar, not just SVG clicks, so there has
+  // to be one shared source of truth rather than this component owning its own copy.
+  selectedState?: NigeriaStateData | null;
+  onCloseSelection?: () => void;
 }
 
 export function NigeriaMap2({
   onStateSelect,
-  stateOverrides,
+  liveStates = [],
   colorMode = 'threat',
+  selectedState = null,
+  onCloseSelection,
 }: NigeriaMapProps) {
 
-  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const liveByName: Record<string, NigeriaStateData> = {};
+  for (const s of liveStates) liveByName[s.name] = s;
 
   const handleStateClick = (stateName: string) => {
-    setSelectedState(stateName);
-    onStateSelect?.(stateName);
-  };
-
-    const threatData: Record<string, StateThreatInfo> = { ...nigeriaThreatData, ...stateOverrides };
-
-    const threatColors: Record<string, string> = {
-     Malware: "#CC2B2B",
-     Phishing: "#F59E0B",
-     Botnet: "#520385",
-     Ransomware: "#CC2B2B",
-     DDoS: "#2B3BCC",
-     CredentialTheft: "#F59E0B",
+    const data = liveByName[stateName] ?? {
+      name: stateName, code: STATE_META[stateName]?.code ?? '—',
+      threats: 0, critical: 0, high: 0, medium: 0, low: 0, severity: 'clean',
+      top_threat_type: 'None', top_rule: 'None', ips_monitored: 0, latest_alert: null, threat_types: {},
     };
+    onStateSelect?.(data);
+  };
 
     // Approximate marker positions (SVG-space, matches the 0 0 1000 812 viewBox below) for
     // a handful of major cities — used to overlay live attack-origin bubbles on the map.
-    const CITY_MARKERS: { name: string; dataKey: keyof typeof nigeriaThreatData; x: number; y: number }[] = [
-      { name: 'Lagos', dataKey: 'Lagos', x: 220, y: 640 },
-      { name: 'Abuja (FCT)', dataKey: 'FCT', x: 380, y: 435 },
-      { name: 'Kano', dataKey: 'Kano', x: 460, y: 225 },
-      { name: 'Port Harcourt', dataKey: 'Rivers', x: 330, y: 700 },
-      { name: 'Kaduna', dataKey: 'Kaduna', x: 410, y: 320 },
+    const CITY_MARKERS: { name: string; stateName: string; x: number; y: number }[] = [
+      { name: 'Lagos', stateName: 'Lagos', x: 220, y: 640 },
+      { name: 'Abuja (FCT)', stateName: 'Federal Capital Territory', x: 380, y: 435 },
+      { name: 'Kano', stateName: 'Kano', x: 460, y: 225 },
+      { name: 'Port Harcourt', stateName: 'Rivers', x: 330, y: 700 },
+      { name: 'Kaduna', stateName: 'Kaduna', x: 410, y: 320 },
     ];
 
     const getStateColor = (state: string) => {
@@ -107,15 +131,11 @@ export function NigeriaMap2({
       return (region && REGION_COLORS[region]) || "#CBD5E1";
     }
 
-    const info = threatData[state];
-
-    if (!info) return "#CBD5E1";
-
-    return threatColors[info.primaryThreat] ?? "#CBD5E1";
+    const info = liveByName[state];
+    return SEVERITY_COLORS[info?.severity ?? 'clean'];
     };
 
-    const selectedMeta = selectedState ? STATE_META[selectedState] : null;
-    const selectedThreat = selectedState ? threatData[selectedState] : null;
+    const selectedMeta = selectedState ? STATE_META[selectedState.name] : null;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 w-full">
@@ -434,13 +454,15 @@ export function NigeriaMap2({
           />
         </g>
 
-        {/* Live attack-origin bubbles, sized by count, colored by dominant threat type */}
+        {/* Live attack-origin bubbles, sized by real threat count — only rendered where
+            count > 0, so a quiet city shows nothing rather than a fabricated dot. */}
         <g id="attack-bubbles">
           {CITY_MARKERS.map((city) => {
-            const info = threatData[city.dataKey];
-            const color = threatColors[info?.primaryThreat ?? 'Malware'] ?? '#7A8099';
-            const count = info?.attacks ?? 0;
-            const r = Math.max(8, Math.min(28, count / 20));
+            const info = liveByName[city.stateName];
+            const count = info?.threats ?? 0;
+            if (count <= 0) return null;
+            const color = SEVERITY_COLORS[info?.severity ?? 'clean'];
+            const r = Math.max(6, Math.min(28, 6 + count * 2));
             return (
               <circle
                 key={city.name}
@@ -451,9 +473,9 @@ export function NigeriaMap2({
                 opacity={0.7}
                 stroke="#FFFFFF"
                 strokeWidth={1.5}
-                className={count > 400 ? 'animate-pulse' : ''}
+                className={info?.severity === 'critical' ? 'animate-pulse' : ''}
               >
-                <title>{city.name}: {count.toLocaleString()} attacks</title>
+                <title>{city.name}: {count.toLocaleString()} threats (24h)</title>
               </circle>
             );
           })}
@@ -483,87 +505,103 @@ export function NigeriaMap2({
         </div>
       </div>
 
-      {/* State detail panel */}
+      {/* State selectedState — centered modal overlay, not a side panel, so it works the same
+          whether the map is embedded normally or in fullscreen (fixed positioning is
+          relative to the fullscreen element while one is active). */}
       {selectedState && (
-        <div className="w-full lg:w-64 flex-shrink-0 bg-card border border-border rounded-xl p-4 h-fit">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="font-bold text-sm text-foreground">{selectedState}</div>
-              <div className="text-xs text-foreground-muted">{selectedMeta?.region ?? '—'}</div>
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center"
+          onClick={() => onCloseSelection?.()}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-border w-80 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-purple px-5 py-4 flex items-center justify-between">
+              <div>
+                <div className="font-black text-white text-lg">{selectedState.name}</div>
+                <div className="text-white/60 text-xs">{selectedMeta?.region ?? '—'} · {selectedMeta?.capital ?? '—'}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
+                  selectedState.severity === 'critical' ? 'bg-red-500 text-white' :
+                  selectedState.severity === 'high' ? 'bg-orange text-white' :
+                  selectedState.severity === 'medium' ? 'bg-amber-400 text-white' :
+                  selectedState.severity === 'low' ? 'bg-blue text-white' :
+                  'bg-white/20 text-white'
+                }`}>
+                  {selectedState.severity}
+                </span>
+                <button onClick={() => onCloseSelection?.()} className="text-white/60 hover:text-white text-lg leading-none" aria-label="Close">
+                  ✕
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setSelectedState(null)}
-              className="text-foreground-muted hover:text-foreground text-xs"
-              aria-label="Close state detail panel"
-            >
-              ✕
-            </button>
-          </div>
 
-          <div className="space-y-2 text-xs mb-4">
-            <div className="flex justify-between">
-              <span className="text-foreground-muted">Capital</span>
-              <span className="font-medium text-foreground">{selectedMeta?.capital ?? '—'}</span>
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 gap-px bg-border">
+              {[
+                { label: 'Total Threats', value: selectedState.threats, color: 'text-foreground' },
+                { label: 'Critical', value: selectedState.critical, color: 'text-red-500' },
+                { label: 'High', value: selectedState.high, color: 'text-orange' },
+                { label: 'IPs Monitored', value: selectedState.ips_monitored, color: 'text-purple' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-white px-4 py-3">
+                  <div className={`font-black text-2xl ${stat.color}`}>{stat.value}</div>
+                  <div className="text-[10px] text-foreground-muted uppercase tracking-wider mt-0.5">{stat.label}</div>
+                </div>
+              ))}
             </div>
-            <div className="flex justify-between">
-              <span className="text-foreground-muted">State Code</span>
-              <span className="font-mono font-bold text-purple">{selectedMeta?.code ?? '—'}</span>
-            </div>
-          </div>
 
-          {selectedThreat ? (
-            <>
-              <div
-                className="rounded-lg p-3 mb-3 border"
-                style={{
-                  backgroundColor: `${threatColors[selectedThreat.primaryThreat] ?? '#7A8099'}1A`,
-                  borderColor: `${threatColors[selectedThreat.primaryThreat] ?? '#7A8099'}4D`,
-                }}
+            {/* Threat breakdown */}
+            <div className="px-5 py-4 border-b border-border">
+              <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-3">Threat Breakdown (24h)</div>
+              {Object.entries(selectedState.threat_types).length > 0 ? (
+                Object.entries(selectedState.threat_types)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 4)
+                  .map(([type, count]) => (
+                    <div key={type} className="flex items-center justify-between py-1">
+                      <span className="text-xs text-foreground">{type}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden">
+                          <div className="h-full bg-purple rounded-full" style={{ width: `${Math.min((count / (selectedState.threats || 1)) * 100, 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-purple w-6 text-right">{count}</span>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-xs text-foreground-muted text-center py-2">No threats in last 24h</div>
+              )}
+            </div>
+
+            {/* Top rule */}
+            <div className="px-5 py-3 border-b border-border">
+              <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-1">Top Alert Rule</div>
+              <div className="text-xs text-foreground font-medium">{selectedState.top_rule}</div>
+              {selectedState.latest_alert && (
+                <div className="text-[10px] text-foreground-muted mt-1">Last seen: {new Date(selectedState.latest_alert).toLocaleString()}</div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="px-5 py-3 flex gap-2">
+              <a
+                href={`/admin/secops/threats?state=${encodeURIComponent(selectedState.name)}`}
+                className="flex-1 text-center bg-purple text-white text-xs font-bold py-2.5 rounded-lg hover:bg-purple-hover transition-colors"
               >
-                <div
-                  className="text-[10px] font-bold uppercase tracking-wide mb-1"
-                  style={{ color: threatColors[selectedThreat.primaryThreat] ?? '#7A8099' }}
-                >
-                  {selectedThreat.level} threat level
-                </div>
-                <div className="font-bold text-2xl text-foreground">{selectedThreat.attacks}</div>
-                <div className="text-[10px] text-foreground-muted">attacks (last 30 days)</div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between gap-2">
-                  <span className="text-foreground-muted flex-shrink-0">Primary Threat</span>
-                  <span className="font-medium text-foreground text-right">{selectedThreat.primaryThreat}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-foreground-muted flex-shrink-0">Malware / Tool</span>
-                  <span className="font-medium text-foreground text-right">{selectedThreat.malware}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-foreground-muted flex-shrink-0">Target Sector</span>
-                  <span className="font-medium text-foreground text-right">{selectedThreat.target}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-foreground-muted">IOCs</span>
-                  <span className="font-medium text-purple">{selectedThreat.iocs}</span>
-                </div>
-                {selectedThreat.sourceCountries?.length > 0 && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-foreground-muted flex-shrink-0">Source Countries</span>
-                    <span className="font-medium text-foreground text-right">{selectedThreat.sourceCountries.join(', ')}</span>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="text-xs text-foreground-muted bg-card-muted rounded-lg p-3 text-center">
-              No threat data for {selectedState}
+                View {selectedState.name} Alerts →
+              </a>
+              <button
+                onClick={() => onCloseSelection?.()}
+                className="px-4 py-2.5 border border-border text-xs text-foreground-muted rounded-lg hover:border-grey-300 transition-colors"
+              >
+                Close
+              </button>
             </div>
-          )}
-
-          <button className="w-full mt-4 bg-purple hover:bg-purple-hover text-white text-xs font-semibold py-2 rounded-lg transition-colors">
-            View {selectedState} Alerts →
-          </button>
+          </div>
         </div>
       )}
     </div>

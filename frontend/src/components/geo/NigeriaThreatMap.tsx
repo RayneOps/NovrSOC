@@ -1,41 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { NigeriaMap2 } from './NigeriaMap2';
-import { nigeriaThreatData } from '@/lib/mock/nigeria-threat-data';
+import { useEffect, useRef, useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import { NigeriaMap2, type NigeriaStateData } from './NigeriaMap2';
 import { apiUrl } from '@/lib/api';
-
-type StateThreatInfo = typeof nigeriaThreatData[keyof typeof nigeriaThreatData];
-
-// Shape of a row from Supabase's nigeria_state_threats table (see backend/novrsoc_supabase_schema.sql),
-// as returned by GET /api/geo/nigeria/states.
-interface StateThreatRow {
-    state: string;
-    level: string;
-    primary_threat: string;
-    attacks: number;
-    malware: string | null;
-    target: string | null;
-    source_countries: string[] | null;
-    iocs: number;
-    mitre: string[] | null;
-    color: string | null;
-}
-
-function rowToStateInfo(row: StateThreatRow): StateThreatInfo {
-    return {
-        level: row.level,
-        primaryThreat: row.primary_threat,
-        attacks: row.attacks,
-        malware: row.malware ?? '—',
-        target: row.target ?? '—',
-        sourceCountries: row.source_countries ?? [],
-        iocs: row.iocs,
-        mitre: row.mitre ?? [],
-        color: row.color ?? '#7A8099',
-        activity: [],
-    } as StateThreatInfo;
-}
 
 const Card = ({ children }: { children: React.ReactNode }) => (
     <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
@@ -59,34 +27,28 @@ export interface FeedAdvisory {
     published_at: string;
 }
 
-const STAT_CARDS: { title: string; value: string; color: string }[] = [
-    { title: 'Threat Score', value: '91', color: 'text-red-500' },
-    { title: "Today's Attacks", value: '1,284', color: 'text-red-500' },
-    { title: 'Critical States', value: '5', color: 'text-purple' },
-    { title: 'Malware', value: '314', color: 'text-blue' },
-    { title: 'Botnets', value: '88', color: 'text-blue' },
-    { title: 'Phishing', value: '123', color: 'text-amber' },
-    { title: 'Ransomware', value: '21', color: 'text-red-500' },
-    { title: 'DDoS', value: '47', color: 'text-blue' },
-];
+interface NigeriaThreatsSummary {
+    total_threats: number;
+    threat_score: number;
+    critical_states: number;
+    today_attacks: number;
+    malware: number;
+    phishing: number;
+    botnets: number;
+    ransomware: number;
+    ddos: number;
+    credential_theft: number;
+    highest_attack_states: { name: string; count: number; state: string; threat_type: string }[];
+    threat_level: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'CLEAR';
+    error?: string;
+}
 
-const STATE_KPIS: [string, number][] = [
-    ['Malware Lagos', 3750],
-    ['Phishing Lagos', 8000],
-    ['BotNet Kano', 950],
-    ['Ransomware Rivers', 1650],
-    ['DDoS Abuja', 1350],
-    ['Cred-Theft Lagos', 1800],
-];
-
-const LEGEND: { label: string; color: string }[] = [
-    { label: 'Malware', color: '#CC2B2B' },
-    { label: 'Phishing', color: '#F59E0B' },
-    { label: 'Botnet', color: '#520385' },
-    { label: 'Ransomware', color: '#CC2B2B' },
-    { label: 'DDoS', color: '#2B3BCC' },
-    { label: 'Credential Theft', color: '#F59E0B' },
-];
+interface NigeriaThreatsResponse {
+    states: NigeriaStateData[];
+    summary: NigeriaThreatsSummary;
+    source: string;
+    generated_at: string;
+}
 
 const TIME_RANGES: { value: '1h' | '24h' | '7d'; label: string }[] = [
     { value: '1h', label: 'Last 1hr' },
@@ -94,40 +56,81 @@ const TIME_RANGES: { value: '1h' | '24h' | '7d'; label: string }[] = [
     { value: '7d', label: 'Last 7 days' },
 ];
 
+const THREAT_LEVEL_COLOR: Record<string, string> = {
+    CRITICAL: 'text-red-500',
+    HIGH: 'text-orange',
+    MEDIUM: 'text-amber-500',
+    LOW: 'text-blue',
+    CLEAR: 'text-green-500',
+};
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] | null }) => {
     const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d'>('24h');
     const [colorMode, setColorMode] = useState<'threat' | 'region'>('threat');
-    const [stateOverrides, setStateOverrides] = useState<Record<string, StateThreatInfo>>({});
+    const [data, setData] = useState<NigeriaThreatsResponse | null>(null);
+    const [popupState, setPopupState] = useState<NigeriaStateData | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const mapSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/geo/nigeria/states'), { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-            .then((rows: StateThreatRow[]) => {
-                if (!Array.isArray(rows) || rows.length === 0) return;
-                const overrides: Record<string, StateThreatInfo> = {};
-                for (const row of rows) {
-                    if (row?.state) overrides[row.state] = rowToStateInfo(row);
-                }
-                setStateOverrides(overrides);
-            })
-            // Backend/Supabase not reachable or not configured yet — the map keeps rendering
-            // from its bundled mock data (see NigeriaMap2's stateOverrides fallback).
+        fetch(apiUrl(`/api/dashboard/nigeria-threats?range=${timeRange}`), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then(setData)
+            // Real endpoint, no mock fallback — a failed fetch just means "no data to show
+            // yet" (data stays null, everything below renders its own zero/loading state).
             .catch(() => {});
+    }, [timeRange]);
+
+    useEffect(() => {
+        const handleFsChange = () => { if (!document.fullscreenElement) setIsFullscreen(false); };
+        document.addEventListener('fullscreenchange', handleFsChange);
+        return () => document.removeEventListener('fullscreenchange', handleFsChange);
     }, []);
+
+    const toggleFullscreen = () => {
+        if (!isFullscreen) {
+            mapSectionRef.current?.requestFullscreen?.();
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen?.();
+            setIsFullscreen(false);
+        }
+    };
+
+    const summary = data?.summary;
+    const states = data?.states ?? [];
+
+    const STAT_CARDS: { title: string; value: number | string; color: string }[] = [
+        { title: 'Threat Score', value: summary?.threat_score ?? '—', color: 'text-red-500' },
+        { title: "Today's Attacks", value: summary?.today_attacks ?? '—', color: 'text-red-500' },
+        { title: 'Critical States', value: summary?.critical_states ?? '—', color: 'text-purple' },
+        { title: 'Malware', value: summary?.malware ?? '—', color: 'text-blue' },
+        { title: 'Botnets', value: summary?.botnets ?? '—', color: 'text-blue' },
+        { title: 'Phishing', value: summary?.phishing ?? '—', color: 'text-amber-500' },
+        { title: 'Ransomware', value: summary?.ransomware ?? '—', color: 'text-red-500' },
+        { title: 'DDoS', value: summary?.ddos ?? '—', color: 'text-blue' },
+    ];
+
+    const highestAttackStates = summary?.highest_attack_states ?? [];
 
     return (
         <Card>
-            <div className="p-6">
+            <div ref={mapSectionRef} className={isFullscreen ? 'fixed inset-0 z-40 bg-white p-6 overflow-auto' : 'p-6'}>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <SectionHeader title="Nigeria National Threat Landscape" />
-                        <p className="text-sm text-foreground-muted">Real-time cyber activity across Nigerian states</p>
+                        <p className="text-sm text-foreground-muted">
+                            Real-time cyber activity across Nigerian states
+                            {data?.summary.error && <span className="text-amber-500"> · {data.summary.error}</span>}
+                        </p>
                     </div>
                     <div className="text-right">
                         <p className="text-xs uppercase text-foreground-muted">Threat Level</p>
-                        <h2 className="text-2xl font-black text-red-500">HIGH</h2>
+                        <h2 className={`text-2xl font-black ${THREAT_LEVEL_COLOR[summary?.threat_level ?? ''] ?? 'text-foreground-muted'}`}>
+                            {summary?.threat_level ?? 'LOADING'}
+                        </h2>
                     </div>
                 </div>
 
@@ -165,11 +168,25 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                                         {r.label}
                                     </button>
                                 ))}
+                                <button
+                                    onClick={toggleFullscreen}
+                                    className="p-1.5 rounded-lg hover:bg-[#F5F0FF] text-foreground-muted hover:text-purple transition-colors"
+                                    title="Toggle fullscreen"
+                                    aria-label="Toggle fullscreen"
+                                >
+                                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </button>
                             </div>
                         </div>
 
                         <div className="rounded-xl border border-border bg-card-muted p-4">
-                            <NigeriaMap2 stateOverrides={stateOverrides} colorMode={colorMode} />
+                            <NigeriaMap2
+                                liveStates={states}
+                                colorMode={colorMode}
+                                onStateSelect={setPopupState}
+                                selectedState={popupState}
+                                onCloseSelection={() => setPopupState(null)}
+                            />
                         </div>
                     </div>
 
@@ -184,22 +201,25 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                     </div>
                 </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-6 mt-6 text-sm flex-wrap">
-                    {LEGEND.map((item) => (
-                        <div key={item.label} className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                            {item.label}
+                {/* Highest attack states — real data, no filler when there are fewer than 6 */}
+                <div className="grid grid-cols-6 gap-3 mt-6">
+                    {highestAttackStates.map((item, i) => (
+                        <div
+                            key={i}
+                            className="bg-white border border-border rounded-xl p-3 text-center cursor-pointer hover:border-purple/30 transition-colors"
+                            onClick={() => {
+                                const found = states.find((s) => s.name === item.state);
+                                if (found) setPopupState(found);
+                            }}
+                        >
+                            <div className="text-[10px] text-foreground-muted uppercase tracking-wider mb-1 truncate">{item.name}</div>
+                            <div className="font-black text-xl text-red-500">{item.count}</div>
                         </div>
                     ))}
-                </div>
-
-                {/* State KPIs */}
-                <div className="grid grid-cols-6 gap-4 mt-6">
-                    {STATE_KPIS.map(([state, score]) => (
-                        <div key={state} className="rounded-xl border border-border p-4 text-center">
-                            <p className="font-bold text-foreground">{state}</p>
-                            <p className="text-1xl font-black text-red-500 mt-2">{score}</p>
+                    {Array.from({ length: Math.max(0, 6 - highestAttackStates.length) }).map((_, i) => (
+                        <div key={`empty-${i}`} className="bg-card-muted border border-border rounded-xl p-3 text-center">
+                            <div className="text-[10px] text-grey-300 uppercase tracking-wider mb-1">No data</div>
+                            <div className="font-black text-xl text-grey-300">—</div>
                         </div>
                     ))}
                 </div>

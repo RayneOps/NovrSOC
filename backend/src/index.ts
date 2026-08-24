@@ -37,6 +37,7 @@ import threatManagementRouter from './routes/threatManagement';
 import incidentResponseRouter from './routes/incidentResponse';
 import weblogicRouter from './routes/weblogic';
 import assetsRouter from './routes/assets';
+import dashboardRouter from './routes/dashboard';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
@@ -187,6 +188,7 @@ app.use('/api/threats', threatManagementRouter);
 app.use('/api/incidents', incidentResponseRouter);
 app.use('/api/weblogic', weblogicRouter);
 app.use('/api/assets', assetsRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
