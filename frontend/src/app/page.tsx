@@ -1,440 +1,523 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import {
-    ShieldCheck, Radar, Server, Mail, Activity, RefreshCw, CheckCircle2,
-} from 'lucide-react';
-import { apiUrl } from '@/lib/api';
-
-const DOMAINS = [
-    {
-        icon: ShieldCheck,
-        name: 'Brand Protection',
-        color: 'blue',
-        description: "Monitor domain lookalikes, social impersonation, rogue mobile apps, and leaked source code across the internet.",
-        features: ['Domain Suite', 'Social Suite', 'Executive Monitoring', 'Mobile App Suite'],
-    },
-    {
-        icon: Radar,
-        name: 'Threat Intelligence',
-        color: 'red',
-        description: 'Real-time IOC enrichment, CVE advisories mapped to your actual assets, URL detonation sandbox, and vendor risk scoring.',
-        features: ['CTI Platform', 'Threat Advisory', 'URL Scan Suite', 'Website Scanning'],
-    },
-    {
-        icon: Server,
-        name: 'Infrastructure',
-        color: 'purple',
-        description: 'Complete asset inventory, DNS health monitoring, and WebLogic appliance management across cloud and on-premise.',
-        features: ['Digital Assets', 'DNS Suite', 'WebLogic Appliances'],
-    },
-    {
-        icon: Mail,
-        name: 'Email Security',
-        color: 'blue',
-        description: 'DMARC enforcement, email relay monitoring, and real-time browser-level phishing protection for your team.',
-        features: ['DMARC SaaS', 'Messaging Suite', 'Intelli CODE PHISHID'],
-    },
-    {
-        icon: Activity,
-        name: 'SecOps & Response',
-        color: 'red',
-        description: 'Unified alert console, automated incident response playbooks, and multi-channel escalation to your on-call team.',
-        features: ['Threat Management', 'Incident Response', 'Alert Communication'],
-    },
-    {
-        icon: RefreshCw,
-        name: 'Data Continuity',
-        color: 'purple',
-        description: 'Backup integrity monitoring, cryptographic hash verification, and SLA credit calculation for your clients.',
-        features: ['Data Loss Recovery', 'Recovery Credit (SLA)'],
-    },
-];
-
-const DOMAIN_STYLE: Record<string, { icon: string; pill: string }> = {
-    blue: { icon: 'bg-blue/10 text-blue', pill: 'bg-blue/10 text-blue' },
-    red: { icon: 'bg-red/10 text-red-500', pill: 'bg-red/10 text-red-500' },
-    purple: { icon: 'bg-purple/10 text-purple', pill: 'bg-purple/10 text-purple' },
-};
-
-const STEPS = [
-    { step: '01', color: 'bg-blue', title: 'Deploy Sensors', description: 'Install lightweight Wazuh agents on your endpoints and configure network sensors. Takes under 30 minutes for a full deployment.' },
-    { step: '02', color: 'bg-purple', title: 'Monitor in Real Time', description: 'NovrAI correlates threats across all 22 feature modules continuously — brand threats, network anomalies, CVE matches, and more.' },
-    { step: '03', color: 'bg-red', title: 'Respond Instantly', description: 'Automated playbooks isolate threats, block malicious IPs at the firewall, and notify your team via Slack, SMS, or PagerDuty in seconds.' },
-];
-
-const KPI_CARDS = [
-    { label: 'Total Assets', value: '247', accent: '#2B3BCC' },
-    { label: 'Active Incidents', value: '12', accent: '#CC2B2B' },
-    { label: 'Critical Alerts', value: '3', accent: '#CC2B2B' },
-    { label: 'Risk Score', value: '91/100', accent: '#6B1FA8' },
-];
-
-function ContactForm() {
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [company, setCompany] = useState('');
-    const [message, setMessage] = useState('');
-    const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-
-    const submit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim() || !email.trim() || !message.trim()) return;
-        setStatus('sending');
-        try {
-            const res = await fetch(apiUrl('/api/contact'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, company, message }),
-            });
-            if (!res.ok) throw new Error('Request failed');
-            setStatus('sent');
-        } catch {
-            setStatus('error');
-        }
-    };
-
-    if (status === 'sent') {
-        return (
-            <div className="max-w-lg mx-auto text-center bg-grey-50 border border-grey-100 rounded-2xl p-10">
-                <CheckCircle2 size={36} className="text-blue mx-auto mb-4" />
-                <h3 className="font-heading font-bold text-xl text-grey-800 mb-2">Request received</h3>
-                <p className="text-sm text-grey-500">Thanks, {name.split(' ')[0]}. A member of our team will reach out to {email} shortly.</p>
-            </div>
-        );
-    }
-
-    return (
-        <form onSubmit={submit} className="max-w-lg mx-auto bg-grey-50 border border-grey-100 rounded-2xl p-8 text-left">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label className="text-xs font-medium text-grey-500 uppercase tracking-wide">Name</label>
-                    <input
-                        type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe"
-                        className="w-full mt-1 bg-white border border-grey-100 rounded-lg px-3 py-2.5 text-sm text-grey-800 placeholder:text-grey-500 focus:outline-none focus:border-blue"
-                    />
-                </div>
-                <div>
-                    <label className="text-xs font-medium text-grey-500 uppercase tracking-wide">Work Email</label>
-                    <input
-                        type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com"
-                        className="w-full mt-1 bg-white border border-grey-100 rounded-lg px-3 py-2.5 text-sm text-grey-800 placeholder:text-grey-500 focus:outline-none focus:border-blue"
-                    />
-                </div>
-            </div>
-            <div className="mb-4">
-                <label className="text-xs font-medium text-grey-500 uppercase tracking-wide">Company</label>
-                <input
-                    type="text" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme Ltd (optional)"
-                    className="w-full mt-1 bg-white border border-grey-100 rounded-lg px-3 py-2.5 text-sm text-grey-800 placeholder:text-grey-500 focus:outline-none focus:border-blue"
-                />
-            </div>
-            <div className="mb-6">
-                <label className="text-xs font-medium text-grey-500 uppercase tracking-wide">What would you like to see?</label>
-                <textarea
-                    required rows={4} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Tell us about your security stack and what you'd like the demo to cover."
-                    className="w-full mt-1 bg-white border border-grey-100 rounded-lg px-3 py-2.5 text-sm text-grey-800 placeholder:text-grey-500 focus:outline-none focus:border-blue resize-none"
-                />
-            </div>
-            {status === 'error' && <p className="text-xs text-red-500 mb-4">Something went wrong sending your request — please try again.</p>}
-            <button
-                type="submit"
-                disabled={status === 'sending'}
-                className="w-full bg-orange hover:bg-orange-hover disabled:opacity-60 text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
-            >
-                {status === 'sending' ? 'Sending…' : 'Request a Demo'}
-            </button>
-        </form>
-    );
-}
 
 export default function LandingPage() {
-    const [scrolled, setScrolled] = useState(false);
+  return (
+    <div className="min-h-screen bg-white font-sans">
 
-    useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 8);
-        onScroll();
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
-    }, []);
+      {/* ── NAVBAR ─────────────────────────────────────────────────── */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-[#EEF0F6]">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
-    return (
-        <div className="min-h-screen bg-white text-grey-800 font-sans antialiased">
-            {/* Navbar */}
-            <header
-                className={`fixed top-0 left-0 right-0 z-50 bg-white transition-shadow ${scrolled ? 'border-b border-grey-100 shadow-sm' : 'border-b border-transparent'}`}
-            >
-                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2">
-                        <Image src="/novrsoc.jpg" alt="NovrSOC" width={98} height={36} className="h-9 w-auto object-contain" priority />
-                    </Link>
-                    <nav className="hidden md:flex items-center gap-8 text-sm text-grey-500">
-                        <a href="#features" className="hover:text-grey-800 transition-colors">Features</a>
-                        <a href="#how-it-works" className="hover:text-grey-800 transition-colors">How It Works</a>
-                        <a href="#nigeria" className="hover:text-grey-800 transition-colors">About</a>
-                    </nav>
-                    <div className="flex items-center gap-3">
-                        <Link href="/login" className="text-sm text-grey-500 hover:text-grey-800 transition-colors">Sign In</Link>
-                        <a
-                            href="#contact"
-                            className="bg-orange hover:bg-orange-hover text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
-                        >
-                            Request Demo
-                        </a>
-                    </div>
-                </div>
-            </header>
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#520385]" />
+            <span className="font-bold text-[#1C1F2E] text-lg tracking-tight">NovrSOC</span>
+          </div>
 
-            {/* Hero */}
-            <section className="pt-40 pb-20 px-6 bg-white">
-                <div className="max-w-4xl mx-auto text-center">
-                    <div className="inline-flex items-center gap-2 bg-blue/10 text-blue text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue animate-pulse" />
-                        Now live — AI-powered SOC for African enterprises
-                    </div>
-                    <h1 className="font-heading font-bold text-4xl md:text-[56px] leading-[1.1] text-grey-800 mb-6">
-                        Africa&rsquo;s First <span className="text-blue">AI-Powered</span> Security Operations Platform
-                    </h1>
-                    <p className="text-lg md:text-xl text-grey-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-                        Real-time threat detection, brand protection, and automated incident response — built specifically for Nigerian and African enterprises.
-                    </p>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-                        <a
-                            href="#contact"
-                            className="bg-orange hover:bg-orange-hover text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
-                        >
-                            Request a Demo
-                        </a>
-                        <a
-                            href="#how-it-works"
-                            className="border border-blue text-blue hover:bg-blue/10 rounded-lg px-6 py-3 font-semibold text-sm transition-colors"
-                        >
-                            See How It Works
-                        </a>
-                    </div>
-                    <div className="flex items-center justify-center gap-12">
-                        {[
-                            { number: '22+', label: 'Security Features' },
-                            { number: '6+', label: 'Protection Domains' },
-                            { number: 'AI', label: 'Real-Time Detection' },
-                        ].map((stat) => (
-                            <div key={stat.label} className="text-center">
-                                <div className="font-heading font-bold text-4xl text-red-500 mb-1">{stat.number}</div>
-                                <div className="text-sm text-grey-500">{stat.label}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
+          {/* Nav links */}
+          <div className="hidden md:flex items-center gap-8 text-sm text-[#7A8099]">
+            {['Features', 'Platform', 'Pricing', 'About'].map(link => (
+              <a key={link} href={`#${link.toLowerCase()}`}
+                className="hover:text-[#520385] transition-colors">
+                {link}
+              </a>
+            ))}
+          </div>
 
-            {/* Dashboard Preview */}
-            <section className="py-12 px-6 bg-grey-50">
-                <div className="max-w-6xl mx-auto">
-                    <div className="bg-white border border-grey-100 rounded-2xl shadow-xl overflow-hidden">
-                        {/* Mock browser chrome */}
-                        <div className="bg-grey-50 border-b border-grey-100 px-4 py-3 flex items-center gap-2">
-                            <div className="flex gap-1.5">
-                                <div className="w-3 h-3 rounded-full bg-red-500" />
-                                <div className="w-3 h-3 rounded-full bg-amber" />
-                                <div className="w-3 h-3 rounded-full bg-green" />
-                            </div>
-                            <div className="flex-1 bg-white border border-grey-100 rounded px-3 py-1 text-xs text-grey-500 mx-4">
-                                app.novrsoc.com/admin/dashboard
-                            </div>
-                        </div>
-
-                        {/* Mock dashboard content */}
-                        <div className="flex h-80">
-                            {/* Mock sidebar */}
-                            <div className="hidden md:block w-48 bg-white border-r border-grey-100 p-4">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Image src="/novrsoc.jpg" alt="NovrSOC" width={80} height={30} className="h-6 w-auto object-contain" />
-                                </div>
-                                {['Dashboard', 'Brand Protection', 'Threat Intel', 'Infrastructure', 'Email Security', 'SecOps'].map((item, i) => (
-                                    <div
-                                        key={item}
-                                        className={`text-xs px-2 py-1.5 rounded mb-1 ${i === 0 ? 'bg-blue/10 text-blue font-medium' : 'text-grey-500'}`}
-                                    >
-                                        {item}
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Mock main content */}
-                            <div className="flex-1 p-4 bg-grey-50">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                                    {KPI_CARDS.map((card) => (
-                                        <div
-                                            key={card.label}
-                                            className="bg-white rounded-lg p-3 border border-grey-100"
-                                            style={{ borderTopColor: card.accent, borderTopWidth: 3 }}
-                                        >
-                                            <div className="text-[10px] text-grey-500 mb-1">{card.label}</div>
-                                            <div className="font-heading font-bold text-lg text-grey-800">{card.value}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="bg-white rounded-lg border border-grey-100 h-36 flex items-center justify-center">
-                                    <span className="text-xs text-grey-500">Nigeria Threat Landscape — Live</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Feature Domains */}
-            <section id="features" className="py-20 px-6 bg-white">
-                <div className="max-w-6xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="font-heading font-bold text-3xl md:text-4xl text-grey-800 mb-4">Everything your SOC needs</h2>
-                        <p className="text-lg text-grey-500 max-w-2xl mx-auto">22 security features across 6 protection domains — all in one platform.</p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {DOMAINS.map((domain) => {
-                            const Icon = domain.icon;
-                            const style = DOMAIN_STYLE[domain.color];
-                            return (
-                                <div
-                                    key={domain.name}
-                                    className="border border-grey-100 rounded-xl p-6 hover:border-blue hover:shadow-sm transition-all group"
-                                >
-                                    <div className={`w-11 h-11 rounded-lg flex items-center justify-center mb-4 ${style.icon}`}>
-                                        <Icon size={22} strokeWidth={1.75} />
-                                    </div>
-                                    <h3 className="font-heading font-bold text-lg text-grey-800 mb-2 group-hover:text-blue transition-colors">
-                                        {domain.name}
-                                    </h3>
-                                    <p className="text-sm text-grey-500 mb-4 leading-relaxed">{domain.description}</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {domain.features.map((f) => (
-                                            <span key={f} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${style.pill}`}>
-                                                {f}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </section>
-
-            {/* How It Works */}
-            <section id="how-it-works" className="py-20 px-6 bg-grey-50">
-                <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="font-heading font-bold text-3xl md:text-4xl text-grey-800 mb-4">How NovrSOC works</h2>
-                        <p className="text-lg text-grey-500">From deployment to real-time protection in three steps.</p>
-                    </div>
-                    <div className="relative">
-                        <div className="hidden md:block absolute top-10 left-[16.67%] right-[16.67%] h-0.5 bg-blue/20" aria-hidden />
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-                            {STEPS.map((s) => (
-                                <div key={s.step} className="relative text-center">
-                                    <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 font-heading font-bold text-2xl text-white relative z-10 ${s.color}`}>
-                                        {s.step}
-                                    </div>
-                                    <h3 className="font-heading font-bold text-xl text-grey-800 mb-3">{s.title}</h3>
-                                    <p className="text-sm text-grey-500 leading-relaxed">{s.description}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Nigeria-specific callout */}
-            <section id="nigeria" className="py-20 px-6 bg-blue">
-                <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-12">
-                    <div className="flex-1">
-                        <div className="inline-flex items-center gap-2 bg-white/10 text-white text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-                            🇳🇬 Built for Nigeria
-                        </div>
-                        <h2 className="font-heading font-bold text-3xl md:text-4xl text-white mb-4">
-                            Deep Nigerian threat intelligence — built in
-                        </h2>
-                        <p className="text-lg text-white/70 mb-8 leading-relaxed">
-                            NovrSOC includes a proprietary Nigerian ASN database covering MTN, Airtel, Glo, 9mobile, MainOne, ipNX and more —
-                            so you know exactly where threats are coming from across all 36 states and the FCT.
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                            {['All 37 Nigerian States Mapped', '10+ Nigerian ISPs', 'NDPR Compliance Ready', 'Lagos · Abuja · Port Harcourt Coverage'].map((f) => (
-                                <span key={f} className="bg-white/10 text-white text-xs font-medium px-3 py-1.5 rounded-full">
-                                    ✓ {f}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="w-full md:w-80 flex-shrink-0">
-                        <div className="bg-white/10 rounded-2xl p-6 text-center">
-                            <div className="text-6xl mb-3">🗺️</div>
-                            <div className="text-white font-heading font-bold text-lg mb-1">Nigeria Threat Map</div>
-                            <div className="text-white/60 text-sm">Real-time attack visualization across all states</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Contact / Request a Demo */}
-            <section id="contact" className="py-20 px-6 bg-white">
-                <div className="max-w-2xl mx-auto text-center mb-10">
-                    <h2 className="font-heading font-bold text-3xl md:text-4xl text-grey-800 mb-4">Ready to secure your organisation?</h2>
-                    <p className="text-lg text-grey-500">Tell us a bit about your team and we&rsquo;ll set up a walkthrough of the platform.</p>
-                </div>
-                <ContactForm />
-                <div className="max-w-2xl mx-auto text-center mt-8">
-                    <Link
-                        href="/client/login"
-                        className="inline-block border border-blue text-blue hover:bg-blue/10 rounded-lg px-8 py-3.5 font-semibold transition-colors"
-                    >
-                        Already a client? Go to Client Portal
-                    </Link>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="bg-grey-800 py-12 px-6">
-                <div className="max-w-6xl mx-auto">
-                    <div className="flex flex-col md:flex-row items-start justify-between gap-10 mb-8">
-                        <div>
-                            <div className="inline-block bg-white rounded-lg px-3 py-2 mb-3">
-                                <Image src="/novrsoc.jpg" alt="NovrSOC" width={100} height={37} className="h-7 w-auto object-contain" />
-                            </div>
-                            <p className="text-sm text-white/50 max-w-xs">Africa&rsquo;s AI-powered security operations platform. Built by Cybernovr.</p>
-                        </div>
-                        <div className="flex flex-wrap gap-x-16 gap-y-8">
-                            <div>
-                                <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">Product</div>
-                                {[['Features', '#features'], ['How It Works', '#how-it-works']].map(([label, href]) => (
-                                    <a key={label} href={href} className="block text-sm text-white/50 hover:text-white mb-2 transition-colors">{label}</a>
-                                ))}
-                            </div>
-                            <div>
-                                <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">Company</div>
-                                {['About', 'Blog', 'Careers'].map((l) => (
-                                    <div key={l} className="text-sm text-white/50 hover:text-white mb-2 cursor-default transition-colors">{l}</div>
-                                ))}
-                                <a href="#contact" className="block text-sm text-white/50 hover:text-white mb-2 transition-colors">Contact</a>
-                            </div>
-                            <div>
-                                <div className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-3">Legal</div>
-                                {['Privacy Policy', 'Terms of Service', 'NDPR Compliance'].map((l) => (
-                                    <div key={l} className="text-sm text-white/50 hover:text-white mb-2 cursor-default transition-colors">{l}</div>
-                                ))}
-                                <Link href="/status" className="block text-sm text-blue hover:text-white mb-2 transition-colors">System Status</Link>
-                                <Link href="/login" className="block text-sm text-white/50 hover:text-white transition-colors">Sign In</Link>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-                        <div className="text-xs text-white/30">© 2026 Cybernovr Ltd. All rights reserved.</div>
-                        <div className="text-xs text-white/30">Made in Nigeria 🇳🇬</div>
-                    </div>
-                </div>
-            </footer>
+          {/* Auth buttons */}
+          <div className="flex items-center gap-3">
+            <Link href="/login"
+              className="text-sm text-[#7A8099] hover:text-[#520385] transition-colors font-medium px-3 py-2">
+              Login
+            </Link>
+            <Link href="/login"
+              className="text-sm font-bold bg-[#FF5500] text-white px-5 py-2.5 rounded-lg hover:bg-[#E54D00] transition-colors uppercase tracking-wide">
+              Request Demo
+            </Link>
+          </div>
         </div>
-    );
+      </nav>
+
+      {/* ── HERO ───────────────────────────────────────────────────── */}
+      <section className="bg-[#520385] min-h-[calc(100vh-64px)] flex items-center">
+        <div className="max-w-6xl mx-auto px-6 py-20 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+            {/* Left — Text */}
+            <div>
+              {/* Eyebrow badge */}
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-8">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FF5500]" />
+                <span className="text-white/80 text-xs font-medium tracking-wide">
+                  SOC-as-a-Service · Nigeria & Africa
+                </span>
+              </div>
+
+              {/* H1 */}
+              <h1 className="text-5xl lg:text-6xl font-black text-white leading-[1.05] mb-6 tracking-tight">
+                Your Entire<br />
+                Security<br />
+                Operation. One<br />
+                Platform.
+              </h1>
+
+              {/* Subtext */}
+              <p className="text-white/60 text-base leading-relaxed mb-10 max-w-sm">
+                Advanced threat detection, incident response, and continuous
+                compliance monitoring tailored for the African threat landscape.
+                Geared for high-stakes cybersecurity operations.
+              </p>
+
+              {/* CTAs */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <Link href="/login"
+                  className="flex items-center gap-2 bg-[#FF5500] text-white font-bold px-6 py-3.5 rounded-lg hover:bg-[#E54D00] transition-all hover:scale-[1.02] text-sm uppercase tracking-wider">
+                  Get Started
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </Link>
+                <Link href="/login"
+                  className="flex items-center gap-2 border border-white/30 text-white font-medium px-6 py-3.5 rounded-lg hover:bg-white/10 transition-all text-sm">
+                  See Live Demo
+                </Link>
+              </div>
+            </div>
+
+            {/* Right — Dashboard Mockup */}
+            <div className="relative">
+              {/* Outer card */}
+              <div className="bg-[#1C1F2E] rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+                style={{ transform: 'perspective(1000px) rotateY(-2deg) rotateX(1deg)' }}>
+
+                {/* Window chrome bar */}
+                <div className="flex items-center gap-2 px-4 py-3 bg-[#13151E] border-b border-white/5">
+                  <div className="w-3 h-3 rounded-full bg-[#CC2B2B]/70" />
+                  <div className="w-3 h-3 rounded-full bg-[#FF5500]/70" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                  <div className="ml-auto text-[10px] text-white/20 font-mono">
+                    NovrSOC / v4.7.5 / 2 agents
+                  </div>
+                </div>
+
+                {/* Dashboard content */}
+                <div className="p-5">
+                  {/* Two KPI cards top row */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-[#13151E] rounded-xl p-4 border border-white/5">
+                      <div className="text-white/40 text-[10px] uppercase tracking-wider mb-1">
+                        Active Threats
+                      </div>
+                      <div className="text-white font-black text-3xl font-mono">47</div>
+                      <div className="text-[#CC2B2B] text-[10px] mt-1">▲ 3 new in last hour</div>
+                    </div>
+                    <div className="bg-[#13151E] rounded-xl p-4 border border-white/5">
+                      <div className="text-white/40 text-[10px] uppercase tracking-wider mb-1">
+                        Compliance Score
+                      </div>
+                      <div className="text-white font-black text-3xl font-mono">98.2%</div>
+                      <div className="text-green-400 text-[10px] mt-1">▲ NDPR · CBN · ISO</div>
+                    </div>
+                  </div>
+
+                  {/* Nigeria map area */}
+                  <div className="bg-[#13151E] rounded-xl border border-white/5 overflow-hidden mb-3">
+                    {/* Mini browser bar */}
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+                      <div className="w-2 h-2 rounded-full bg-[#520385]" />
+                      <span className="text-[9px] text-white/30 font-mono">NovrSOC — Nigeria Threat Map</span>
+                    </div>
+                    {/* Map placeholder — dark with glowing state dots */}
+                    <div className="relative h-48 bg-[#0D0F16] flex items-center justify-center overflow-hidden">
+                      {/* Nigeria outline SVG — simplified */}
+                      <svg viewBox="0 0 300 280" className="w-full h-full opacity-40 absolute inset-0"
+                        xmlns="http://www.w3.org/2000/svg">
+                        {/* Simplified Nigeria shape */}
+                        <path
+                          d="M60 40 L80 20 L140 15 L200 20 L250 40 L270 80 L265 130 L250 170 L230 210 L200 240 L170 260 L150 270 L130 265 L100 240 L80 220 L60 200 L40 170 L30 130 L35 80 Z"
+                          fill="none"
+                          stroke="#520385"
+                          strokeWidth="2"
+                        />
+                        {/* State grid lines */}
+                        <line x1="60" y1="140" x2="270" y2="140" stroke="#520385" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5"/>
+                        <line x1="150" y1="20" x2="150" y2="265" stroke="#520385" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5"/>
+                        <line x1="100" y1="20" x2="90" y2="265" stroke="#520385" strokeWidth="0.5" strokeDasharray="2,6" opacity="0.3"/>
+                        <line x1="200" y1="20" x2="210" y2="240" stroke="#520385" strokeWidth="0.5" strokeDasharray="2,6" opacity="0.3"/>
+                      </svg>
+
+                      {/* Threat dots on map */}
+                      {/* Lagos - south west */}
+                      <div className="absolute bottom-[22%] left-[24%]">
+                        <div className="w-3 h-3 rounded-full bg-[#FF5500] animate-ping absolute opacity-75" />
+                        <div className="w-3 h-3 rounded-full bg-[#FF5500] relative" />
+                      </div>
+                      {/* Abuja - center */}
+                      <div className="absolute top-[42%] left-[44%]">
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] animate-ping absolute opacity-75" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] relative" />
+                      </div>
+                      {/* Borno - north east, critical */}
+                      <div className="absolute top-[18%] right-[20%]">
+                        <div className="w-3 h-3 rounded-full bg-[#CC2B2B] animate-ping absolute opacity-75" />
+                        <div className="w-3 h-3 rounded-full bg-[#CC2B2B] relative" />
+                      </div>
+                      {/* Kano - north */}
+                      <div className="absolute top-[28%] left-[40%]">
+                        <div className="w-2 h-2 rounded-full bg-[#2B3BCC] relative" />
+                      </div>
+                      {/* Rivers - south */}
+                      <div className="absolute bottom-[30%] left-[38%]">
+                        <div className="w-2 h-2 rounded-full bg-[#FF5500] animate-ping absolute opacity-60" />
+                        <div className="w-2 h-2 rounded-full bg-[#FF5500] relative" />
+                      </div>
+
+                      {/* Lagos label */}
+                      <div className="absolute bottom-[18%] left-[14%] text-[8px] text-[#FF5500] font-mono font-bold">
+                        Lagos · HIGH
+                      </div>
+                      {/* Borno label */}
+                      <div className="absolute top-[12%] right-[8%] text-[8px] text-[#CC2B2B] font-mono font-bold">
+                        Borno · CRIT
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live alert bar */}
+                  <div className="bg-[#CC2B2B]/10 border border-[#CC2B2B]/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-[#CC2B2B] animate-pulse flex-shrink-0" />
+                    <span className="text-[#CC2B2B] text-[11px] font-mono font-bold truncate">
+                      Ryuk C2 Detected [IP: 91.215.153.180] — Elevating to TIER 2
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating glow behind card */}
+              <div className="absolute inset-0 bg-[#FF5500]/10 blur-3xl -z-10 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SOCIAL PROOF BAR ───────────────────────────────────────── */}
+      <section className="bg-white border-b border-[#EEF0F6] py-6">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <span className="text-[#7A8099] text-xs mr-4">Trusted by security teams across Nigeria</span>
+            {['MTN Nigeria', 'GTBank', 'Dangote Group', 'Airtel Nigeria', 'MainOne'].map((name, i) => (
+              <span key={name} className="flex items-center gap-2">
+                {i > 0 && <span className="text-[#EEF0F6]">·</span>}
+                <span className="text-[#1C1F2E] text-sm font-semibold">{name}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES STRIP ─────────────────────────────────────────── */}
+      <section id="features" className="bg-white py-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-black text-[#1C1F2E] mb-4 tracking-tight">
+              One platform. Six security domains.
+            </h2>
+            <p className="text-[#7A8099] text-base max-w-xl mx-auto">
+              From brand protection to incident response — every layer of your
+              organisation's security posture, managed from one dashboard.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                icon: '🛡',
+                title: 'Brand Protection',
+                desc: 'Monitor domains, social media, dark web, and app stores for brand impersonation.',
+                tags: ['Domain Suite', 'Social Suite', 'Executive Monitoring'],
+              },
+              {
+                icon: '🔍',
+                title: 'Threat Intelligence',
+                desc: 'Real-time IOC lookup, CVE monitoring, URL scanning, and vendor risk scoring.',
+                tags: ['CTI Platform', 'Threat Advisory', 'Vendor Assessments'],
+              },
+              {
+                icon: '🌐',
+                title: 'Infrastructure',
+                desc: 'Live endpoint inventory, DNS health monitoring, and middleware performance.',
+                tags: ['Digital Assets', 'DNS Suite', 'WebLogic'],
+              },
+              {
+                icon: '✉️',
+                title: 'Email Security',
+                desc: 'DMARC enforcement, gateway monitoring, and AI-powered phishing detection.',
+                tags: ['DMARC SaaS', 'Messaging Suite', 'PHISHID'],
+              },
+              {
+                icon: '⚡',
+                title: 'SecOps & Response',
+                desc: 'Real-time alert queue, incident lifecycle management, and multi-channel alerts.',
+                tags: ['Threat Management', 'Incident Response', 'Alert Communication'],
+              },
+              {
+                icon: '💾',
+                title: 'Data Continuity',
+                desc: 'Backup integrity verification, SLA tracking, and recovery credit automation.',
+                tags: ['Data Loss Recovery', 'Recovery Credit'],
+              },
+            ].map(feature => (
+              <div key={feature.title}
+                className="bg-white border border-[#EEF0F6] rounded-xl p-6 hover:border-[#520385]/40 hover:shadow-sm transition-all group cursor-pointer">
+                <div className="text-2xl mb-4">{feature.icon}</div>
+                <h3 className="font-bold text-[#1C1F2E] text-base mb-2 group-hover:text-[#520385] transition-colors">
+                  {feature.title}
+                </h3>
+                <p className="text-[#7A8099] text-sm leading-relaxed mb-4">{feature.desc}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {feature.tags.map(tag => (
+                    <span key={tag}
+                      className="text-[10px] font-medium bg-[#F5F0FF] text-[#520385] px-2.5 py-1 rounded-full">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── NIGERIA CALLOUT ────────────────────────────────────────── */}
+      <section className="bg-[#520385] py-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <h2 className="text-4xl font-black text-white mb-4 tracking-tight">
+              Built specifically for Nigeria
+            </h2>
+            <p className="text-white/60 text-base max-w-lg mx-auto">
+              Not a global product retrofitted for Africa. Built from the ground up
+              for the Nigerian threat landscape, regulatory environment, and infrastructure.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                title: 'Nigeria Threat Map',
+                desc: 'State-by-state threat intelligence map. Click any of Nigeria\'s 37 states to see active threats, monitored IPs, and live Wazuh alerts from that region.',
+              },
+              {
+                title: 'Nigerian ASN Intelligence',
+                desc: 'Enriched threat data for all Nigerian ISPs — MTN, Airtel, Glo, 9mobile. Know exactly which local networks your threats are originating from.',
+              },
+              {
+                title: 'Local Compliance',
+                desc: 'Built-in monitoring for NDPR, CBN Cybersecurity Framework, and Nigerian banking regulations. Automatic score tracking and exportable evidence reports.',
+              },
+            ].map(item => (
+              <div key={item.title}
+                className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-colors">
+                <div className="w-8 h-8 bg-[#FF5500] rounded-lg mb-4 flex items-center justify-center">
+                  <div className="w-3 h-3 bg-white rounded-sm" />
+                </div>
+                <h3 className="font-bold text-white text-base mb-3">{item.title}</h3>
+                <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── STATS BAR ──────────────────────────────────────────────── */}
+      <section className="bg-white border-y border-[#EEF0F6] py-12">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            {[
+              { value: '22+', label: 'Security Features' },
+              { value: '16',  label: 'Live API Sources' },
+              { value: '37',  label: 'Nigerian States Monitored' },
+              { value: '<2s', label: 'Threat Classification Time' },
+            ].map(stat => (
+              <div key={stat.label}>
+                <div className="font-black text-4xl text-[#520385] mb-1">{stat.value}</div>
+                <div className="text-[#7A8099] text-sm">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ────────────────────────────────────────────────── */}
+      <section id="pricing" className="bg-[#F8F9FC] py-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-black text-[#1C1F2E] mb-4 tracking-tight">
+              Simple, transparent pricing
+            </h2>
+            <p className="text-[#7A8099] text-base">All plans include all 22 features. Scale as you grow.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            {[
+              {
+                name: 'Starter',
+                price: '$299',
+                desc: 'For growing businesses',
+                features: ['Up to 10 endpoints', '2 domains monitored', 'Email + Slack alerts', 'Standard support'],
+                highlight: false,
+              },
+              {
+                name: 'Professional',
+                price: '$799',
+                desc: 'For established enterprises',
+                features: ['Up to 50 endpoints', '10 domains monitored', 'All alert channels', 'Priority support', 'Quarterly compliance reports'],
+                highlight: true,
+              },
+              {
+                name: 'Enterprise',
+                price: 'Custom',
+                desc: 'For large organisations',
+                features: ['Unlimited endpoints', 'Unlimited domains', 'Dedicated SOC analyst', 'Custom SLA', 'NDPR/CBN package'],
+                highlight: false,
+              },
+            ].map(plan => (
+              <div key={plan.name}
+                className={`rounded-xl p-7 border ${
+                  plan.highlight
+                    ? 'bg-[#520385] border-[#520385] relative'
+                    : 'bg-white border-[#EEF0F6]'
+                }`}>
+                {plan.highlight && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#FF5500] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                    Most Popular
+                  </div>
+                )}
+                <div className={`text-sm font-semibold mb-1 ${plan.highlight ? 'text-white/60' : 'text-[#7A8099]'}`}>
+                  {plan.name}
+                </div>
+                <div className={`font-black text-4xl mb-1 ${plan.highlight ? 'text-white' : 'text-[#1C1F2E]'}`}>
+                  {plan.price}
+                  {plan.price !== 'Custom' && <span className={`text-base font-normal ${plan.highlight ? 'text-white/50' : 'text-[#7A8099]'}`}>/mo</span>}
+                </div>
+                <div className={`text-xs mb-6 ${plan.highlight ? 'text-white/50' : 'text-[#7A8099]'}`}>
+                  {plan.desc}
+                </div>
+                <ul className="space-y-2.5 mb-8">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-center gap-2.5">
+                      <span className={`text-xs font-bold ${plan.highlight ? 'text-[#FF5500]' : 'text-[#520385]'}`}>✓</span>
+                      <span className={`text-sm ${plan.highlight ? 'text-white/80' : 'text-[#1C1F2E]'}`}>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/login"
+                  className={`block text-center text-sm font-bold py-3 rounded-lg transition-all ${
+                    plan.highlight
+                      ? 'bg-[#FF5500] text-white hover:bg-[#E54D00]'
+                      : 'border border-[#520385] text-[#520385] hover:bg-[#F5F0FF]'
+                  }`}>
+                  {plan.price === 'Custom' ? 'Contact Sales' : 'Get Started'}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ──────────────────────────────────────────────── */}
+      <section className="bg-[#1C1F2E] py-24">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <h2 className="text-4xl font-black text-white mb-4 tracking-tight">
+            Ready to secure your organisation?
+          </h2>
+          <p className="text-white/50 text-base mb-10 max-w-md mx-auto">
+            Join security teams across Nigeria using NovrSOC to protect their
+            brands, infrastructure, and data.
+          </p>
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            <Link href="/login"
+              className="bg-[#FF5500] text-white font-bold px-8 py-3.5 rounded-lg hover:bg-[#E54D00] transition-all hover:scale-[1.02] text-sm uppercase tracking-wider">
+              Start Free Trial
+            </Link>
+            <Link href="/login"
+              className="border border-white/20 text-white font-medium px-8 py-3.5 rounded-lg hover:bg-white/10 transition-all text-sm">
+              Talk to an Expert
+            </Link>
+          </div>
+          <p className="text-white/20 text-xs mt-6">
+            No credit card required · 14-day free trial · Cancel anytime
+          </p>
+        </div>
+      </section>
+
+      {/* ── FOOTER ─────────────────────────────────────────────────── */}
+      <footer className="bg-white border-t border-[#EEF0F6] py-16">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+
+            {/* Brand */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-[#520385]" />
+                <span className="font-bold text-[#1C1F2E] text-base">NovrSOC</span>
+              </div>
+              <p className="text-[#7A8099] text-sm leading-relaxed">
+                Powered by Cybernovr · Lagos, Nigeria
+              </p>
+            </div>
+
+            {/* Product */}
+            <div>
+              <h4 className="font-bold text-[#1C1F2E] text-sm mb-4">Product</h4>
+              <ul className="space-y-3">
+                {['Platform', 'Features', 'Integrations', 'Solutions'].map(item => (
+                  <li key={item}>
+                    <a href="#" className="text-[#7A8099] text-sm hover:text-[#520385] transition-colors">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h4 className="font-bold text-[#1C1F2E] text-sm mb-4">Company</h4>
+              <ul className="space-y-3">
+                {['About Us', 'Careers', 'Press'].map(item => (
+                  <li key={item}>
+                    <a href="#" className="text-[#7A8099] text-sm hover:text-[#520385] transition-colors">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h4 className="font-bold text-[#1C1F2E] text-sm mb-4">Legal</h4>
+              <ul className="space-y-3">
+                {['Legal', 'Privacy Policy', 'Terms of Service', 'Security'].map(item => (
+                  <li key={item}>
+                    <a href="#" className="text-[#7A8099] text-sm hover:text-[#520385] transition-colors">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-[#EEF0F6] pt-6 flex items-center justify-between flex-wrap gap-4">
+            <p className="text-[#7A8099] text-xs">© 2026 Cybernovr. All rights reserved.</p>
+            <p className="text-[#7A8099] text-xs">NovrSOC · Enterprise SOC-as-a-Service for Africa</p>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  );
 }
