@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { PanelRightClose, PanelRightOpen, FileText, Settings as SettingsIcon, Zap } from 'lucide-react';
 import { ClientSidebar } from '@/components/layout/ClientSidebar';
 import { Header } from '@/components/layout/Header';
@@ -14,11 +14,18 @@ const RAIL_STORAGE_KEY = 'novrsoc_rail_open';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
+    const pathname = usePathname();
+    const isLoginPage = pathname === '/client/login';
     const [authChecked, setAuthChecked] = useState(false);
     const [user, setUser] = useState({ name: 'Client User', email: '', role: 'Client' });
     const [railOpen, setRailOpen] = useState(true);
 
     useEffect(() => {
+        // The login page renders its own full-screen layout below and is the one route
+        // under /client that's reachable while signed out — it must never be gated behind
+        // authChecked, or an unauthenticated visitor can never see it (this used to send
+        // them into a loop redirecting to itself while rendering nothing the whole time).
+        if (isLoginPage) return;
         if (!isPortalAuthenticated()) {
             router.replace('/client/login');
             return;
@@ -30,7 +37,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         setAuthChecked(true);
         const stored = localStorage.getItem(RAIL_STORAGE_KEY);
         if (stored !== null) setRailOpen(stored === 'true');
-    }, [router]);
+    }, [router, isLoginPage]);
 
     const toggleRail = () => {
         setRailOpen((prev) => {
@@ -40,6 +47,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         });
     };
 
+    if (isLoginPage) return <>{children}</>;
     if (!authChecked) return null;
 
     const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);

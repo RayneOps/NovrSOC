@@ -8,16 +8,14 @@ import { Eye, EyeOff } from 'lucide-react';
 import type { CredentialResponse } from '@react-oauth/google';
 import { setPortalSession } from '@/lib/portal-auth';
 import { apiUrl } from '@/lib/api';
-import { NovrSOCLogo } from '@/components/shared/NovrSOCLogo';
 import { AuthField } from '@/components/auth/AuthField';
+import { NigeriaLoginMap } from '@/components/auth/NigeriaLoginMap';
 
 // See frontend/src/app/login/page.tsx for why this is dynamic + ssr:false.
 const GoogleLogin = dynamic(
     () => import('@react-oauth/google').then((m) => ({ default: m.GoogleLogin })),
     { ssr: false }
 );
-
-const FEATURE_PILLS = ['Real-time threat monitoring', 'Brand protection', 'Incident response'];
 
 export default function ClientLoginPage() {
     const router = useRouter();
@@ -73,29 +71,20 @@ export default function ClientLoginPage() {
 
     return (
         <div className="min-h-screen flex">
-            {/* Left panel */}
-            <div className="hidden lg:flex lg:w-[40%] bg-blue items-center justify-center px-12">
-                <div className="flex flex-col items-center text-center">
-                    <NovrSOCLogo variant="white" />
-                    <p className="mt-6 text-white/70 italic text-sm">Your security. Monitored. Always.</p>
-                    <div className="mt-8 space-y-2.5 text-left inline-block">
-                        {FEATURE_PILLS.map((pill) => (
-                            <div key={pill} className="text-white/60 text-xs flex items-center gap-2">
-                                <span>✦</span>
-                                {pill}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
+            {/* Left panel — form */}
+            <div className="w-full lg:w-2/5 flex flex-col justify-between bg-white p-10 lg:p-16 min-h-screen">
 
-            {/* Right panel */}
-            <div className="flex-1 flex items-center justify-center bg-white px-6 py-12">
-                <div className="w-full max-w-[400px]">
-                    <div className="text-center mb-8">
-                        <h2 className="font-heading font-bold text-2xl text-grey-800">Client Portal</h2>
-                        <p className="text-sm text-grey-500 mt-1">Sign in to your organisation&rsquo;s security dashboard</p>
-                    </div>
+                {/* Top — logo */}
+                <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple" />
+                    <span className="font-black text-foreground text-xl tracking-tight">NovrSOC</span>
+                    <span className="text-foreground-muted text-xs ml-1">by Cybernovr</span>
+                </div>
+
+                {/* Middle — form */}
+                <div className="w-full max-w-sm mx-auto">
+                    <h1 className="font-black text-3xl text-foreground mb-2 tracking-tight">Client Portal</h1>
+                    <p className="text-foreground-muted text-sm mb-8">Sign in to your NovrSOC client workspace</p>
 
                     <form onSubmit={submit} className="space-y-4">
                         <AuthField
@@ -105,6 +94,7 @@ export default function ClientLoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             error={Boolean(error)}
+                            placeholder="you@yourcompany.com"
                         />
                         <div className="relative">
                             <AuthField
@@ -119,7 +109,7 @@ export default function ClientLoginPage() {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword((v) => !v)}
-                                className="absolute right-3 top-8.5 text-grey-500 hover:text-grey-800 transition-colors"
+                                className="absolute right-3 top-9 text-foreground-muted hover:text-foreground transition-colors"
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -127,40 +117,52 @@ export default function ClientLoginPage() {
                         </div>
 
                         <div className="text-right">
-                            <Link href="#" className="text-xs text-blue">Forgot password?</Link>
+                            <Link href="#" className="text-xs font-semibold text-purple hover:underline">
+                                Forgot password?
+                            </Link>
                         </div>
 
-                        {error && <p className="text-xs text-red text-center">{error}</p>}
+                        {error && <p className="text-xs text-red-500 text-center">{error}</p>}
 
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="w-full py-2.5 bg-orange hover:bg-orange-hover disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                            className="w-full bg-purple hover:bg-purple-hover text-white font-bold py-3.5 rounded-xl transition-all text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {submitting ? 'Signing In…' : 'Sign In'}
+                            {submitting ? 'Signing in…' : 'Sign In'}
                         </button>
                     </form>
 
                     <div className="flex items-center gap-3 my-6">
-                        <div className="flex-1 h-px bg-grey-100" />
-                        <span className="text-xs text-grey-500">OR</span>
-                        <div className="flex-1 h-px bg-grey-100" />
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-foreground-muted text-xs">OR</span>
+                        <div className="flex-1 h-px bg-border" />
                     </div>
 
-                    <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={() => setError('Google sign-in failed. Please try again.')}
-                        useOneTap={false}
-                        theme="outline"
-                        size="large"
-                        width="100%"
-                    />
+                    <div className="w-full border border-border rounded-xl hover:border-purple/30 hover:bg-[#F5F0FF] transition-all">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setError('Google sign-in failed. Please try again.')}
+                            useOneTap={false}
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                        />
+                    </div>
+                </div>
 
-                    <p className="text-center text-xs text-grey-500 mt-6">
-                        Don&rsquo;t have an account? Contact your administrator.
+                {/* Bottom — footer note */}
+                <div className="text-center">
+                    <p className="text-foreground-muted text-xs">
+                        Analyst? Access admin portal at{' '}
+                        <Link href="/login" className="text-purple hover:underline">/login</Link>
                     </p>
+                    <p className="text-grey-300 text-xs mt-2">Powered by Cybernovr</p>
                 </div>
             </div>
+
+            {/* Right panel — Nigeria map */}
+            <NigeriaLoginMap />
         </div>
     );
 }

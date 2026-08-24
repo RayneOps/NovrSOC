@@ -13,7 +13,7 @@ export function AuthField({ label, error, className, ...props }: AuthFieldProps)
             </label>
             <input
                 {...props}
-                className={`w-full border rounded-lg px-3 py-2.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-blue/20 focus:border-blue transition-colors ${
+                className={`w-full border rounded-xl px-4 py-3.5 text-sm bg-white text-foreground placeholder:text-grey-300 focus:outline-none focus:ring-2 focus:ring-purple/10 focus:border-purple transition-all ${
                     error ? 'border-red' : 'border-border'
                 } ${className ?? ''}`}
             />
