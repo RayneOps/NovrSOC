@@ -39,6 +39,7 @@ interface ThreatAlert {
     abuseipdb_confidence: number | null;
     vt_malicious: number | null;
     otx_pulses: number | null;
+    assigned_to: string | null;
 }
 
 const MOCK_ALERTS: ThreatAlert[] = [
@@ -67,6 +68,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: 94,
         vt_malicious: 16,
         otx_pulses: 8,
+        assigned_to: null,
     },
     {
         id: 'al_002',
@@ -93,6 +95,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: 87,
         vt_malicious: 12,
         otx_pulses: 3,
+        assigned_to: 'Karl Mensah',
     },
     {
         id: 'al_003',
@@ -119,6 +122,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: 98,
         vt_malicious: 58,
         otx_pulses: 24,
+        assigned_to: null,
     },
     {
         id: 'al_004',
@@ -145,6 +149,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: null,
         vt_malicious: null,
         otx_pulses: null,
+        assigned_to: null,
     },
     {
         id: 'al_005',
@@ -171,6 +176,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: 12,
         vt_malicious: 0,
         otx_pulses: 0,
+        assigned_to: null,
     },
     {
         id: 'al_006',
@@ -197,6 +203,7 @@ const MOCK_ALERTS: ThreatAlert[] = [
         abuseipdb_confidence: null,
         vt_malicious: null,
         otx_pulses: null,
+        assigned_to: null,
     },
 ];
 
@@ -268,6 +275,7 @@ function mapIndexerAlert(hit: IndexerAlertHit): ThreatAlert {
         abuseipdb_confidence: null,
         vt_malicious: null,
         otx_pulses: null,
+        assigned_to: null,
     };
 }
 
@@ -337,13 +345,14 @@ router.get('/alerts/:id', (req, res) => {
 });
 
 router.patch('/alerts/:id', (req, res) => {
-    const { status }: { status?: AlertStatus } = req.body ?? {};
+    const { status, assigned_to }: { status?: AlertStatus; assigned_to?: string | null } = req.body ?? {};
     const alert = liveAlerts.find((a) => a.id === req.params.id);
     if (!alert) {
         res.status(404).json({ error: 'Alert not found' });
         return;
     }
     if (status) alert.status = status;
+    if (assigned_to !== undefined) alert.assigned_to = assigned_to;
     res.json({ success: true, alert });
 });
 

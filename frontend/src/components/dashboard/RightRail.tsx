@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Zap, Settings, User, Bell, Key, Users, CreditCard, ChevronRight, X } from 'lucide-react';
+import { FileText, Zap, Settings, User, Bell, Key, Users, CreditCard, Building2, ChevronRight, X } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { getAdminUser } from '@/lib/admin-auth';
 import { getPortalUser } from '@/lib/portal-auth';
@@ -78,16 +78,18 @@ function AccountOverviewCard({ portal }: { portal: 'admin' | 'client' }) {
 }
 
 function SettingsCard({ portal, base }: { portal: 'admin' | 'client'; base: string }) {
-    // Deep-linking each item to its own route (/admin/settings/profile etc.) would 404 —
-    // only a single unified /settings page exists per portal today. Hash fragments are kept
-    // as a semantic marker for a future per-section anchor, but every item lands on the one
-    // real settings page rather than a route that doesn't exist.
+    // Profile/Notifications/API Keys still deep-link into the single unified /settings page
+    // (hash fragment kept as a marker for a future per-section anchor) — those sub-pages
+    // don't exist yet. Organisations, Team Members, and Billing DO now have real dedicated
+    // pages (admin/settings/{organisations,team,billing}), so those three link straight there
+    // instead of a hash on the general settings page.
     const adminItems = [
         { label: 'Profile & Account', href: `${base}/settings#profile`, icon: User },
         { label: 'Notifications', href: `${base}/settings#notifications`, icon: Bell },
         { label: 'API Keys', href: `${base}/settings#api`, icon: Key },
-        { label: 'Team Members', href: `${base}/settings#team`, icon: Users },
-        { label: 'Billing', href: `${base}/settings#billing`, icon: CreditCard },
+        { label: 'Organisations', href: `${base}/settings/organisations`, icon: Building2 },
+        { label: 'Team Members', href: `${base}/settings/team`, icon: Users },
+        { label: 'Billing', href: `${base}/settings/billing`, icon: CreditCard },
     ];
     const clientItems = [
         { label: 'Profile', href: `${base}/settings#profile`, icon: User },

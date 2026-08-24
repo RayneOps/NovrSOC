@@ -2,9 +2,9 @@
 
 import {
     LayoutDashboard, Globe, Users, Shield, UserCheck, Smartphone, Code,
-    Crosshair, AlertTriangle, Link as LinkIcon, Monitor, Building, Server, Network, Cpu,
-    Mail, MessageSquare, ShieldAlert, Activity, Siren, Bell,
-    HardDrive, BarChart,
+    Crosshair, AlertTriangle, Link as LinkIcon, Monitor, Building, Building2, Server, Network, Cpu,
+    Mail, MessageSquare, ShieldAlert, Activity, Siren, Bell, ClipboardList,
+    HardDrive, BarChart, CreditCard, Settings,
 } from 'lucide-react';
 import { Sidebar, type NavGroup } from './Sidebar';
 
@@ -72,6 +72,7 @@ const adminNav: NavGroup[] = [
             { label: 'Threat Management', href: '/admin/secops/threats', icon: Activity },
             { label: 'Incident Response', href: '/admin/secops/incidents', icon: Siren },
             { label: 'Alert Communication', href: '/admin/secops/alerts', icon: Bell },
+            { label: 'Shift Handover', href: '/admin/secops/handover', icon: ClipboardList },
         ],
     },
     {
@@ -82,6 +83,17 @@ const adminNav: NavGroup[] = [
         items: [
             { label: 'Data Loss Recovery', href: '/admin/data/recovery', icon: HardDrive },
             { label: 'Recovery Credit', href: '/admin/data/sla', icon: BarChart },
+        ],
+    },
+    {
+        section: 'Settings',
+        collapsible: true,
+        icon: Settings,
+        groupLabel: 'Settings',
+        items: [
+            { label: 'Organisations', href: '/admin/settings/organisations', icon: Building2, adminOnly: true },
+            { label: 'Team Members', href: '/admin/settings/team', icon: Users, adminOnly: true },
+            { label: 'Billing', href: '/admin/settings/billing', icon: CreditCard, adminOnly: true },
         ],
     },
 ];

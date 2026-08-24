@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { apiUrl } from '@/lib/api';
+import { getAdminUser } from '@/lib/admin-auth';
+import { exportDataAsPDF } from '@/lib/exportPDF';
 import {
     AlertTriangle, Clock, CheckCircle, ArrowLeft, RefreshCw,
-    Play, TrendingUp, FileText, ChevronRight,
+    Play, TrendingUp, FileText, ChevronRight, MessageSquarePlus, FileDown,
 } from 'lucide-react';
 
 type IncidentSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -26,6 +28,16 @@ interface ContainmentAction {
     completed_at: string | null;
 }
 
+type NoteType = 'Update' | 'Evidence' | 'Decision' | 'Escalation';
+
+interface AnalystNote {
+    id: string;
+    author: string;
+    type: NoteType;
+    text: string;
+    timestamp: string;
+}
+
 interface Incident {
     id: string;
     title: string;
@@ -41,6 +53,7 @@ interface Incident {
     source_alert_id: string | null;
     timeline: TimelineEntry[];
     containment_actions: ContainmentAction[];
+    notes: AnalystNote[];
 }
 
 interface Summary {
@@ -79,6 +92,15 @@ const ACTION_STYLE: Record<ActionStatus, string> = {
     failed: 'text-red-500',
 };
 
+const NOTE_TYPES: NoteType[] = ['Update', 'Evidence', 'Decision', 'Escalation'];
+
+const NOTE_TYPE_STYLE: Record<NoteType, string> = {
+    Update: 'bg-blue/10 text-blue',
+    Evidence: 'bg-card-muted text-foreground-muted',
+    Decision: 'bg-green/10 text-green',
+    Escalation: 'bg-red-500/10 text-red-500',
+};
+
 export function IncidentResponse() {
     const [incidents, setIncidents] = useState<Incident[]>([]);
     const [summary, setSummary] = useState<Summary | null>(null);
@@ -86,6 +108,9 @@ export function IncidentResponse() {
     const [statusFilter, setStatusFilter] = useState<'all' | IncidentStatus>('all');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [showAddNote, setShowAddNote] = useState(false);
+    const [noteType, setNoteType] = useState<NoteType>('Update');
+    const [noteText, setNoteText] = useState('');
 
     const load = () => {
         setLoading(true);
@@ -118,6 +143,54 @@ export function IncidentResponse() {
         }
     }
 
+    function exportIncidentPDF(incident: Incident) {
+        exportDataAsPDF(incident.title, `incident-${incident.id}`, [
+            {
+                heading: 'Overview',
+                rows: [
+                    { label: 'ID', value: incident.id },
+                    { label: 'Severity', value: incident.severity },
+                    { label: 'Status', value: STATUS_LABELS[incident.status] },
+                    { label: 'MITRE', value: `${incident.mitre_tactic} · ${incident.mitre_technique}` },
+                    { label: 'Assigned Analyst', value: incident.assigned_analyst },
+                    { label: 'Affected Assets', value: incident.affected_assets.join(', ') },
+                ],
+            },
+            { heading: 'Summary', rows: [{ label: 'Details', value: incident.summary }] },
+            {
+                heading: 'Timeline',
+                rows: incident.timeline.map((t) => ({ label: `${t.timestamp} · ${t.actor}`, value: `${t.action}${t.detail ? ` — ${t.detail}` : ''}` })),
+            },
+            {
+                heading: 'Analyst Notes',
+                rows: incident.notes.length > 0
+                    ? incident.notes.map((n) => ({ label: `${n.timestamp} · ${n.author} (${n.type})`, value: n.text }))
+                    : [{ label: 'None', value: 'No notes recorded' }],
+            },
+        ]);
+    }
+
+    async function addNote(id: string) {
+        if (!noteText.trim()) return;
+        setBusy(true);
+        try {
+            const author = getAdminUser().name;
+            const res = await fetch(apiUrl(`/api/incidents/${id}/notes`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ author, type: noteType, text: noteText.trim() }),
+            });
+            const data = await res.json();
+            if (data?.note) {
+                setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, notes: [...i.notes, data.note] } : i)));
+            }
+            setNoteText('');
+            setShowAddNote(false);
+        } finally {
+            setBusy(false);
+        }
+    }
+
     // Detail view
     if (selected) {
         return (
@@ -136,6 +209,9 @@ export function IncidentResponse() {
                         <p className="text-xs text-foreground-muted">Incident Response · Opened {selected.opened_at} · Analyst: {selected.assigned_analyst}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => exportIncidentPDF(selected)} className="flex items-center gap-1.5 text-[11px] font-bold text-foreground-muted hover:text-foreground border border-border rounded-lg px-3 py-1.5">
+                            <FileDown className="w-3.5 h-3.5" /> Export PDF
+                        </button>
                         <button disabled={busy} onClick={() => updateStatus(selected.id, 'investigating')} className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-blue rounded-lg px-3 py-1.5 disabled:opacity-50">
                             <Play className="w-3.5 h-3.5" /> Investigate
                         </button>
@@ -187,6 +263,78 @@ export function IncidentResponse() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* Analyst notes */}
+                        <div className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider">Analyst Notes</p>
+                                <button
+                                    onClick={() => setShowAddNote((v) => !v)}
+                                    className="flex items-center gap-1 text-[11px] font-bold text-purple hover:underline"
+                                >
+                                    <MessageSquarePlus className="w-3.5 h-3.5" /> Add Note
+                                </button>
+                            </div>
+
+                            {showAddNote && (
+                                <div className="mb-3 space-y-2 bg-card-muted rounded-lg p-3">
+                                    <div className="flex items-center gap-1.5">
+                                        {NOTE_TYPES.map((t) => (
+                                            <button
+                                                key={t}
+                                                onClick={() => setNoteType(t)}
+                                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                                                    noteType === t ? NOTE_TYPE_STYLE[t] : 'bg-card text-foreground-muted'
+                                                }`}
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        value={noteText}
+                                        onChange={(e) => setNoteText(e.target.value)}
+                                        rows={2}
+                                        placeholder="Add a timestamped note…"
+                                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-card resize-none focus:outline-none focus:border-purple"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <button onClick={() => setShowAddNote(false)} className="text-[11px] text-foreground-muted px-3 py-1.5 rounded-lg hover:bg-card">
+                                            Cancel
+                                        </button>
+                                        <button
+                                            disabled={busy || !noteText.trim()}
+                                            onClick={() => addNote(selected.id)}
+                                            className="text-[11px] font-bold text-white bg-purple rounded-lg px-3 py-1.5 disabled:opacity-50"
+                                        >
+                                            Save Note
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {selected.notes.length === 0 ? (
+                                <p className="text-xs text-foreground-muted">No notes yet.</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {selected.notes.map((n) => (
+                                        <div key={n.id} className="flex gap-2">
+                                            <div className="w-6 h-6 rounded-full bg-purple text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                                                {n.author.split(' ').map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-bold text-foreground">{n.author}</p>
+                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${NOTE_TYPE_STYLE[n.type]}`}>{n.type}</span>
+                                                    <span className="text-[10px] text-foreground-muted">{n.timestamp}</span>
+                                                </div>
+                                                <p className="text-xs text-foreground-muted mt-0.5 leading-relaxed">{n.text}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 

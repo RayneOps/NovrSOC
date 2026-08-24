@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { apiUrl } from '@/lib/api';
+import { getAdminUser } from '@/lib/admin-auth';
+import { ASSIGNABLE_ANALYSTS } from '@/lib/mockTeam';
 import {
     CheckCircle, RefreshCw, Eye, Shield,
-    ExternalLink, Crosshair, MessageSquarePlus,
+    ExternalLink, Crosshair, MessageSquarePlus, UserPlus, User,
 } from 'lucide-react';
 
 type Severity = 'critical' | 'high' | 'medium' | 'low';
@@ -35,6 +37,7 @@ interface ThreatAlert {
     abuseipdb_confidence: number | null;
     vt_malicious: number | null;
     otx_pulses: number | null;
+    assigned_to: string | null;
 }
 
 interface Stats {
@@ -85,8 +88,12 @@ export function ThreatManagement() {
     const [loading, setLoading] = useState(true);
     const [severityFilter, setSeverityFilter] = useState<'all' | Severity>('all');
     const [statusFilter, setStatusFilter] = useState<'all' | AlertStatus>('all');
+    const [queueFilter, setQueueFilter] = useState<'all' | 'mine'>('all');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [showAssignMenu, setShowAssignMenu] = useState(false);
+
+    const currentAnalyst = getAdminUser().name;
 
     const load = () => {
         setLoading(true);
@@ -105,8 +112,9 @@ export function ThreatManagement() {
     const filtered = useMemo(() => alerts.filter((a) => {
         const matchSev = severityFilter === 'all' || a.severity === severityFilter;
         const matchStatus = statusFilter === 'all' || a.status === statusFilter;
-        return matchSev && matchStatus;
-    }), [alerts, severityFilter, statusFilter]);
+        const matchQueue = queueFilter === 'all' || a.assigned_to === currentAnalyst;
+        return matchSev && matchStatus && matchQueue;
+    }), [alerts, severityFilter, statusFilter, queueFilter, currentAnalyst]);
 
     const selected = alerts.find((a) => a.id === selectedId) ?? filtered[0] ?? null;
 
@@ -129,6 +137,21 @@ export function ThreatManagement() {
         try {
             await fetch(apiUrl(`/api/threats/alerts/${id}/create-incident`), { method: 'POST' });
             await updateStatus(id, 'investigating');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function assignAlert(id: string, assignedTo: string | null) {
+        setBusy(true);
+        setShowAssignMenu(false);
+        try {
+            await fetch(apiUrl(`/api/threats/alerts/${id}`), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assigned_to: assignedTo }),
+            });
+            setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, assigned_to: assignedTo } : a)));
         } finally {
             setBusy(false);
         }
@@ -188,6 +211,18 @@ export function ThreatManagement() {
                         </button>
                     ))}
                 </div>
+                <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+                    {(['all', 'mine'] as const).map((q) => (
+                        <button
+                            key={q}
+                            onClick={() => setQueueFilter(q)}
+                            className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors ${queueFilter === q ? 'bg-purple text-white' : 'text-foreground-muted hover:text-foreground'}`}
+                        >
+                            {q === 'mine' && <User className="w-3 h-3" />}
+                            {q === 'all' ? 'All Alerts' : 'My Queue'}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -217,6 +252,14 @@ export function ThreatManagement() {
                                         <span className="text-[10px] text-foreground-muted font-mono">{a.source_ip ?? a.agent_name}</span>
                                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${STATUS_STYLE[a.status]}`}>{STATUS_LABELS[a.status]}</span>
                                     </div>
+                                    {a.assigned_to && (
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                            <div className="w-4 h-4 rounded-full bg-purple text-white text-[8px] font-bold flex items-center justify-center shrink-0">
+                                                {a.assigned_to.split(' ').map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
+                                            </div>
+                                            <span className="text-[10px] text-foreground-muted">{a.assigned_to}</span>
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -241,6 +284,61 @@ export function ThreatManagement() {
                                     <h2 className="text-sm font-black text-foreground mt-1.5">{selected.rule_description}</h2>
                                 </div>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${STATUS_STYLE[selected.status]}`}>{STATUS_LABELS[selected.status]}</span>
+                            </div>
+
+                            {/* Assignment */}
+                            <div className="flex items-center justify-between bg-card-muted rounded-lg p-3">
+                                {selected.assigned_to ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-purple text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                                            {selected.assigned_to.split(' ').map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
+                                        </div>
+                                        <div className="text-xs">
+                                            <span className="text-foreground-muted">Assigned to </span>
+                                            <span className="font-bold text-foreground">{selected.assigned_to}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-foreground-muted">Unassigned</p>
+                                )}
+                                <div className="relative flex items-center gap-2">
+                                    {selected.assigned_to !== currentAnalyst ? (
+                                        <button
+                                            disabled={busy}
+                                            onClick={() => assignAlert(selected.id, currentAnalyst)}
+                                            className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-purple rounded-lg px-2.5 py-1.5 disabled:opacity-50"
+                                        >
+                                            <UserPlus className="w-3.5 h-3.5" /> Assign to Me
+                                        </button>
+                                    ) : (
+                                        <button
+                                            disabled={busy}
+                                            onClick={() => assignAlert(selected.id, null)}
+                                            className="text-[11px] font-bold text-foreground-muted hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 disabled:opacity-50"
+                                        >
+                                            Unassign
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setShowAssignMenu((v) => !v)}
+                                        className="text-[11px] font-bold text-foreground-muted hover:text-foreground border border-border rounded-lg px-2.5 py-1.5"
+                                    >
+                                        Assign to…
+                                    </button>
+                                    {showAssignMenu && (
+                                        <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-10 w-40 overflow-hidden">
+                                            {ASSIGNABLE_ANALYSTS.map((name) => (
+                                                <button
+                                                    key={name}
+                                                    onClick={() => assignAlert(selected.id, name)}
+                                                    className="w-full text-left text-xs px-3 py-2 hover:bg-card-muted transition-colors"
+                                                >
+                                                    {name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* MITRE mapping */}

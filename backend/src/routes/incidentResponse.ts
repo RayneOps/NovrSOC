@@ -24,6 +24,16 @@ interface ContainmentAction {
     completed_at: string | null;
 }
 
+type NoteType = 'Update' | 'Evidence' | 'Decision' | 'Escalation';
+
+interface AnalystNote {
+    id: string;
+    author: string;
+    type: NoteType;
+    text: string;
+    timestamp: string;
+}
+
 interface Incident {
     id: string;
     title: string;
@@ -39,6 +49,7 @@ interface Incident {
     source_alert_id: string | null;
     timeline: TimelineEntry[];
     containment_actions: ContainmentAction[];
+    notes: AnalystNote[];
 }
 
 const MOCK_INCIDENTS: Incident[] = [
@@ -99,6 +110,18 @@ const MOCK_INCIDENTS: Incident[] = [
             { id: 'ca_4', label: 'Rotate root/service account credentials', status: 'pending', completed_at: null },
             { id: 'ca_5', label: 'Review CloudTrail/Wazuh for lateral movement', status: 'pending', completed_at: null },
         ],
+        notes: [
+            {
+                id: 'note_1', author: 'Ibrahim Musa', type: 'Evidence',
+                text: 'AbuseIPDB confidence 87% on 45.155.205.233 — cross-referenced against last 90 days of perimeter logs, no prior contact from this IP.',
+                timestamp: '2026-08-12 07:20:00',
+            },
+            {
+                id: 'note_2', author: 'Ibrahim Musa', type: 'Decision',
+                text: 'Blocking at perimeter firewall rather than waiting for full lateral-movement review, given this host runs the primary Wazuh manager.',
+                timestamp: '2026-08-12 08:35:00',
+            },
+        ],
     },
     {
         id: 'INC-2026-0342',
@@ -135,6 +158,7 @@ const MOCK_INCIDENTS: Incident[] = [
             { id: 'ca_3', label: 'Scan host for ransomware payload / encryption activity', status: 'pending', completed_at: null },
             { id: 'ca_4', label: 'Verify backup integrity for affected host', status: 'pending', completed_at: null },
         ],
+        notes: [],
     },
     {
         id: 'INC-2026-0338',
@@ -192,6 +216,13 @@ const MOCK_INCIDENTS: Incident[] = [
             { id: 'ca_3', label: 'Remove offending application from host', status: 'completed', completed_at: '2026-08-11 10:05:00' },
             { id: 'ca_4', label: 'Add domain to watchlist', status: 'completed', completed_at: '2026-08-11 10:05:00' },
         ],
+        notes: [
+            {
+                id: 'note_1', author: 'Chidinma Okafor', type: 'Decision',
+                text: 'Closing as resolved — root cause is a benign browser extension, not exfiltration. No customer notification needed.',
+                timestamp: '2026-08-11 10:06:00',
+            },
+        ],
     },
 ];
 
@@ -232,6 +263,28 @@ router.patch('/:id', (req, res) => {
         incident.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
     }
     res.json({ success: true, incident });
+});
+
+router.post('/:id/notes', (req, res) => {
+    const { author, type, text }: { author?: string; type?: NoteType; text?: string } = req.body ?? {};
+    const incident = MOCK_INCIDENTS.find((i) => i.id === req.params.id);
+    if (!incident) {
+        res.status(404).json({ error: 'Incident not found' });
+        return;
+    }
+    if (!author || !type || !text) {
+        res.status(400).json({ error: 'author, type, and text are required' });
+        return;
+    }
+    const note: AnalystNote = {
+        id: `note_${incident.notes.length + 1}`,
+        author,
+        type,
+        text,
+        timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    };
+    incident.notes.push(note);
+    res.json({ success: true, note, incident });
 });
 
 router.post('/:id/timeline', (req, res) => {

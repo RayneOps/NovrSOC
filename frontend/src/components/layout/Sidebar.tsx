@@ -11,6 +11,9 @@ export interface NavItem {
     label: string;
     href: string;
     icon: LucideIcon;
+    // Hidden unless user.role === 'super_admin'. Only meaningful in the admin portal today —
+    // the client portal's nav has no such role tier.
+    adminOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -30,8 +33,15 @@ interface SidebarProps {
 export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
     const pathname = usePathname();
 
+    // Drop adminOnly items for anyone who isn't a super_admin, then drop any group left with
+    // no items at all (a group whose items were entirely adminOnly would otherwise render as
+    // an empty, uselessly-clickable accordion header).
+    const visibleGroups = navGroups
+        .map((group) => ({ ...group, items: group.items.filter((item) => !item.adminOnly || user.role === 'super_admin') }))
+        .filter((group) => group.items.length > 0);
+
     const getDefaultOpen = () => {
-        for (const group of navGroups) {
+        for (const group of visibleGroups) {
             if (group.collapsible && group.items.some((item) => pathname.startsWith(item.href))) {
                 return group.section;
             }
@@ -56,7 +66,7 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
 
             {/* Nav */}
             <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin">
-                {navGroups.map((group, gi) => (
+                {visibleGroups.map((group, gi) => (
                     <div key={gi}>
                         {gi > 0 && group.section && <div className="border-t border-border my-3 mx-1" />}
 
