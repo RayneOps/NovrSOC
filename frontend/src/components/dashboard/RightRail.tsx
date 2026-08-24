@@ -1,36 +1,76 @@
-import { FileText, Zap, Settings, User, Bell, Key, Users, CreditCard, ChevronRight } from 'lucide-react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FileText, Zap, Settings, User, Bell, Key, Users, CreditCard, ChevronRight, X } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
+import { getAdminUser } from '@/lib/admin-auth';
+import { getPortalUser } from '@/lib/portal-auth';
+import { exportDataAsPDF } from '@/lib/exportPDF';
 
 interface RightRailProps {
     portal: 'admin' | 'client';
 }
 
-function AccountOverviewCard({ base }: { base: string }) {
+interface AccountSummary {
+    organisation: string;
+    plan: string;
+    role: string;
+}
+
+function useAccountSummary(portal: 'admin' | 'client'): AccountSummary {
+    const [summary, setSummary] = useState<AccountSummary>({ organisation: 'Cybernovr', plan: 'Enterprise', role: '—' });
+
+    useEffect(() => {
+        if (portal === 'admin') {
+            const u = getAdminUser();
+            setSummary({ organisation: u.company, plan: 'Enterprise', role: u.role });
+        } else {
+            const u = getPortalUser();
+            if (u) setSummary({ organisation: u.orgName, plan: u.orgPlan ?? 'Enterprise', role: u.portalRole });
+        }
+    }, [portal]);
+
+    return summary;
+}
+
+function useAgentCount(): number | null {
+    const [count, setCount] = useState<number | null>(null);
+    useEffect(() => {
+        fetch(apiUrl('/api/wazuh/status'), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((d) => { if (typeof d?.agent_count === 'number') setCount(d.agent_count); })
+            .catch(() => {});
+    }, []);
+    return count;
+}
+
+function AccountOverviewCard({ portal }: { portal: 'admin' | 'client' }) {
+    const summary = useAccountSummary(portal);
+    const agentCount = useAgentCount();
+
+    const rows = [
+        { label: 'Organisation', value: summary.organisation },
+        { label: 'Plan', value: summary.plan, valueClass: 'text-purple font-bold' },
+        { label: 'Agents Active', value: agentCount !== null ? String(agentCount) : '—' },
+        { label: 'Role', value: summary.role },
+    ];
+
     return (
         <div className="bg-white border border-grey-100 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-heading font-semibold text-sm text-grey-800">Account Overview</h3>
                 <FileText size={16} className="text-grey-500" />
             </div>
-            {/* Placeholder rows — replace with real data when wired */}
             <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                    <span className="text-grey-500">Organisation</span>
-                    <span className="font-medium text-grey-800">Cybernovr</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-grey-500">Plan</span>
-                    <span className="font-medium text-blue">Enterprise</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-grey-500">Agents Active</span>
-                    <span className="font-medium text-grey-800">—</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span className="text-grey-500">Clients</span>
-                    <span className="font-medium text-grey-800">—</span>
-                </div>
+                {rows.map((row) => (
+                    <div key={row.label} className="flex justify-between text-sm">
+                        <span className="text-grey-500">{row.label}</span>
+                        <span className={`font-medium text-grey-800 ${row.valueClass ?? ''}`}>{row.value}</span>
+                    </div>
+                ))}
             </div>
-            <a href={`${base}/settings`} className="block mt-4 text-xs text-blue hover:text-purple transition-colors">
+            <a href={portal === 'admin' ? '/admin/settings' : '/client/settings'} className="block mt-4 text-xs text-purple hover:underline transition-colors">
                 View Full Account →
             </a>
         </div>
@@ -38,6 +78,10 @@ function AccountOverviewCard({ base }: { base: string }) {
 }
 
 function SettingsCard({ portal, base }: { portal: 'admin' | 'client'; base: string }) {
+    // Deep-linking each item to its own route (/admin/settings/profile etc.) would 404 —
+    // only a single unified /settings page exists per portal today. Hash fragments are kept
+    // as a semantic marker for a future per-section anchor, but every item lands on the one
+    // real settings page rather than a route that doesn't exist.
     const adminItems = [
         { label: 'Profile & Account', href: `${base}/settings#profile`, icon: User },
         { label: 'Notifications', href: `${base}/settings#notifications`, icon: Bell },
@@ -51,6 +95,7 @@ function SettingsCard({ portal, base }: { portal: 'admin' | 'client'; base: stri
         { label: 'Billing', href: `${base}/billing`, icon: CreditCard },
     ];
     const items = portal === 'admin' ? adminItems : clientItems;
+    const router = useRouter();
 
     return (
         <div className="bg-white border border-grey-100 rounded-xl p-5">
@@ -62,15 +107,17 @@ function SettingsCard({ portal, base }: { portal: 'admin' | 'client'; base: stri
                 {items.map((item) => {
                     const Icon = item.icon;
                     return (
-                        <a
+                        <button
                             key={item.label}
-                            href={item.href}
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-grey-800 hover:bg-blue/5 hover:text-blue transition-colors group"
+                            onClick={() => router.push(item.href)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#F5F0FF] group transition-colors"
                         >
-                            <Icon size={14} className="text-grey-500 group-hover:text-blue transition-colors" />
-                            {item.label}
-                            <ChevronRight size={12} className="ml-auto text-grey-300 group-hover:text-blue transition-colors" />
-                        </a>
+                            <div className="flex items-center gap-2.5">
+                                <Icon size={14} className="text-grey-500 group-hover:text-purple transition-colors" />
+                                <span className="text-sm text-grey-800 group-hover:text-purple transition-colors">{item.label}</span>
+                            </div>
+                            <ChevronRight size={12} className="text-grey-300 group-hover:text-purple transition-colors" />
+                        </button>
                     );
                 })}
             </div>
@@ -78,16 +125,125 @@ function SettingsCard({ portal, base }: { portal: 'admin' | 'client'; base: stri
     );
 }
 
+interface OrgFormState { name: string; industry: string; plan: string; email: string }
+const EMPTY_ORG_FORM: OrgFormState = { name: '', industry: 'Financial Services', plan: 'Starter ($299/mo)', email: '' };
+
+function AddOrganizationModal({ onClose }: { onClose: () => void }) {
+    const [form, setForm] = useState<OrgFormState>(EMPTY_ORG_FORM);
+    // No backend endpoint exists yet for provisioning an organisation — this collects the
+    // form and closes; wire up a real POST once that endpoint exists.
+    return (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-border">
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                    <h2 className="font-bold text-base text-foreground">Add Organization</h2>
+                    <button onClick={onClose} className="text-foreground-muted hover:text-foreground" aria-label="Close"><X size={16} /></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Organization Name</label>
+                        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/10"
+                            placeholder="Dangote Group" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Industry</label>
+                        <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground bg-white focus:outline-none focus:border-purple">
+                            {['Financial Services', 'Telecommunications', 'Manufacturing', 'Oil & Gas', 'Healthcare', 'Government', 'Other'].map((o) => <option key={o}>{o}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Plan</label>
+                        <select value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground bg-white focus:outline-none focus:border-purple">
+                            {['Starter ($299/mo)', 'Professional ($799/mo)', 'Enterprise (Custom)'].map((o) => <option key={o}>{o}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Primary Contact Email</label>
+                        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/10"
+                            placeholder="ciso@company.com" />
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+                    <button onClick={onClose} className="text-sm text-foreground-muted px-4 py-2 rounded-lg hover:bg-card-muted">Cancel</button>
+                    <button onClick={onClose} className="text-sm font-bold bg-orange hover:bg-orange-hover text-white px-5 py-2 rounded-lg transition-colors">
+                        Add Organization
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function InviteUserModal({ onClose }: { onClose: () => void }) {
+    const [email, setEmail] = useState('');
+    const [role, setRole] = useState('Analyst');
+    return (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-border">
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                    <h2 className="font-bold text-base text-foreground">Invite User</h2>
+                    <button onClick={onClose} className="text-foreground-muted hover:text-foreground" aria-label="Close"><X size={16} /></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Work Email</label>
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-purple focus:ring-2 focus:ring-purple/10"
+                            placeholder="analyst@cybernovr.com" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-1.5">Role</label>
+                        <select value={role} onChange={(e) => setRole(e.target.value)}
+                            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground bg-white focus:outline-none focus:border-purple">
+                            {['Analyst', 'Manager', 'Executive', 'Administrator'].map((o) => <option key={o}>{o}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+                    <button onClick={onClose} className="text-sm text-foreground-muted px-4 py-2 rounded-lg hover:bg-card-muted">Cancel</button>
+                    <button onClick={onClose} className="text-sm font-bold bg-orange hover:bg-orange-hover text-white px-5 py-2 rounded-lg transition-colors">
+                        Send Invite
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function QuickActionsCard({ portal, base }: { portal: 'admin' | 'client'; base: string }) {
+    const router = useRouter();
+    const summary = useAccountSummary(portal);
+    const [showAddOrgModal, setShowAddOrgModal] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+
+    const handleExportReport = () => {
+        exportDataAsPDF('Account Summary', 'account-summary', [
+            {
+                heading: 'Account',
+                rows: [
+                    { label: 'Organisation', value: summary.organisation },
+                    { label: 'Plan', value: summary.plan },
+                    { label: 'Role', value: summary.role },
+                    { label: 'Generated', value: new Date().toLocaleString() },
+                ],
+            },
+        ]);
+    };
+
     const adminActions = [
-        { label: 'Add Organization', href: `${base}/settings` },
-        { label: 'Invite User', href: `${base}/settings` },
-        { label: 'Run Threat Scan', href: `${base}/threat/webscan` },
-        { label: 'View System Status', href: '/status' },
+        { label: '+ Add Organization', action: () => setShowAddOrgModal(true), color: 'text-purple' },
+        { label: '+ Invite User', action: () => setShowInviteModal(true), color: 'text-purple' },
+        { label: '⚡ Run Security Scan', action: () => router.push(`${base}/threat/cti`), color: 'text-orange' },
+        { label: '📋 Export Report', action: handleExportReport, color: 'text-blue' },
     ];
     const clientActions = [
-        { label: 'Run Threat Scan', href: `${base}/threat/webscan` },
-        { label: 'View System Status', href: '/status' },
+        { label: '⚡ Run Security Scan', action: () => router.push(`${base}/threat/cti`), color: 'text-orange' },
+        { label: '📋 Export Report', action: handleExportReport, color: 'text-blue' },
+        { label: 'View System Status', action: () => router.push('/status'), color: 'text-purple' },
     ];
     const actions = portal === 'admin' ? adminActions : clientActions;
 
@@ -95,21 +251,23 @@ function QuickActionsCard({ portal, base }: { portal: 'admin' | 'client'; base: 
         <div className="bg-white border border-grey-100 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-heading font-semibold text-sm text-grey-800">Quick Actions</h3>
-                <Zap size={16} className="text-red" />
+                <Zap size={16} className="text-orange" />
             </div>
             <p className="text-xs text-grey-500 mb-4">Frequently used administrative tasks.</p>
-            <div className="space-y-2">
+            <div className="space-y-1">
                 {actions.map((action) => (
-                    <a
+                    <button
                         key={action.label}
-                        href={action.href}
-                        className="flex items-center gap-2 text-sm text-grey-800 hover:text-blue transition-colors py-1"
+                        onClick={action.action}
+                        className={`w-full text-left text-sm font-medium py-2 px-3 rounded-lg hover:bg-[#F5F0FF] transition-colors ${action.color}`}
                     >
-                        <span className="text-blue font-bold">+</span>
                         {action.label}
-                    </a>
+                    </button>
                 ))}
             </div>
+
+            {showAddOrgModal && <AddOrganizationModal onClose={() => setShowAddOrgModal(false)} />}
+            {showInviteModal && <InviteUserModal onClose={() => setShowInviteModal(false)} />}
         </div>
     );
 }
@@ -118,7 +276,7 @@ export function RightRail({ portal }: RightRailProps) {
     const base = portal === 'admin' ? '/admin' : '/client';
     return (
         <div className="space-y-4">
-            <AccountOverviewCard base={base} />
+            <AccountOverviewCard portal={portal} />
             <SettingsCard portal={portal} base={base} />
             <QuickActionsCard portal={portal} base={base} />
         </div>

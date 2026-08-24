@@ -377,8 +377,7 @@ export const GeneralDashboard = () => {
 
     return (
         <div className="space-y-6">
-            <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider -mb-2">Aggregated across all onboarded clients</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {kpiCards.map((kpi, idx) => <KpiCard key={idx} {...kpi} />)}
             </div>
 

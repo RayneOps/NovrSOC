@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { Search, Bell, Sun, Moon } from 'lucide-react';
-import { NovrSOCLogo } from '@/components/shared/NovrSOCLogo';
+import { Logo } from '@/components/shared/Logo';
 import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface HeaderProps {
@@ -29,7 +29,7 @@ export function Header({ initials, onSignOut }: HeaderProps) {
         <header className="h-14 bg-white border-b border-grey-100 flex items-center gap-4 px-6 sticky top-0 z-30 w-full">
             {/* Left */}
             <div className="flex items-center gap-2 min-w-fit">
-                <NovrSOCLogo size="sm" />
+                <Logo size="sm" />
                 <span className="text-grey-300">/</span>
                 <span className="text-sm text-grey-500">{pageTitle}</span>
             </div>
@@ -72,7 +72,7 @@ export function Header({ initials, onSignOut }: HeaderProps) {
                     <Bell size={18} className="text-grey-500" />
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red rounded-full" />
                 </div>
-                <div className="w-8 h-8 rounded-full bg-blue text-white flex items-center justify-center text-xs font-bold">
+                <div className="w-8 h-8 rounded-full bg-purple text-white flex items-center justify-center text-xs font-bold">
                     {initials}
                 </div>
             </div>

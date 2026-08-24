@@ -4,6 +4,7 @@ export interface AdminUser {
     name: string;
     email: string;
     role: string;
+    company: string;
 }
 
 export function getAdminToken(): string | null {
@@ -18,7 +19,7 @@ export function isAdminAuthenticated(): boolean {
 // Best-effort decode of the admin JWT payload for display purposes only (name/email/role
 // in the sidebar footer) — never used for authorization, the backend is the source of truth.
 export function getAdminUser(): AdminUser {
-    const fallback: AdminUser = { name: 'Admin User', email: '', role: 'Administrator' };
+    const fallback: AdminUser = { name: 'Admin User', email: '', role: 'Administrator', company: 'Cybernovr' };
     const token = getAdminToken();
     if (!token) return fallback;
     try {
@@ -27,6 +28,7 @@ export function getAdminUser(): AdminUser {
             name: payload.name ?? fallback.name,
             email: payload.email ?? fallback.email,
             role: payload.role ?? fallback.role,
+            company: payload.company ?? fallback.company,
         };
     } catch {
         return fallback;

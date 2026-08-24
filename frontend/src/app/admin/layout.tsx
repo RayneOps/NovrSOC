@@ -15,7 +15,7 @@ const RAIL_STORAGE_KEY = 'novrsoc_rail_open';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [authChecked, setAuthChecked] = useState(false);
-    const [user, setUser] = useState({ name: 'Admin User', email: '', role: 'Administrator' });
+    const [user, setUser] = useState({ name: 'Admin User', email: '', role: 'Administrator', company: 'Cybernovr' });
     const [railOpen, setRailOpen] = useState(true);
 
     useEffect(() => {

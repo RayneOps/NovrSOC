@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight, LogOut, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { NovrSOCLogo } from '@/components/shared/NovrSOCLogo';
+import { Logo } from '@/components/shared/Logo';
 
 export interface NavItem {
     label: string;
@@ -48,17 +48,17 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
     const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
     return (
-        <aside className="w-[260px] min-h-screen bg-purple text-white flex flex-col fixed left-0 top-0 z-40">
-            {/* Logo — slightly darker purple than the sidebar body, per brand spec */}
-            <div className="px-6 py-5 bg-purple-hover">
-                <NovrSOCLogo variant="white" />
+        <aside className="w-[260px] min-h-screen bg-white border-r border-border text-foreground flex flex-col fixed left-0 top-0 z-40">
+            {/* Logo */}
+            <div className="px-6 py-5 border-b border-border">
+                <Logo size="md" />
             </div>
 
             {/* Nav */}
             <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin">
                 {navGroups.map((group, gi) => (
                     <div key={gi}>
-                        {gi > 0 && group.section && <div className="border-t border-white/10 my-3 mx-1" />}
+                        {gi > 0 && group.section && <div className="border-t border-border my-3 mx-1" />}
 
                         {!group.collapsible &&
                             group.items.map((item) => {
@@ -69,10 +69,10 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
                                         key={item.href}
                                         href={item.href}
                                         className={cn(
-                                            'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors mb-1',
+                                            'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm mb-1 transition-colors',
                                             isActive
-                                                ? 'bg-white/20 text-white font-semibold'
-                                                : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                                ? 'bg-purple text-white font-semibold'
+                                                : 'text-foreground-muted hover:text-purple hover:bg-[#F5F0FF]'
                                         )}
                                     >
                                         <Icon size={18} />
@@ -89,12 +89,12 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
                                         onClick={() => toggleGroup(group.section)}
                                         className="w-full flex items-center justify-between px-4 py-2 mt-3 group"
                                     >
-                                        <span className="text-white/80 text-xs font-semibold uppercase tracking-widest">
+                                        <span className="text-foreground-muted text-[9px] font-bold uppercase tracking-widest">
                                             {group.section}
                                         </span>
                                         <ChevronRight
                                             size={14}
-                                            className={cn('text-white/60 transition-transform duration-200', openGroup === group.section && 'rotate-90')}
+                                            className={cn('text-foreground-muted transition-transform duration-200', openGroup === group.section && 'rotate-90')}
                                         />
                                     </button>
                                 )}
@@ -110,7 +110,7 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
                                                     href={item.href}
                                                     className={cn(
                                                         'flex items-center gap-3 pl-8 pr-4 py-2 rounded-lg text-sm transition-colors',
-                                                        isActive ? 'text-white font-medium bg-white/20' : 'text-white/60 hover:text-white hover:bg-white/10'
+                                                        isActive ? 'text-white font-medium bg-purple' : 'text-foreground-muted hover:text-purple hover:bg-[#F5F0FF]'
                                                     )}
                                                 >
                                                     <Icon size={16} />
@@ -127,15 +127,15 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
             </nav>
 
             {/* User footer */}
-            <div className="border-t border-white/10 px-4 py-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white/20 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+            <div className="border-t border-border px-4 py-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                     {initials}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-white truncate">{user.name}</div>
-                    <div className="text-xs text-white/60 truncate">{user.role}</div>
+                    <div className="text-sm font-semibold text-foreground truncate">{user.name}</div>
+                    <div className="text-xs text-foreground-muted truncate">{user.role}</div>
                 </div>
-                <button onClick={onLogout} className="text-white/60 hover:text-white transition-colors" aria-label="Sign out">
+                <button onClick={onLogout} className="text-foreground-muted hover:text-red-500 transition-colors" aria-label="Sign out">
                     <LogOut size={16} />
                 </button>
             </div>
