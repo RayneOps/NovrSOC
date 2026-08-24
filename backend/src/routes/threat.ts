@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { validate } from '../middleware/validate';
 import { enrichIOC, type IOCType } from '../services/iocEnrichment';
 import { getCVEById, getRecentCVEs, getCVSSScore, getCVEDescription } from '../services/nvd';
 import { isInKEV, getKEVCatalog } from '../services/cisa';
@@ -8,25 +10,20 @@ import { getSupabase } from '../services/geoEnrichment';
 
 const router = Router();
 
-const VALID_IOC_TYPES: IOCType[] = ['ip', 'domain', 'hash', 'url'];
+const IOCLookupSchema = z.object({
+    value: z.string().min(1).max(500).trim(),
+    type: z.enum(['ip', 'domain', 'hash', 'url']),
+});
 
 // ── IOC Enrichment ────────────────────────────────────────────────
 
 // POST /api/threat/ioc/lookup
 // Body: { value: "1.2.3.4", type: "ip" }
-router.post('/ioc/lookup', async (req, res) => {
-    const { value, type } = req.body ?? {};
-    if (!value || !type) {
-        res.status(400).json({ error: 'value and type required' });
-        return;
-    }
-    if (!VALID_IOC_TYPES.includes(type)) {
-        res.status(400).json({ error: `type must be one of: ${VALID_IOC_TYPES.join(', ')}` });
-        return;
-    }
+router.post('/ioc/lookup', validate(IOCLookupSchema), async (req, res) => {
+    const { value, type }: { value: string; type: IOCType } = req.body;
 
     try {
-        const result = await enrichIOC(value, type as IOCType);
+        const result = await enrichIOC(value, type);
         res.json(result);
     } catch {
         res.status(500).json({ error: 'Enrichment failed' });

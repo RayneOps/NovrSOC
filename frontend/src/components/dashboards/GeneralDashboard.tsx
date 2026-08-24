@@ -82,7 +82,7 @@ const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient
                 ) : rows.length === 0 ? (
                     <div className="py-8 text-center">
                         <p className="text-[11px] text-foreground-muted mb-3">No clients onboarded yet. Go to Customers to add your first client.</p>
-                        <Link href="/admin/dashboard" className="inline-block text-[10px] font-bold px-3 py-1.5 bg-red hover:bg-red-hover text-white rounded-lg transition-colors">Onboard First Client</Link>
+                        <Link href="/admin/dashboard" className="inline-block text-[10px] font-bold px-3 py-1.5 bg-orange hover:bg-orange-hover text-white rounded-lg transition-colors">Onboard First Client</Link>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

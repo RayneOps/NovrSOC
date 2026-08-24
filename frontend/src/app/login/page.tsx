@@ -27,6 +27,10 @@ export default function AdminLoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Honeypot — hidden from real users via CSS + tabIndex/autoComplete below; a bot filling
+    // out every visible field programmatically fills this one too. Backend rejects any
+    // request with this set (middleware/auth.ts's botProtection).
+    const [gotcha, setGotcha] = useState('');
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,7 +40,7 @@ export default function AdminLoginPage() {
             const res = await fetch(apiUrl('/api/auth/signin'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, _gotcha: gotcha }),
             });
             const data = await res.json();
             if (!res.ok || !data.token) {
@@ -90,6 +94,16 @@ export default function AdminLoginPage() {
                     <p className="text-foreground-muted text-sm mb-8">Sign in to your NovrSOC workspace</p>
 
                     <form onSubmit={submit} className="space-y-4">
+                        <input
+                            type="text"
+                            name="_gotcha"
+                            value={gotcha}
+                            onChange={(e) => setGotcha(e.target.value)}
+                            className="hidden"
+                            tabIndex={-1}
+                            autoComplete="off"
+                            aria-hidden="true"
+                        />
                         <AuthField
                             label="Work Email"
                             type="email"

@@ -24,6 +24,8 @@ export default function ClientLoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    // Honeypot — see frontend/src/app/login/page.tsx for why.
+    const [gotcha, setGotcha] = useState('');
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,7 +35,7 @@ export default function ClientLoginPage() {
             const res = await fetch(apiUrl('/api/portal/auth/signin'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, _gotcha: gotcha }),
             });
             const data = await res.json();
             if (!res.ok || !data.token) {
@@ -87,6 +89,16 @@ export default function ClientLoginPage() {
                     <p className="text-foreground-muted text-sm mb-8">Sign in to your NovrSOC client workspace</p>
 
                     <form onSubmit={submit} className="space-y-4">
+                        <input
+                            type="text"
+                            name="_gotcha"
+                            value={gotcha}
+                            onChange={(e) => setGotcha(e.target.value)}
+                            className="hidden"
+                            tabIndex={-1}
+                            autoComplete="off"
+                            aria-hidden="true"
+                        />
                         <AuthField
                             label="Work Email"
                             type="email"

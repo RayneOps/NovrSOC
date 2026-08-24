@@ -20,7 +20,7 @@ export function FeatureStub({ domain, title, description, icon, emptyTitle, empt
                 title={title}
                 description={description}
                 actions={
-                    <button className="bg-red hover:bg-red-hover text-white font-semibold rounded-lg px-5 py-2.5 text-xs transition-colors">
+                    <button className="bg-orange hover:bg-orange-hover text-white font-semibold rounded-lg px-5 py-2.5 text-xs transition-colors">
                         {actionLabel}
                     </button>
                 }

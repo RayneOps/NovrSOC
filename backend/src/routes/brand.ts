@@ -1,9 +1,52 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { validate } from '../middleware/validate';
 import { searchCode as githubSearch, isConfigured as githubConfigured, type GitHubCodeMatch } from '../services/github';
 import { searchCode as gitlabSearch, isConfigured as gitlabConfigured, type GitLabCodeMatch } from '../services/gitlab';
 import { searchBrandMentions, searchCounterfeitSites, isConfigured as googleConfigured } from '../services/google';
 import { checkEmail as hibpCheckEmail, isConfigured as hibpConfigured } from '../services/hibp';
 import gplay from 'google-play-scraper';
+
+const SocialSchema = z.object({
+    platform: z.enum(['twitter', 'facebook', 'instagram', 'linkedin']),
+    handle: z.string().min(1).max(100).trim(),
+    display_name: z.string().max(200).trim().optional(),
+    profile_url: z.string().max(500).trim().optional(),
+});
+
+const ExecutiveSchema = z.object({
+    name: z.string().min(1).max(200).trim(),
+    email: z.string().email().max(200).toLowerCase().trim(),
+    role: z.string().max(100).trim().optional(),
+    department: z.string().max(100).trim().optional(),
+    org: z.string().max(200).trim().optional(),
+});
+
+const ExecutiveSocialSchema = z.object({
+    platform: z.enum(['twitter', 'facebook', 'instagram', 'linkedin']),
+    handle: z.string().min(1).max(100).trim(),
+});
+
+const AppSchema = z.object({
+    name: z.string().min(1).max(200).trim(),
+    platform: z.enum(['iOS', 'Android']),
+    bundle_id: z.string().max(200).trim().optional(),
+    developer: z.string().max(200).trim().optional(),
+    store_url_ios: z.string().max(500).trim().optional(),
+    store_url_android: z.string().max(500).trim().optional(),
+});
+
+const SignatureSchema = z.object({
+    type: z.enum(['STRING', 'REGEX', 'HASH']),
+    pattern: z.string().min(1).max(500).trim(),
+    description: z.string().max(300).trim().optional(),
+});
+
+const AssetsPatchSchema = z.object({
+    official_domain: z.string().max(253).trim().optional(),
+    brand_name: z.string().max(200).trim().optional(),
+    trademark_keywords: z.array(z.string().max(100)).max(50).optional(),
+});
 
 // Brand Protection — domains, socials, executives, apps, and code-leak monitoring.
 // Every route here returns structured mock data for now; the real crawlers (crt.sh, RDAP,
@@ -64,7 +107,7 @@ router.get('/socials', (_req, res) => {
     res.json({ socials });
 });
 
-router.post('/socials', (req, res) => {
+router.post('/socials', validate(SocialSchema), (req, res) => {
     const {
         platform, handle, display_name, profile_url, exec_names, keywords,
     }: {
@@ -183,7 +226,24 @@ function maskEmail(email: string): string {
 
 router.get('/executives', (_req, res) => {
     res.json({
-        executives: executives.map((e) => ({ ...e, email_masked: maskEmail(e.email) })),
+        // Explicit field list, not `...e` — the raw `email` on the in-memory record must
+        // never leave this response; only the masked form does. `...e` alongside
+        // `email_masked` used to spread the unmasked email in too, defeating the point.
+        executives: executives.map((e) => ({
+            id: e.id,
+            name: e.name,
+            role: e.role,
+            department: e.department,
+            org: e.org,
+            socials: e.socials,
+            status: e.status,
+            added_at: e.added_at,
+            last_scanned: e.last_scanned,
+            breach_count: e.breach_count,
+            breaches: e.breaches,
+            scan_status: e.scan_status,
+            email_masked: maskEmail(e.email),
+        })),
         capabilities: {
             hibp: hibpConfigured(),
             wazuh: false, // true once Wazuh is reachable from this backend
@@ -192,7 +252,7 @@ router.get('/executives', (_req, res) => {
     });
 });
 
-router.post('/executives', (req, res) => {
+router.post('/executives', validate(ExecutiveSchema), (req, res) => {
     const { name, email, role, department, org }: { name?: string; email?: string; role?: string; department?: string; org?: string } = req.body ?? {};
     if (!name || !email) {
         res.status(400).json({ error: 'name and email are required' });
@@ -220,7 +280,7 @@ router.post('/executives', (req, res) => {
 });
 
 // POST /api/brand/executives/:id/socials — attach a social handle to an executive
-router.post('/executives/:id/socials', (req, res) => {
+router.post('/executives/:id/socials', validate(ExecutiveSocialSchema), (req, res) => {
     const exec = executives.find((e) => e.id === req.params.id);
     if (!exec) {
         res.status(404).json({ error: 'Executive not found' });
@@ -357,7 +417,7 @@ router.get('/apps', (_req, res) => {
     res.json({ apps });
 });
 
-router.post('/apps', (req, res) => {
+router.post('/apps', validate(AppSchema), (req, res) => {
     const { name, bundle_id, platform, developer, store_url_ios, store_url_android } = req.body ?? {};
     if (!name || !platform) {
         res.status(400).json({ error: 'name and platform are required' });
@@ -493,7 +553,7 @@ router.get('/signatures', (_req, res) => {
     res.json({ signatures });
 });
 
-router.post('/signatures', (req, res) => {
+router.post('/signatures', validate(SignatureSchema), (req, res) => {
     const { type, pattern, description } = req.body ?? {};
     if (!type || !pattern) {
         res.status(400).json({ error: 'type and pattern are required' });
@@ -643,7 +703,7 @@ router.get('/assets', (_req, res) => {
     res.json({ ...brandAssets, capabilities: { vision: false, web_search: googleConfigured() } });
 });
 
-router.patch('/assets', (req, res) => {
+router.patch('/assets', validate(AssetsPatchSchema), (req, res) => {
     const { official_domain, brand_name, trademark_keywords }: {
         official_domain?: string;
         brand_name?: string;

@@ -1,6 +1,23 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { validate } from '../middleware/validate';
 import { searchCTLogs, type CertEntry } from '../services/crtsh';
 import { lookupDomain, type ParsedWhois } from '../services/rdap';
+
+// Deliberately loose on `domain` itself (no strict hostname regex) — the handler below
+// accepts a pasted https://... URL and cleans it, so a strict format check here would
+// reject input the route is specifically written to tolerate.
+const AddDomainSchema = z.object({
+    domain: z.string().min(3).max(253).trim(),
+    brand_keywords: z.array(z.string().max(100)).max(20).optional(),
+    similarity_threshold: z.number().min(0).max(100).optional(),
+    alerts: z.object({
+        lookalike: z.boolean().optional(),
+        dns_change: z.boolean().optional(),
+        expiry: z.boolean().optional(),
+        new_cert: z.boolean().optional(),
+    }).optional(),
+});
 
 // Brand Protection > Domain Suite — monitored brand domains, scanned for lookalikes, DNS
 // changes, expiring registrations, and unauthorized SSL certs. Real crt.sh (CT logs) and
@@ -157,7 +174,7 @@ router.get('/', (_req, res) => {
 });
 
 // POST /api/brand/domains — add a domain
-router.post('/', (req, res) => {
+router.post('/', validate(AddDomainSchema), (req, res) => {
     const { domain, brand_keywords, similarity_threshold, alerts }: {
         domain?: string;
         brand_keywords?: string[];
