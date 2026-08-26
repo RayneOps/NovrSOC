@@ -77,8 +77,23 @@ const TABS = [
     { id: 'channels', label: 'Channels' },
     { id: 'history', label: 'Alert History' },
     { id: 'send', label: 'Send Alert' },
+    { id: 'email', label: 'Email' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
+
+interface EmailStatus {
+    enabled: boolean;
+    provider: string;
+    from: string;
+    configured: boolean;
+}
+
+const ALERT_THRESHOLDS = [
+    { level: 'Critical (Level 12+)', enabled: true },
+    { level: 'High (Level 9-11)', enabled: true },
+    { level: 'Medium (Level 6-8)', enabled: false },
+    { level: 'Low (Level 3-5)', enabled: false },
+];
 
 export function AlertCommunication() {
     const [channels, setChannels] = useState<AlertChannels | null>(null);
@@ -88,13 +103,40 @@ export function AlertCommunication() {
     const [sending, setSending] = useState(false);
     const [sendResult, setSendResult] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>('channels');
+    const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+    const [testEmailTo, setTestEmailTo] = useState('');
+    const [testingEmail, setTestingEmail] = useState(false);
+    const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
     useEffect(() => {
         fetch(apiUrl('/api/alerts/status'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((d) => setChannels(d.channels ?? null))
             .catch(() => {});
+        fetch(apiUrl('/api/email/status'), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((d) => setEmailStatus(d ?? null))
+            .catch(() => {});
     }, []);
+
+    const sendTestEmail = async () => {
+        if (!testEmailTo) return;
+        setTestingEmail(true);
+        setTestEmailResult(null);
+        try {
+            const res = await fetch(apiUrl('/api/email/test'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: testEmailTo }),
+            });
+            const data = await res.json();
+            setTestEmailResult({ ok: res.ok && data.success, message: data.message || data.error || 'Unknown response' });
+        } catch {
+            setTestEmailResult({ ok: false, message: 'Test email failed — check console' });
+        } finally {
+            setTestingEmail(false);
+        }
+    };
 
     const sendTest = async () => {
         setTesting(true);
@@ -324,6 +366,73 @@ export function AlertCommunication() {
                         </button>
                         {sendResult && (
                             <div className="text-sm text-green bg-green/10 border border-green/30 rounded-lg px-3 py-2">{sendResult}</div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* EMAIL TAB */}
+            {activeTab === 'email' && (
+                <div className="space-y-4 max-w-2xl">
+                    {/* Status card */}
+                    <div className={`rounded-xl p-4 border flex items-center gap-4 ${emailStatus?.enabled ? 'bg-green/10 border-green/30' : 'bg-card-muted border-dashed border-grey-300'}`}>
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${emailStatus?.enabled ? 'bg-green' : 'bg-amber'}`} />
+                        <div className="min-w-0">
+                            <div className="font-medium text-sm text-foreground">
+                                {emailStatus?.enabled ? 'Email alerts active' : 'Email not configured'}
+                            </div>
+                            <div className="text-xs text-foreground-muted">
+                                {emailStatus?.enabled
+                                    ? `Sending from ${emailStatus.from} via SendGrid`
+                                    : 'Add SENDGRID_API_KEY and set EMAIL_ENABLED=true in the backend environment'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Alert thresholds — mirrors the escalation rules on the Channels tab; not yet
+                       editable here, this documents which severities trigger a SendGrid email today. */}
+                    <div className="bg-card border border-border rounded-xl p-5">
+                        <h3 className="font-heading font-semibold text-sm text-foreground mb-4">Alert Email Thresholds</h3>
+                        {ALERT_THRESHOLDS.map((item) => (
+                            <div key={item.level} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
+                                <span className="text-sm font-medium text-foreground">{item.level}</span>
+                                <div className={`w-10 h-5 rounded-full transition-colors ${item.enabled ? 'bg-blue' : 'bg-card-muted'}`} />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Recipients */}
+                    <div className="bg-card border border-border rounded-xl p-5">
+                        <h3 className="font-heading font-semibold text-sm text-foreground mb-4">Critical Alert Recipients</h3>
+                        <p className="text-xs text-foreground-muted mb-3">
+                            Set via <span className="font-mono">ALERT_EMAIL_TO</span> in the backend environment. Recipient management from this page isn&apos;t wired up yet.
+                        </p>
+                    </div>
+
+                    {/* Send test email */}
+                    <div className="bg-card border border-border rounded-xl p-5">
+                        <h3 className="font-heading font-semibold text-sm text-foreground mb-4">Send Test Email</h3>
+                        <div className="flex gap-2">
+                            <input
+                                type="email"
+                                value={testEmailTo}
+                                onChange={(e) => setTestEmailTo(e.target.value)}
+                                placeholder="you@company.com"
+                                className="flex-1 border border-border bg-card-muted rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 text-foreground"
+                            />
+                            <button
+                                onClick={sendTestEmail}
+                                disabled={testingEmail || !testEmailTo}
+                                className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
+                            >
+                                {testingEmail ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                                {testingEmail ? 'Sending…' : 'Send Test'}
+                            </button>
+                        </div>
+                        {testEmailResult && (
+                            <div className={`mt-3 text-sm rounded-lg px-3 py-2 border ${testEmailResult.ok ? 'text-green bg-green/10 border-green/30' : 'text-red-500 bg-red-500/10 border-red-500/30'}`}>
+                                {testEmailResult.message}
+                            </div>
                         )}
                     </div>
                 </div>

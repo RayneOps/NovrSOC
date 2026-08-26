@@ -39,6 +39,7 @@ import weblogicRouter from './routes/weblogic';
 import assetsRouter from './routes/assets';
 import dashboardRouter from './routes/dashboard';
 import handoverRouter from './routes/handover';
+import emailRouter from './routes/email';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
@@ -181,6 +182,11 @@ app.use('/api/cti', ctiRouter);
 app.use('/api/urlscan', urlscanRouter);
 app.use('/api/webscan', webscanRouter);
 app.use('/api/email', emailSecurityRouter);
+// Same '/api/email' prefix as emailSecurityRouter above (DMARC domain monitoring /
+// messaging gateway checks) — this one is outbound send (SendGrid alerts/reports) plus the
+// Mailgun DMARC inbound webhook. Sub-paths don't collide; kept distinct files since the two
+// are different concerns (sending vs. scanning) that happen to share a URL namespace.
+app.use('/api/email', emailRouter);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api/recovery', dataRecoveryRouter);
 app.use('/api/sla', slaRouter);

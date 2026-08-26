@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { search } from '../lib/wazuh-indexer';
+import { sendCriticalAlertEmail } from '../services/email';
 
 // SecOps Threat Management console — live security event stream from the Wazuh Indexer
 // (wazuh-alerts-4.x-*, same OpenSearch backend /api/wazuh/alerts-indexer queries), falling
@@ -301,6 +302,31 @@ function computeStats(alerts: ThreatAlert[]) {
 let liveAlerts: ThreatAlert[] = MOCK_ALERTS;
 let usingMockStats = true;
 
+// Wazuh alert ids we've already emailed about — in-memory, so it resets on redeploy (an
+// occasional re-send after a restart beats the alternative of persisting yet more state for
+// this). GET /alerts polls repeatedly, so without this dedup every poll would re-email every
+// still-critical alert. Only checked from the live-indexer branch of loadAlerts — MOCK_ALERTS
+// stays severity:'critical' by design and must never trigger a real send to ALERT_EMAIL_TO.
+const emailedAlertIds = new Set<string>();
+
+function notifyCriticalAlerts(alerts: ThreatAlert[]): void {
+    const toNotify = alerts.filter((a) => a.severity === 'critical' && !emailedAlertIds.has(a.id));
+    for (const alert of toNotify) {
+        emailedAlertIds.add(alert.id); // mark before send completes so a slow response can't duplicate-send on the next poll
+        sendCriticalAlertEmail({
+            to: [process.env.ALERT_EMAIL_TO || 'rayne@cybernovr.com'],
+            alertTitle: alert.rule_description,
+            severity: alert.severity,
+            agentName: alert.agent_name,
+            sourceIp: alert.source_ip || '',
+            mitreId: alert.mitre_technique || 'T0000',
+            mitreTactic: alert.mitre_tactic || 'Unknown',
+            riskScore: alert.rule_level * 6,
+            rawLog: alert.raw_log,
+        }).catch((err) => console.error('Critical alert email failed:', err));
+    }
+}
+
 async function loadAlerts(limit: number): Promise<ThreatAlert[]> {
     try {
         const result = await search<IndexerSearchResponse>('wazuh-alerts-4.x-*', {
@@ -312,6 +338,7 @@ async function loadAlerts(limit: number): Promise<ThreatAlert[]> {
         if (hits.length > 0) {
             liveAlerts = hits.map(mapIndexerAlert);
             usingMockStats = false;
+            notifyCriticalAlerts(liveAlerts); // fire-and-forget — must not add latency to the alert list response
             return liveAlerts;
         }
     } catch {
