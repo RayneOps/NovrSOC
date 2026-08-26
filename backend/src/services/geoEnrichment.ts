@@ -82,9 +82,10 @@ export async function enrichIP(ip: string): Promise<EnrichedIP> {
     if (cached) return cached;
 
     // 2. Cache miss — query external services in parallel
-    const [ipregistryData, ripeData] = await Promise.allSettled([
+    const [ipregistryData, ripeData, afrinicData] = await Promise.allSettled([
         queryIPregistry(ip),
         queryRIPEStat(ip),
+        queryAFRINIC(ip),
     ]);
 
     // 3. Merge results
@@ -92,6 +93,7 @@ export async function enrichIP(ip: string): Promise<EnrichedIP> {
         ip,
         ipregistryData.status === 'fulfilled' ? ipregistryData.value : null,
         ripeData.status === 'fulfilled' ? ripeData.value : null,
+        afrinicData.status === 'fulfilled' ? afrinicData.value : null,
     );
 
     // 4. Nigerian enrichment — check our own ASN database
@@ -105,12 +107,15 @@ export async function enrichIP(ip: string): Promise<EnrichedIP> {
         }
     }
 
-    // 5. African flag
+    // 5. African flag — a country-code allowlist (imprecise/incomplete: only 20 of Africa's 54
+    // countries) OR'd with AFRINIC actually having a record for this address at all, which is
+    // the authoritative signal (AFRINIC is *the* RIR for the whole continent — if it has data,
+    // the address is African, full stop) already computed into is_african by mergeEnrichmentData.
     const AFRICAN_COUNTRIES = [
         'NG', 'ZA', 'KE', 'GH', 'ET', 'EG', 'TZ', 'UG', 'SN', 'CI',
         'CM', 'ZM', 'ZW', 'MZ', 'AO', 'MG', 'BJ', 'BF', 'ML', 'RW',
     ];
-    enriched.is_african = AFRICAN_COUNTRIES.includes(enriched.country_code);
+    enriched.is_african = enriched.is_african || AFRICAN_COUNTRIES.includes(enriched.country_code);
 
     // 6. Cache result in Supabase
     await cacheEnrichment(enriched);
@@ -183,14 +188,48 @@ async function queryRIPEStat(ip: string): Promise<Record<string, unknown>> {
     return data.data;
 }
 
+// ── AFRINIC ───────────────────────────────────────────────────────
+// AFRINIC is the Regional Internet Registry for Africa — no API key required. Its RDAP server
+// only ever holds African address space, so a successful response is itself confirmation the
+// IP is African, independent of country_code.
+//
+// Verified live while building this: AFRINIC's RDAP does NOT 404 for non-African IPs the way
+// a first read of their docs suggests — it 301-redirects to the correct RIR instead (e.g.
+// 8.8.8.8 → rdap.arin.net), per the standard RDAP bootstrap behavior. `redirect: 'manual'` is
+// load-bearing here: without it, `fetch` would silently follow that redirect and return
+// ARIN's *successful* response, which would then get misread as "AFRINIC confirmed this."
+
+interface AfrinicResult {
+    country_code: string | null;
+    org: string | null;
+}
+
+async function queryAFRINIC(ip: string): Promise<AfrinicResult | null> {
+    const response = await fetch(`https://rdap.afrinic.net/rdap/ip/${ip}`, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) return null; // covers the redirect-to-another-RIR case above too
+    const data = await response.json();
+    return {
+        country_code: typeof data.country === 'string' ? data.country.toUpperCase() : null,
+        org: data.name ?? null,
+    };
+}
+
 // ── MERGE RESULTS ─────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mergeEnrichmentData(ip: string, ipregistry: any | null, ripe: any | null): EnrichedIP {
+function mergeEnrichmentData(ip: string, ipregistry: any | null, ripe: any | null, afrinic: AfrinicResult | null): EnrichedIP {
+    // country_code: IPregistry (most detailed) first, then RIPE Stat, then AFRINIC — AFRINIC
+    // is region-scoped (it only ever reports African countries) so it's a weaker signal for
+    // country specifically, but the strongest signal for "is this address African at all."
+    const countryCode = ipregistry?.location?.country?.code || ripe?.country_code || afrinic?.country_code || '';
+
     // Base structure with safe defaults
     const enriched: EnrichedIP = {
         ip,
-        country_code: ipregistry?.location?.country?.code || '',
+        country_code: countryCode,
         country_name: ipregistry?.location?.country?.name || '',
         region: ipregistry?.location?.region?.name || '',
         city: ipregistry?.location?.city || '',
@@ -207,14 +246,14 @@ function mergeEnrichmentData(ip: string, ipregistry: any | null, ripe: any | nul
         is_tor: ipregistry?.security?.is_tor || false,
         is_hosting: ipregistry?.security?.is_hosting || false,
         threat_score: ipregistry?.security?.score || 0,
-        is_african: false,
-        is_nigerian: false,
+        is_african: !!afrinic, // AFRINIC only ever returns data for its own (African) address space
+        is_nigerian: countryCode === 'NG',
         nigerian_isp: null,
         nigerian_state: null,
         network_type: null,
-        afrinic_org: null,
-        source: ipregistry ? 'ipregistry+ripe' : (ripe ? 'ripe' : 'unknown'),
-        confidence: ipregistry ? 90 : (ripe ? 60 : 10),
+        afrinic_org: afrinic?.org ?? null,
+        source: [ipregistry ? 'ipregistry' : null, ripe ? 'ripe' : null, afrinic ? 'afrinic' : null].filter(Boolean).join('+') || 'unknown',
+        confidence: ipregistry ? 90 : (ripe || afrinic) ? 60 : 10,
         cached_at: new Date().toISOString(),
     };
 

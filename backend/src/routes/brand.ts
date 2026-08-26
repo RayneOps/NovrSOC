@@ -5,6 +5,7 @@ import { searchCode as githubSearch, isConfigured as githubConfigured, type GitH
 import { searchCode as gitlabSearch, isConfigured as gitlabConfigured, type GitLabCodeMatch } from '../services/gitlab';
 import { searchBrandMentions, searchCounterfeitSites, isConfigured as googleConfigured } from '../services/google';
 import { checkEmail as hibpCheckEmail, isConfigured as hibpConfigured } from '../services/hibp';
+import { logAudit } from '../lib/audit';
 import gplay from 'google-play-scraper';
 
 const SocialSchema = z.object({
@@ -276,6 +277,13 @@ router.post('/executives', validate(ExecutiveSchema), (req, res) => {
         risk_level: 'LOW',
     };
     executives.push(entry);
+    logAudit({
+        user: 'unknown', // no auth context on this route yet — see index.ts's requireAuth comment
+        action: 'ADD_EXECUTIVE',
+        resource: `Executive: ${name}`,
+        ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+        result: 'success',
+    });
     res.status(201).json(entry);
 });
 

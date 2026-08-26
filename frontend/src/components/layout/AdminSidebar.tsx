@@ -4,7 +4,7 @@ import {
     LayoutDashboard, Globe, Users, Shield, UserCheck, Smartphone, Code,
     Crosshair, AlertTriangle, Link as LinkIcon, Monitor, Building, Building2, Server, Network, Cpu,
     Mail, MessageSquare, ShieldAlert, Activity, Siren, Bell, ClipboardList,
-    HardDrive, BarChart, CreditCard, Settings,
+    HardDrive, BarChart, CreditCard, Settings, Database, BookOpen, FileText, ScrollText,
 } from 'lucide-react';
 import { Sidebar, type NavGroup } from './Sidebar';
 
@@ -39,6 +39,7 @@ const adminNav: NavGroup[] = [
             { label: 'URL Scan Suite', href: '/admin/threat/urlscan', icon: LinkIcon },
             { label: 'Website Scanning', href: '/admin/threat/webscan', icon: Monitor },
             { label: 'Vendor Assessments', href: '/admin/threat/vendor', icon: Building },
+            { label: 'Threat Feed Management', href: '/admin/threat/feeds', icon: Database },
         ],
     },
     {
@@ -50,6 +51,8 @@ const adminNav: NavGroup[] = [
             { label: 'Digital Assets', href: '/admin/infra/assets', icon: Server },
             { label: 'DNS Suite', href: '/admin/infra/dns', icon: Network },
             { label: 'WebLogic Appliances', href: '/admin/infra/weblogic', icon: Cpu },
+            { label: 'Network Topology', href: '/admin/infra/topology', icon: Network },
+            { label: 'Vulnerability Management', href: '/admin/infra/vulnerabilities', icon: ShieldAlert },
         ],
     },
     {
@@ -61,6 +64,7 @@ const adminNav: NavGroup[] = [
             { label: 'DMARC SaaS', href: '/admin/email/dmarc', icon: Mail },
             { label: 'Messaging Suite', href: '/admin/email/messaging', icon: MessageSquare },
             { label: 'Intelli CODE PHISHID', href: '/admin/email/phishid', icon: ShieldAlert },
+            { label: 'Email Investigation', href: '/admin/email/investigate', icon: Crosshair },
         ],
     },
     {
@@ -73,6 +77,9 @@ const adminNav: NavGroup[] = [
             { label: 'Incident Response', href: '/admin/secops/incidents', icon: Siren },
             { label: 'Alert Communication', href: '/admin/secops/alerts', icon: Bell },
             { label: 'Shift Handover', href: '/admin/secops/handover', icon: ClipboardList },
+            { label: 'Playbooks', href: '/admin/secops/playbooks', icon: BookOpen },
+            { label: 'Threat Hunting', href: '/admin/secops/hunting', icon: Crosshair },
+            { label: 'Reports Center', href: '/admin/secops/reports', icon: FileText },
         ],
     },
     {
@@ -83,6 +90,7 @@ const adminNav: NavGroup[] = [
         items: [
             { label: 'Data Loss Recovery', href: '/admin/data/recovery', icon: HardDrive },
             { label: 'Recovery Credit', href: '/admin/data/sla', icon: BarChart },
+            { label: 'Recovery Plan', href: '/admin/data/recovery-plan', icon: ClipboardList },
         ],
     },
     {
@@ -94,6 +102,21 @@ const adminNav: NavGroup[] = [
             { label: 'Organisations', href: '/admin/settings/organisations', icon: Building2, adminOnly: true },
             { label: 'Team Members', href: '/admin/settings/team', icon: Users, adminOnly: true },
             { label: 'Billing', href: '/admin/settings/billing', icon: CreditCard, adminOnly: true },
+        ],
+    },
+    {
+        section: 'Platform Administration',
+        collapsible: true,
+        icon: Activity,
+        groupLabel: 'Platform Administration',
+        // Every item here is adminOnly — Sidebar.tsx drops the whole group for anyone who
+        // isn't super_admin (a group left with zero visible items after filtering renders
+        // nothing), so this section is effectively super_admin-only without needing a
+        // group-level flag on NavGroup itself.
+        items: [
+            { label: 'Client Portals', href: '/admin/platform/clients', icon: Building2, adminOnly: true },
+            { label: 'Audit Log', href: '/admin/platform/audit', icon: ScrollText, adminOnly: true },
+            { label: 'Platform Health', href: '/admin/platform/health', icon: Activity, adminOnly: true },
         ],
     },
 ];

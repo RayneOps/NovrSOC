@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { logAudit } from '../lib/audit';
 
 const router = Router();
 const BACKEND_URL = process.env.APP_API_BASE_URL || 'http://138.197.188.132:4000';
@@ -41,13 +42,37 @@ router.post('/signin', async (req, res) => {
                 name,
                 company,
                 role,
+                // Single-tenant placeholder — see routes/orgCTI.ts's header comment for what's
+                // actually needed before this can be a real per-client value (short version:
+                // the client portal already issues its own org-scoped tokens via a separate
+                // external auth backend with its own signing secret, which this backend's
+                // requireAuth can't verify — org-cti's tenancy therefore isn't just "read
+                // org_id off the token," it needs to handle two structurally different token
+                // sources first).
+                org_id: 'cybernovr',
                 dev: true,
                 iat: nowSeconds,
                 exp: nowSeconds + 60 * 60 * 24, // 24h
             });
+            logAudit({
+                user: devEmail,
+                action: 'LOGIN',
+                resource: 'Admin Portal',
+                ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+                result: 'success',
+            });
             res.json({ token, user: { email: devEmail, name, company, role } });
             return;
         }
+        // Wrong credentials against the dev bypass — worth a failed-login audit entry too,
+        // same as a genuinely wrong password would be once real account auth exists.
+        logAudit({
+            user: (req.body?.email as string) || 'unknown',
+            action: 'LOGIN',
+            resource: 'Admin Portal',
+            ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+            result: 'failed',
+        });
     }
 
     try {

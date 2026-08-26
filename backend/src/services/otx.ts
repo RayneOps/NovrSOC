@@ -96,6 +96,14 @@ export async function otxGetPulses(limit = 20): Promise<OTXPulse[]> {
     return data?.results ?? [];
 }
 
+// Full-text search across ALL public OTX pulses (not just this account's subscriptions) — used
+// for e.g. "Nigeria threat pulses" on the Nigeria map, where the subscribed-pulses feed above
+// has no reason to contain anything Nigeria-specific at all.
+export async function otxSearchPulses(query: string, limit = 20): Promise<OTXPulse[]> {
+    const data = await otxFetch<{ results: OTXPulse[] }>(`/search/pulses?q=${encodeURIComponent(query)}&limit=${limit}`);
+    return data?.results ?? [];
+}
+
 export interface OTXPulseIndicator {
     indicator: string;
     type: string;

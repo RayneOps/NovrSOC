@@ -43,10 +43,18 @@ interface NigeriaThreatsSummary {
     error?: string;
 }
 
+interface EnrichmentCoverage {
+    unattributed_ips: number;
+    ips_enriched: number;
+    nigerian_confirmed: number;
+    threats_added_by_enrichment: number;
+}
+
 interface NigeriaThreatsResponse {
     states: NigeriaStateData[];
     summary: NigeriaThreatsSummary;
     source: string;
+    enrichment_coverage?: EnrichmentCoverage;
     generated_at: string;
 }
 
@@ -199,6 +207,25 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Data source badges */}
+                <div className="flex items-center gap-2 mt-6 mb-3 px-1 flex-wrap">
+                    <span className="text-[10px] text-foreground-muted uppercase tracking-wider font-medium">Data sources:</span>
+                    {[
+                        { name: 'Wazuh', active: !!data && !data.summary.error, color: 'bg-purple' },
+                        { name: 'IPregistry', active: !!data, color: 'bg-blue' },
+                        { name: 'RIPE Stat', active: !!data, color: 'bg-blue' },
+                        { name: 'AFRINIC', active: !!data, color: 'bg-green' },
+                    ].map((source) => (
+                        <div key={source.name} className="flex items-center gap-1.5 bg-card border border-border rounded-full px-2.5 py-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${source.active ? source.color : 'bg-grey-300'}`} />
+                            <span className="text-[9px] font-medium text-foreground-muted">{source.name}</span>
+                        </div>
+                    ))}
+                    <span className="text-[10px] text-foreground-muted ml-auto">
+                        {data?.enrichment_coverage?.nigerian_confirmed ?? 0} Nigerian IPs enriched beyond Wazuh&apos;s own geolocation
+                    </span>
                 </div>
 
                 {/* Highest attack states — real data, no filler when there are fewer than 6 */}

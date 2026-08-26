@@ -40,6 +40,9 @@ import assetsRouter from './routes/assets';
 import dashboardRouter from './routes/dashboard';
 import handoverRouter from './routes/handover';
 import emailRouter from './routes/email';
+import orgCTIRouter from './routes/orgCTI';
+import { runCTIWatcher } from './jobs/ctiWatcher';
+import platformRouter from './routes/platform';
 
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
@@ -197,6 +200,8 @@ app.use('/api/weblogic', weblogicRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/handover', handoverRouter);
+app.use('/api/org-cti', orgCTIRouter);
+app.use('/api/platform', platformRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -207,3 +212,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 app.listen(PORT, () => {
     console.log(`novrsoc-backend listening on http://localhost:${PORT}`);
 });
+
+// CTI watcher — periodically folds newly-seen external IPs from Wazuh alerts into the org CTI
+// store (lib/orgCtiStore.ts). Runs once on boot, then every 5 minutes; unref() so it can't
+// keep the process alive on its own (matches Node's default expectation that a bare interval
+// shouldn't block a clean shutdown).
+void runCTIWatcher();
+setInterval(runCTIWatcher, 5 * 60 * 1000).unref();

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Search, AlertTriangle, CheckCircle, RefreshCw, ExternalLink,
     Activity, Zap, Globe, Hash, Link as LinkIcon, Monitor,
+    Plus, X, Trash2, Users, Rss, Download, Router as RouterIcon, MapPin, Building,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
@@ -66,8 +67,78 @@ const TABS = [
     { id: 'search', label: 'IOC Search' },
     { id: 'feed', label: 'Live IOC Feed' },
     { id: 'pulses', label: 'Threat Feed Pulses' },
+    { id: 'org', label: 'My Organisation' },
+    { id: 'sharing', label: 'Threat Sharing' },
+    { id: 'intel-feed', label: 'Intelligence Feed' },
+    { id: 'network', label: 'Network Intelligence' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
+
+// ── ORG CTI TYPES (Tabs 4-7 — /api/org-cti/*) ──────────────────────────────
+
+type OrgIOCType = 'ip' | 'domain' | 'hash' | 'url' | 'email';
+type OrgVerdict = 'malicious' | 'suspicious' | 'clean' | 'unknown';
+
+interface OrgIOC {
+    id: string;
+    org_id: string;
+    value: string;
+    type: OrgIOCType;
+    source: 'wazuh' | 'analyst' | 'shared' | 'feed';
+    first_seen: string;
+    last_seen: string;
+    seen_count: number;
+    risk_score: number;
+    verdict: OrgVerdict;
+    tags: string[];
+    notes: string;
+    shared: boolean;
+    added_by: string;
+}
+interface OrgSummary {
+    total: number; malicious: number; suspicious: number;
+    by_type: { ip: number; domain: number; hash: number; url: number };
+    wazuh_sourced: number; analyst_added: number;
+}
+interface SharedIOC {
+    id: string; value: string; type: OrgIOCType; verdict: OrgVerdict;
+    risk_score: number; seen_count: number; tags: string[]; shared_by_clients: number;
+}
+interface ASNInfo {
+    asn: string; holder: string; is_announced: boolean;
+    authoritative_rir: string | null; is_afrinic: boolean;
+    top_country: string | null; prefix_count: number; prefixes: string[];
+}
+interface IPRouteInfo {
+    ip: string; asn: string; asn_name: string; isp: string; prefix: string;
+    country_code: string; is_nigerian: boolean; nigerian_isp: string | null; source: string;
+}
+
+const ORG_TYPE_BADGE: Record<OrgIOCType, string> = {
+    ip: 'bg-blue/10 text-blue', domain: 'bg-purple/10 text-purple',
+    url: 'bg-orange/10 text-orange', hash: 'bg-card-muted text-foreground-muted', email: 'bg-card-muted text-foreground-muted',
+};
+const ORG_VERDICT_BADGE: Record<OrgVerdict, string> = {
+    malicious: 'bg-red text-white', suspicious: 'bg-amber/10 text-amber',
+    clean: 'bg-green/10 text-green', unknown: 'bg-card-muted text-foreground-muted',
+};
+
+// Nigerian ISP ASN reference table. Verified live against RIPE Stat while building this —
+// the obvious-looking assignment (sequential-ish AS numbers to household ISP names) doesn't
+// hold: AS37076 is EMTS (9mobile)'s number, not Glo's, and Spectranet is AS37340, not
+// AS328601 (that one belongs to an unrelated Congo-based holding company). Getting this table
+// wrong would misattribute real network traffic during an actual investigation.
+// MTN's registration predates AFRINIC's 2005 founding, so it stayed under RIPE — every other
+// Nigerian ISP here registered after and is genuinely AFRINIC. Shown per-row rather than
+// assumed, matching the live is_afrinic flag ASN Lookup returns for any other ASN typed in.
+const NIGERIAN_ISPS = [
+    { name: 'MTN Nigeria', asn: 'AS29465', registry: 'RIPE' },
+    { name: 'Airtel Nigeria', asn: 'AS36873', registry: 'AFRINIC' },
+    { name: 'Glo (Globacom)', asn: 'AS37148', registry: 'AFRINIC' },
+    { name: '9mobile (EMTS)', asn: 'AS37076', registry: 'AFRINIC' },
+    { name: 'MainOne', asn: 'AS37282', registry: 'AFRINIC' },
+    { name: 'Spectranet', asn: 'AS37340', registry: 'AFRINIC' },
+] as const;
 
 function scoreColor(score: number): string {
     return score >= 70 ? 'text-red-500' : score >= 30 ? 'text-amber' : 'text-green';
@@ -89,6 +160,146 @@ export function CtiPlatform() {
     const [pulsesLoading, setPulsesLoading] = useState(false);
     const [stats, setStats] = useState({ total: 0, malicious: 0, suspicious: 0, clean: 0 });
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // My Organisation
+    const [orgIocs, setOrgIocs] = useState<OrgIOC[]>([]);
+    const [orgSummary, setOrgSummary] = useState<OrgSummary | null>(null);
+    const [orgLoading, setOrgLoading] = useState(true);
+    const [orgFilter, setOrgFilter] = useState({ type: '', verdict: '', source: '' });
+    const [orgSearch, setOrgSearch] = useState('');
+    const [showAddIoc, setShowAddIoc] = useState(false);
+    const [newIoc, setNewIoc] = useState({ value: '', type: 'ip' as OrgIOCType, verdict: 'unknown' as OrgVerdict, tags: '', notes: '', shared: false });
+
+    // Threat Sharing
+    const [sharedIocs, setSharedIocs] = useState<SharedIOC[]>([]);
+    const [participatingClients, setParticipatingClients] = useState(0);
+    const [sharedLoading, setSharedLoading] = useState(true);
+
+    // Network Intelligence
+    const [asnInput, setAsnInput] = useState('');
+    const [asnResult, setAsnResult] = useState<ASNInfo | null>(null);
+    const [asnLoading, setAsnLoading] = useState(false);
+    const [asnError, setAsnError] = useState<string | null>(null);
+    const [ipRouteInput, setIpRouteInput] = useState('');
+    const [ipRouteResult, setIpRouteResult] = useState<IPRouteInfo | null>(null);
+    const [ipRouteLoading, setIpRouteLoading] = useState(false);
+    const [ipRouteError, setIpRouteError] = useState<string | null>(null);
+
+    // Deliberately doesn't set *Loading(true) synchronously here — react-hooks/set-state-in-effect
+    // flags a useEffect body that synchronously calls setState. orgLoading/sharedLoading already
+    // default to true from useState, which covers the mount case; a refetch after a filter
+    // change or an add/remove just updates the table without a loading flash, which is fine.
+    const loadOrgIocs = () => {
+        const params = new URLSearchParams();
+        if (orgFilter.type) params.set('type', orgFilter.type);
+        if (orgFilter.verdict) params.set('verdict', orgFilter.verdict);
+        if (orgFilter.source) params.set('source', orgFilter.source);
+        fetch(apiUrl(`/api/org-cti/iocs?${params}`), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => { setOrgIocs(Array.isArray(data?.iocs) ? data.iocs : []); setOrgSummary(data?.summary ?? null); })
+            .catch(() => { setOrgIocs([]); setOrgSummary(null); })
+            .finally(() => setOrgLoading(false));
+    };
+
+    const loadShared = () => {
+        fetch(apiUrl('/api/org-cti/shared'), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => { setSharedIocs(Array.isArray(data?.shared_iocs) ? data.shared_iocs : []); setParticipatingClients(data?.participating_clients ?? 0); })
+            .catch(() => { setSharedIocs([]); setParticipatingClients(0); })
+            .finally(() => setSharedLoading(false));
+    };
+
+    // Org IOCs feed the "My Organisation" tab, the Threat Sharing tab's contributions panel,
+    // and Tab 1's "Your Organisation's History" section below — load once on mount rather than
+    // lazily per-tab so switching to Search after a lookup already has org context ready.
+    useEffect(() => {
+        loadOrgIocs();
+        loadShared();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    useEffect(() => {
+        loadOrgIocs();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orgFilter]);
+
+    const addOrgIoc = async () => {
+        if (!newIoc.value.trim()) return;
+        await fetch(apiUrl('/api/org-cti/iocs'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                value: newIoc.value.trim(),
+                type: newIoc.type,
+                verdict: newIoc.verdict,
+                tags: newIoc.tags.split(',').map((t) => t.trim()).filter(Boolean),
+                notes: newIoc.notes,
+                shared: newIoc.shared,
+            }),
+        });
+        setShowAddIoc(false);
+        setNewIoc({ value: '', type: 'ip', verdict: 'unknown', tags: '', notes: '', shared: false });
+        loadOrgIocs();
+        loadShared();
+    };
+
+    const shareOrgIoc = async (ioc: OrgIOC) => {
+        if (ioc.source !== 'analyst') return; // only analyst-added IOCs are editable/shareable
+        await fetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shared: !ioc.shared }),
+        });
+        loadOrgIocs();
+        loadShared();
+    };
+
+    const removeOrgIoc = async (ioc: OrgIOC) => {
+        if (ioc.source !== 'analyst') return;
+        await fetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), { method: 'DELETE' });
+        loadOrgIocs();
+    };
+
+    // Takes an explicit ASN rather than always reading `asnInput` state — the Nigerian ISP
+    // reference table below calls setAsnInput(asn) and this in the same click handler, and
+    // state updates aren't visible synchronously, so reading asnInput here would still see
+    // the *previous* value on that first click.
+    const lookupAsnFor = async (asnOverride?: string) => {
+        const trimmed = (asnOverride ?? asnInput).trim();
+        if (!trimmed) return;
+        setAsnLoading(true);
+        setAsnError(null);
+        setAsnResult(null);
+        try {
+            const res = await fetch(apiUrl(`/api/org-cti/network/asn/${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            setAsnResult(data);
+        } catch (err) {
+            setAsnError(err instanceof Error ? err.message : 'ASN lookup failed');
+        } finally {
+            setAsnLoading(false);
+        }
+    };
+    const lookupAsn = () => lookupAsnFor();
+
+    const lookupIpRoute = async () => {
+        const trimmed = ipRouteInput.trim();
+        if (!trimmed) return;
+        setIpRouteLoading(true);
+        setIpRouteError(null);
+        setIpRouteResult(null);
+        try {
+            const res = await fetch(apiUrl(`/api/geo/enrich?ip=${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+            if (data?.is_private) throw new Error('Private/internal IP — no public routing data');
+            setIpRouteResult(data);
+        } catch (err) {
+            setIpRouteError(err instanceof Error ? err.message : 'IP routing lookup failed');
+        } finally {
+            setIpRouteLoading(false);
+        }
+    };
 
     // Auto-detect IOC type as user types
     const detectType = (value: string): IOCType => {
@@ -195,12 +406,12 @@ export function CtiPlatform() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 border-b border-border">
+            <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-thin">
                 {TABS.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+                        className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                             activeTab === tab.id ? 'border-blue text-blue' : 'border-transparent text-foreground-muted hover:text-foreground'
                         }`}
                     >
@@ -421,6 +632,49 @@ export function CtiPlatform() {
                         );
                     })()}
 
+                    {/* Your Organisation's History — cross-referenced against org-cti IOCs
+                       already loaded for the My Organisation / Threat Sharing tabs, so this
+                       needs no extra round-trip beyond the lookup itself. */}
+                    {result && (() => {
+                        const orgHistory = orgIocs.find((i) => i.value.toLowerCase() === result.value.toLowerCase());
+                        const sharedMatch = sharedIocs.find((i) => i.value.toLowerCase() === result.value.toLowerCase());
+                        const alreadyWatchlisted = orgIocs.some((i) => i.source === 'analyst' && i.value.toLowerCase() === result.value.toLowerCase());
+                        return (
+                            <div className="border border-border rounded-xl p-4 bg-card">
+                                <h3 className="font-bold text-sm text-foreground mb-3">Your Organisation&apos;s History</h3>
+                                {orgHistory ? (
+                                    <div>
+                                        <p className="text-sm text-foreground">This IOC has appeared in your alerts {orgHistory.seen_count} time{orgHistory.seen_count === 1 ? '' : 's'}</p>
+                                        <p className="text-xs text-foreground-muted">First seen: {new Date(orgHistory.first_seen).toLocaleString()} · Last seen: {new Date(orgHistory.last_seen).toLocaleString()}</p>
+                                        {orgHistory.tags[0] && <p className="text-xs text-foreground-muted mt-1">Associated rule: {orgHistory.tags[0]}</p>}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-foreground-muted">This IOC has not been seen in your organisation&apos;s alerts.</p>
+                                )}
+
+                                {sharedMatch && (
+                                    <div className="mt-3 bg-purple/10 rounded-lg p-3">
+                                        <p className="text-xs text-purple font-semibold">
+                                            🔗 {sharedMatch.shared_by_clients} other NovrSOC client{sharedMatch.shared_by_clients > 1 ? 's have' : ' has'} also seen this IOC
+                                        </p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setNewIoc({ value: result.value, type: result.type, verdict: result.verdict, tags: result.tags.slice(0, 3).join(', '), notes: '', shared: false });
+                                        setShowAddIoc(true);
+                                        setActiveTab('org');
+                                    }}
+                                    disabled={alreadyWatchlisted}
+                                    className="mt-3 border border-purple text-purple text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-purple/5 disabled:opacity-50 transition-colors"
+                                >
+                                    {alreadyWatchlisted ? '✓ Already on Watchlist' : '+ Add to Watchlist'}
+                                </button>
+                            </div>
+                        );
+                    })()}
+
                     {!result && !loading && !error && (
                         <div className="bg-card border border-border rounded-xl p-12 text-center">
                             <Search size={40} className="text-border mx-auto mb-3" />
@@ -543,6 +797,354 @@ export function CtiPlatform() {
                             </div>
                         ))
                     )}
+                </div>
+            )}
+
+            {/* ── MY ORGANISATION TAB ── */}
+            {activeTab === 'org' && (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                            { label: 'Total IOCs', value: orgSummary?.total ?? 0, border: 'border-t-purple' },
+                            { label: 'Malicious', value: orgSummary?.malicious ?? 0, border: 'border-t-red' },
+                            { label: 'Suspicious', value: orgSummary?.suspicious ?? 0, border: 'border-t-amber' },
+                            { label: 'Shared with Community', value: orgIocs.filter((i) => i.shared).length, border: 'border-t-blue' },
+                        ].map((c) => (
+                            <div key={c.label} className={`bg-card border border-border rounded-xl p-4 border-t-4 ${c.border}`}>
+                                <div className="font-heading font-black text-2xl text-foreground">{c.value}</div>
+                                <div className="text-[10px] text-foreground-muted uppercase tracking-wider mt-1">{c.label}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs text-foreground-muted">
+                        <span>Wazuh Auto-Detected: <span className="font-bold text-foreground">{orgSummary?.wazuh_sourced ?? 0}</span></span>
+                        <span>Analyst Added: <span className="font-bold text-foreground">{orgSummary?.analyst_added ?? 0}</span></span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <select value={orgFilter.type} onChange={(e) => setOrgFilter((f) => ({ ...f, type: e.target.value }))}
+                            className="bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-purple">
+                            <option value="">All Types</option>
+                            <option value="ip">IP Address</option>
+                            <option value="domain">Domain</option>
+                            <option value="hash">File Hash</option>
+                            <option value="url">URL</option>
+                        </select>
+                        <select value={orgFilter.verdict} onChange={(e) => setOrgFilter((f) => ({ ...f, verdict: e.target.value }))}
+                            className="bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-purple">
+                            <option value="">All Verdicts</option>
+                            <option value="malicious">Malicious</option>
+                            <option value="suspicious">Suspicious</option>
+                            <option value="unknown">Unknown</option>
+                        </select>
+                        <select value={orgFilter.source} onChange={(e) => setOrgFilter((f) => ({ ...f, source: e.target.value }))}
+                            className="bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-purple">
+                            <option value="">All Sources</option>
+                            <option value="wazuh">Wazuh</option>
+                            <option value="analyst">Analyst</option>
+                        </select>
+                        <input value={orgSearch} onChange={(e) => setOrgSearch(e.target.value)} placeholder="Search value…"
+                            className="bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-purple" />
+                        <button onClick={() => setShowAddIoc(true)} className="ml-auto flex items-center gap-1.5 bg-orange hover:bg-orange-hover text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors">
+                            <Plus size={13} /> Add IOC
+                        </button>
+                    </div>
+
+                    {orgLoading ? (
+                        <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 bg-card-muted rounded-xl animate-pulse" />)}</div>
+                    ) : (
+                        <div className="bg-card border border-border rounded-xl overflow-hidden">
+                            <div className="overflow-x-auto scrollbar-thin">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="bg-grey-800">
+                                            {['Type', 'Value', 'Verdict', 'Risk', 'Source', 'First Seen', 'Last Seen', 'Times Seen', 'Actions'].map((h) => (
+                                                <th key={h} className="px-4 py-3 text-[10px] font-semibold text-white uppercase tracking-widest whitespace-nowrap">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {orgIocs.filter((i) => !orgSearch || i.value.toLowerCase().includes(orgSearch.toLowerCase())).map((ioc) => (
+                                            <tr key={ioc.id} className="hover:bg-card-muted transition-colors">
+                                                <td className="px-4 py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${ORG_TYPE_BADGE[ioc.type]}`}>{ioc.type}</span></td>
+                                                <td className="px-4 py-3 font-mono text-foreground max-w-xs truncate">{ioc.value}</td>
+                                                <td className="px-4 py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${ORG_VERDICT_BADGE[ioc.verdict]}`}>{ioc.verdict}</span></td>
+                                                <td className="px-4 py-3"><span className={`font-bold ${ioc.risk_score >= 70 ? 'text-red' : ioc.risk_score >= 40 ? 'text-amber' : 'text-blue'}`}>{ioc.risk_score}</span></td>
+                                                <td className="px-4 py-3 text-foreground-muted capitalize">{ioc.source}</td>
+                                                <td className="px-4 py-3 text-foreground-muted whitespace-nowrap">{new Date(ioc.first_seen).toLocaleDateString()}</td>
+                                                <td className="px-4 py-3 text-foreground-muted whitespace-nowrap">{new Date(ioc.last_seen).toLocaleDateString()}</td>
+                                                <td className="px-4 py-3 font-semibold text-foreground">{ioc.seen_count}×</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => { handleInput(ioc.value); setIocType(ioc.type === 'email' ? 'domain' : ioc.type); setActiveTab('search'); }} className="text-purple font-medium hover:underline">Lookup</button>
+                                                        {ioc.source === 'analyst' && (
+                                                            <>
+                                                                <button onClick={() => shareOrgIoc(ioc)} className="text-blue font-medium hover:underline">{ioc.shared ? 'Unshare' : 'Share'}</button>
+                                                                <button onClick={() => removeOrgIoc(ioc)} className="text-red font-medium hover:underline flex items-center gap-1"><Trash2 size={11} /></button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {orgIocs.length === 0 && (
+                                            <tr><td colSpan={9} className="px-4 py-10 text-center text-foreground-muted">No IOCs yet — they&apos;ll appear here automatically as Wazuh alerts come in, or add one manually.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── THREAT SHARING TAB ── */}
+            {activeTab === 'sharing' && (
+                <div className="space-y-4">
+                    <div className="bg-purple/10 border border-purple/30 rounded-xl p-4">
+                        <p className="text-sm font-bold text-purple flex items-center gap-2"><Users size={16} /> {participatingClients} NovrSOC clients are sharing threat intelligence</p>
+                        <p className="text-xs text-foreground-muted mt-1">Any IOC you mark as shared is anonymously contributed to this feed — your organisation and internal notes are stripped before it&apos;s shown to other clients.</p>
+                    </div>
+
+                    <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                            <p className="text-sm font-bold text-foreground">Your Contributions</p>
+                            <p className="text-xs text-foreground-muted">{orgIocs.filter((i) => i.shared).length} IOC{orgIocs.filter((i) => i.shared).length === 1 ? '' : 's'} shared from your organisation</p>
+                        </div>
+                        <button onClick={() => setActiveTab('org')} className="text-xs font-bold text-blue hover:text-purple transition-colors">Manage in My Organisation →</button>
+                    </div>
+
+                    {sharedLoading ? (
+                        <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 bg-card-muted rounded-xl animate-pulse" />)}</div>
+                    ) : (
+                        <div className="bg-card border border-border rounded-xl overflow-hidden">
+                            <div className="overflow-x-auto scrollbar-thin">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="bg-grey-800">
+                                            {['Type', 'Value', 'Verdict', 'Risk Score', 'Shared By', 'Tags', ''].map((h) => (
+                                                <th key={h} className="px-4 py-3 text-[10px] font-semibold text-white uppercase tracking-widest whitespace-nowrap">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {sharedIocs.map((ioc) => (
+                                            <tr key={ioc.id} className="hover:bg-card-muted transition-colors">
+                                                <td className="px-4 py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${ORG_TYPE_BADGE[ioc.type]}`}>{ioc.type}</span></td>
+                                                <td className="px-4 py-3 font-mono text-foreground max-w-xs truncate">{ioc.value}</td>
+                                                <td className="px-4 py-3"><span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${ORG_VERDICT_BADGE[ioc.verdict]}`}>{ioc.verdict}</span></td>
+                                                <td className="px-4 py-3"><span className={`font-bold ${ioc.risk_score >= 70 ? 'text-red' : 'text-amber'}`}>{ioc.risk_score}</span></td>
+                                                <td className="px-4 py-3 text-foreground-muted">{ioc.shared_by_clients} client{ioc.shared_by_clients === 1 ? '' : 's'}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex gap-1 flex-wrap">{ioc.tags.map((t) => <span key={t} className="text-[10px] bg-card-muted text-foreground-muted px-1.5 py-0.5 rounded">{t}</span>)}</div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button onClick={() => { handleInput(ioc.value); setIocType(ioc.type === 'email' ? 'domain' : ioc.type); setActiveTab('search'); }} className="text-purple font-medium hover:underline">Lookup</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── INTELLIGENCE FEED TAB ── */}
+            {activeTab === 'intel-feed' && (() => {
+                type FeedEntry = { value: string; type: OrgIOCType; verdict: OrgVerdict; time: string; source: string };
+                const combined: FeedEntry[] = [
+                    ...orgIocs.map((i): FeedEntry => ({ value: i.value, type: i.type, verdict: i.verdict, time: i.last_seen, source: i.source === 'wazuh' ? 'Wazuh alert' : 'Manual add' })),
+                    ...sharedIocs.map((i): FeedEntry => ({ value: i.value, type: i.type, verdict: i.verdict, time: new Date().toISOString(), source: 'Shared from community' })),
+                    ...feed.slice(0, 15).map((i): FeedEntry => ({ value: i.ioc_value, type: i.ioc_type, verdict: i.risk_score >= 70 ? 'malicious' : i.risk_score >= 30 ? 'suspicious' : 'clean', time: i.last_seen, source: 'External feed lookup' })),
+                ].sort((a, b) => (b.time > a.time ? 1 : -1));
+
+                const today = new Date().toISOString().slice(0, 10);
+                const todayCount = combined.filter((c) => c.time.startsWith(today)).length;
+                const wazuhCount = combined.filter((c) => c.source === 'Wazuh alert').length;
+                const externalCount = combined.filter((c) => c.source === 'External feed lookup').length;
+                const communityCount = combined.filter((c) => c.source === 'Shared from community').length;
+
+                const exportFeed = () => {
+                    const header = 'Value,Type,Verdict,Source,Time';
+                    const rows = combined.map((c) => [c.value, c.type, c.verdict, c.source, c.time].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
+                    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cti-intelligence-feed-${today}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
+
+                return (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                            <div className="flex items-center gap-4 text-xs">
+                                <span className="text-foreground-muted">Today: <span className="font-bold text-foreground">{todayCount}</span></span>
+                                <span className="text-foreground-muted">From Wazuh: <span className="font-bold text-foreground">{wazuhCount}</span></span>
+                                <span className="text-foreground-muted">From Feeds: <span className="font-bold text-foreground">{externalCount}</span></span>
+                                <span className="text-foreground-muted">From Community: <span className="font-bold text-foreground">{communityCount}</span></span>
+                            </div>
+                            <button onClick={exportFeed} className="flex items-center gap-1.5 border border-purple text-purple text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-purple/5 transition-colors">
+                                <Download size={12} /> Export Feed
+                            </button>
+                        </div>
+
+                        {combined.length === 0 ? (
+                            <div className="bg-card border border-border rounded-xl p-10 text-center">
+                                <Rss size={36} className="text-border mx-auto mb-3" />
+                                <div className="text-sm text-foreground-muted">No IOCs yet — this aggregates Wazuh alerts, manual adds, shared community IOCs, and external feed lookups.</div>
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5">
+                                {combined.slice(0, 50).map((c, i) => (
+                                    <div key={i} className="bg-card border border-border rounded-lg px-4 py-2.5 flex items-center gap-3">
+                                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.verdict === 'malicious' ? 'bg-red' : c.verdict === 'suspicious' ? 'bg-amber' : 'bg-green'}`} />
+                                        <span className="font-mono text-xs text-foreground truncate flex-1">{c.value}</span>
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase flex-shrink-0 ${ORG_TYPE_BADGE[c.type]}`}>{c.type}</span>
+                                        <span className="text-[10px] text-foreground-muted flex-shrink-0 hidden sm:inline">{c.source}</span>
+                                        <span className="text-[10px] text-foreground-muted flex-shrink-0 whitespace-nowrap">{new Date(c.time).toLocaleString()}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* ── NETWORK INTELLIGENCE TAB ── */}
+            {activeTab === 'network' && (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Tool 1: ASN Lookup */}
+                        <div className="bg-card border border-border rounded-xl p-4">
+                            <h3 className="font-bold text-sm text-foreground mb-1 flex items-center gap-2"><RouterIcon size={15} className="text-purple" /> ASN Lookup</h3>
+                            <p className="text-xs text-foreground-muted mb-3">RIPE Stat routing data — holder, announced prefixes, authoritative RIR.</p>
+                            <div className="flex gap-2">
+                                <input value={asnInput} onChange={(e) => setAsnInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && lookupAsn()}
+                                    placeholder="AS29465" className="flex-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple text-foreground" />
+                                <button onClick={lookupAsn} disabled={asnLoading || !asnInput.trim()} className="bg-orange hover:bg-orange-hover text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-colors flex items-center gap-1.5">
+                                    {asnLoading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />} Lookup
+                                </button>
+                            </div>
+                            {asnError && <p className="text-xs text-red mt-2">{asnError}</p>}
+                            {asnResult && (
+                                <div className="mt-3 bg-card-muted rounded-lg p-3 text-xs space-y-1.5">
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Holder</span><span className="font-bold text-foreground text-right">{asnResult.holder}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Announced</span><span className={`font-bold ${asnResult.is_announced ? 'text-green' : 'text-foreground-muted'}`}>{asnResult.is_announced ? 'Yes' : 'No'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Country</span><span className="font-bold text-foreground">{asnResult.top_country ?? '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Authoritative RIR</span><span className="font-bold text-foreground uppercase">{asnResult.authoritative_rir ?? '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">AFRINIC Allocation</span><span className={`font-bold ${asnResult.is_afrinic ? 'text-green' : 'text-foreground-muted'}`}>{asnResult.is_afrinic ? 'Yes' : 'No'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Announced Prefixes</span><span className="font-bold text-foreground">{asnResult.prefix_count}</span></div>
+                                    {asnResult.prefixes.length > 0 && (
+                                        <div className="pt-2 border-t border-border mt-2">
+                                            <p className="text-foreground-muted mb-1">Sample prefixes</p>
+                                            <div className="flex flex-wrap gap-1">{asnResult.prefixes.slice(0, 8).map((p) => <span key={p} className="font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border">{p}</span>)}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Tool 2: IP Routing Analysis */}
+                        <div className="bg-card border border-border rounded-xl p-4">
+                            <h3 className="font-bold text-sm text-foreground mb-1 flex items-center gap-2"><MapPin size={15} className="text-purple" /> IP Routing Analysis</h3>
+                            <p className="text-xs text-foreground-muted mb-3">What ASN routes this IP, its prefix, and Nigerian ISP confirmation.</p>
+                            <div className="flex gap-2">
+                                <input value={ipRouteInput} onChange={(e) => setIpRouteInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && lookupIpRoute()}
+                                    placeholder="102.89.45.13" className="flex-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple text-foreground" />
+                                <button onClick={lookupIpRoute} disabled={ipRouteLoading || !ipRouteInput.trim()} className="bg-orange hover:bg-orange-hover text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-colors flex items-center gap-1.5">
+                                    {ipRouteLoading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />} Lookup
+                                </button>
+                            </div>
+                            {ipRouteError && <p className="text-xs text-red mt-2">{ipRouteError}</p>}
+                            {ipRouteResult && (
+                                <div className="mt-3 bg-card-muted rounded-lg p-3 text-xs space-y-1.5">
+                                    <div className="flex justify-between"><span className="text-foreground-muted">ASN</span><span className="font-bold text-foreground">{ipRouteResult.asn || '—'} {ipRouteResult.asn_name ? `(${ipRouteResult.asn_name})` : ''}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Prefix</span><span className="font-mono font-bold text-foreground">{ipRouteResult.prefix || '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">ISP / Org</span><span className="font-bold text-foreground text-right">{ipRouteResult.isp || '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Country</span><span className="font-bold text-foreground">{ipRouteResult.country_code || '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Nigerian ISP</span><span className={`font-bold ${ipRouteResult.is_nigerian ? 'text-green' : 'text-foreground-muted'}`}>{ipRouteResult.is_nigerian ? (ipRouteResult.nigerian_isp ?? 'Confirmed') : 'No'}</span></div>
+                                    <div className="flex justify-between"><span className="text-foreground-muted">Source</span><span className="text-foreground-muted">{ipRouteResult.source}</span></div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Nigerian ISP reference table */}
+                    <div className="bg-card border border-border rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                            <Building size={14} className="text-purple" />
+                            <h3 className="font-bold text-sm text-foreground">Nigerian ISP Reference</h3>
+                        </div>
+                        <div className="divide-y divide-border">
+                            {NIGERIAN_ISPS.map((isp) => (
+                                <button key={isp.asn} onClick={() => { setAsnInput(isp.asn); void lookupAsnFor(isp.asn); }}
+                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-card-muted transition-colors">
+                                    <span className="text-sm font-medium text-foreground">{isp.name}</span>
+                                    <span className="flex items-center gap-2">
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${isp.registry === 'AFRINIC' ? 'bg-green/10 text-green' : 'bg-blue/10 text-blue'}`}>{isp.registry}</span>
+                                        <span className="text-xs font-mono text-blue">{isp.asn}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add IOC modal */}
+            {showAddIoc && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAddIoc(false)}>
+                    <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-heading font-semibold text-sm text-foreground">Add IOC to Watchlist</h3>
+                            <button onClick={() => setShowAddIoc(false)} className="text-foreground-muted hover:text-foreground"><X size={16} /></button>
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Value</label>
+                                <input value={newIoc.value} onChange={(e) => setNewIoc((n) => ({ ...n, value: e.target.value }))} placeholder="185.220.101.47"
+                                    className="w-full mt-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple text-foreground" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Type</label>
+                                    <select value={newIoc.type} onChange={(e) => setNewIoc((n) => ({ ...n, type: e.target.value as OrgIOCType }))}
+                                        className="w-full mt-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm focus:outline-none text-foreground">
+                                        {(['ip', 'domain', 'hash', 'url', 'email'] as const).map((t) => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Verdict</label>
+                                    <select value={newIoc.verdict} onChange={(e) => setNewIoc((n) => ({ ...n, verdict: e.target.value as OrgVerdict }))}
+                                        className="w-full mt-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm focus:outline-none text-foreground">
+                                        {(['unknown', 'suspicious', 'malicious', 'clean'] as const).map((v) => <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Tags (comma-separated)</label>
+                                <input value={newIoc.tags} onChange={(e) => setNewIoc((n) => ({ ...n, tags: e.target.value }))} placeholder="c2, ransomware"
+                                    className="w-full mt-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple text-foreground" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Notes</label>
+                                <textarea value={newIoc.notes} onChange={(e) => setNewIoc((n) => ({ ...n, notes: e.target.value }))} rows={2}
+                                    className="w-full mt-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple text-foreground resize-none" />
+                            </div>
+                            <label className="flex items-center gap-2 text-xs text-foreground-muted cursor-pointer">
+                                <input type="checkbox" checked={newIoc.shared} onChange={(e) => setNewIoc((n) => ({ ...n, shared: e.target.checked }))} className="accent-purple" />
+                                Share anonymously with NovrSOC community
+                            </label>
+                            <button onClick={addOrgIoc} disabled={!newIoc.value.trim()} className="w-full bg-orange hover:bg-orange-hover text-white text-sm font-bold py-2.5 rounded-lg disabled:opacity-50 transition-colors">
+                                Add IOC
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

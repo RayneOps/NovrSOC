@@ -328,15 +328,25 @@ CREATE POLICY "service_role_all" ON public.shift_handovers FOR ALL USING (auth.r
 -- see backend/novrsoc_supabase_schema.sql for its actual columns: asn/isp/organization/
 -- primary_state/network_type/is_active). Corrected to those real column names — the original
 -- draft used isp_name/state, which don't exist on this table and would error.
+--
+-- ASN assignments below were WRONG in the original draft and are corrected here — verified
+-- live against RIPE Stat (as-overview's `holder` field) while building the Nigeria map's
+-- 3-source geolocation upgrade: the draft had AS37148 as Airtel (it's actually Glo), AS37076
+-- as Glo (it's actually 9mobile/EMTS), AS37340 as 9mobile (it's actually Spectranet), AS36873
+-- as "ipNX Nigeria" (it's actually Airtel), and AS328601 as Spectranet (it's an unrelated
+-- Congo-based holding company, not a Nigerian ISP at all). Running the original draft would
+-- have silently seeded backwards ISP attribution into every feature that reads this table
+-- (enrichNigerian() in services/geoEnrichment.ts, and the Nigeria map's state attribution).
+-- MainOne's AS327983 is left out below — unverified, and not worth guessing at given the
+-- error rate found in the rest of this list.
 -- ============================================================
 -- INSERT INTO nigerian_asns (asn, isp, primary_state) VALUES
---   ('AS29465', 'MTN Nigeria',     'Lagos'),
---   ('AS37148', 'Airtel Nigeria',  'Lagos'),
---   ('AS37076', 'Globacom (Glo)',  'Lagos'),
---   ('AS37340', '9mobile Nigeria', 'Lagos'),
---   ('AS327983','MainOne',         'Lagos'),
---   ('AS328601','Spectranet',      'Lagos'),
---   ('AS36873', 'ipNX Nigeria',    'Lagos')
+--   ('AS29465', 'MTN Nigeria',      'Lagos'),
+--   ('AS36873', 'Airtel Nigeria',   'Lagos'),
+--   ('AS37148', 'Globacom (Glo)',   'Lagos'),
+--   ('AS37076', '9mobile (EMTS)',   'Lagos'),
+--   ('AS37282', 'MainOne',          'Lagos'),
+--   ('AS37340', 'Spectranet',       'Lagos')
 -- ON CONFLICT (asn) DO NOTHING;
 
 -- ============================================================

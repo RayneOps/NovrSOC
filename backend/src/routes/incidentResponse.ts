@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { logAudit } from '../lib/audit';
 
 // SecOps Incident Response console — demo data (same pattern as routes/threatManagement.ts).
 // Not to be confused with the live Wazuh-backed incidents surfaced under /api/wazuh/incidents.
@@ -225,6 +226,80 @@ const MOCK_INCIDENTS: Incident[] = [
         ],
     },
 ];
+
+interface CreateIncidentBody {
+    title?: string;
+    description?: string;
+    severity?: IncidentSeverity;
+    affected_host?: string;
+    source?: string;
+    playbook_id?: string;
+    containment?: Array<{ action: string; phase?: string; description?: string; est_mins?: number; status?: ActionStatus }>;
+}
+
+// POST / — creates a new incident, pre-filling its containment checklist from a playbook's
+// steps when called from the Playbooks page's "Start Playbook" flow (source: 'playbook').
+// Pushes into the same in-memory MOCK_INCIDENTS array everything else here reads/writes —
+// this is a demo store, not persistence; a restart loses it, same as every mock-data route in
+// this codebase.
+router.post('/', (req, res) => {
+    const body: CreateIncidentBody = req.body ?? {};
+    if (!body.title) {
+        res.status(400).json({ error: 'title is required' });
+        return;
+    }
+
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const seq = String(MOCK_INCIDENTS.length + 1).padStart(4, '0');
+    const id = `INC-${new Date().getFullYear()}-${seq}`;
+
+    const incident: Incident = {
+        id,
+        title: body.title,
+        severity: body.severity && ['critical', 'high', 'medium', 'low'].includes(body.severity) ? body.severity : 'medium',
+        status: 'new',
+        mitre_tactic: '',
+        mitre_technique: '',
+        affected_assets: body.affected_host ? [body.affected_host] : [],
+        assigned_analyst: 'Unassigned',
+        opened_at: nowStr,
+        updated_at: nowStr,
+        summary: body.description ?? '',
+        source_alert_id: null,
+        timeline: [
+            {
+                id: 'tl_1',
+                timestamp: nowStr,
+                actor: 'System',
+                action: 'Incident created',
+                detail: body.source === 'playbook' && body.playbook_id
+                    ? `Created from playbook ${body.playbook_id}.`
+                    : 'Manually created.',
+            },
+        ],
+        containment_actions: (body.containment ?? []).map((step, i) => ({
+            id: `ca_${i + 1}`,
+            // ContainmentAction has no phase/description/est_mins fields — folded into label
+            // rather than extending the interface just for this one caller.
+            label: step.phase ? `${step.action} (${step.phase})` : step.action,
+            status: step.status ?? 'pending',
+            completed_at: null,
+        })),
+        notes: [],
+    };
+
+    MOCK_INCIDENTS.push(incident);
+    logAudit({
+        // No auth context on this route yet (see index.ts's requireAuth comment) — this
+        // becomes req.user.email once that's wired in.
+        user: 'unknown',
+        action: 'CREATE_INCIDENT',
+        resource: `Incident: ${incident.id}`,
+        ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+        result: 'success',
+    });
+    res.json({ success: true, id: incident.id, incident_number: incident.id, incident });
+});
 
 router.get('/', (req, res) => {
     const { status, severity } = req.query;

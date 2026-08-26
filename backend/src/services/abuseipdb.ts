@@ -73,6 +73,36 @@ export async function checkIPBulk(ips: string[]): Promise<Map<string, AbuseIPDBR
     return results;
 }
 
+// Field names verified live against a real populated block (a Tor exit /24) — check-block's
+// per-IP shape is genuinely different from check's (numReports/mostRecentReport here vs.
+// totalReports/lastReportedAt on AbuseIPDBResult above).
+export interface AbuseIPDBBlockReport {
+    ipAddress: string;
+    countryCode: string | null;
+    abuseConfidenceScore: number;
+    numReports: number;
+    mostRecentReport: string | null;
+}
+
+// Check every reported IP within a CIDR block. Note: AbuseIPDB's check-block endpoint takes a
+// CIDR network (e.g. '197.210.240.0/24'), NOT an ASN — `network=AS29465` 422s with "Invalid
+// CIDR format" (verified live). To check a whole ASN, resolve one of its announced prefixes
+// via RIPE Stat first (services/ripeStat.ts's lookupASN) and pass that prefix here.
+export async function checkBlock(cidr: string, maxAgeInDays = 30): Promise<AbuseIPDBBlockReport[]> {
+    try {
+        const params = new URLSearchParams({ network: cidr, maxAgeInDays: String(maxAgeInDays) });
+        const res = await fetch(`${ABUSE_BASE}/check-block?${params}`, {
+            headers: { Key: KEY, Accept: 'application/json' },
+            signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data?.data?.reportedAddress ?? []) as AbuseIPDBBlockReport[];
+    } catch {
+        return [];
+    }
+}
+
 // Report a malicious IP
 export async function reportIP(ip: string, categories: number[], comment: string): Promise<boolean> {
     try {

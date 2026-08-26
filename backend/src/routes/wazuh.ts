@@ -7,6 +7,15 @@ import { isConfigured as wazuhConfigured, getAgents as getWazuhAgents } from '..
 const router = Router();
 const CTIP_URL = process.env.CTIP_API_URL || 'http://138.197.188.132:8001';
 
+// NOTE — multi-tenancy: this is the pre-client baseline, all Wazuh data is Cybernovr-internal.
+// One Wazuh manager currently serves one org, so nothing here filters by org. When multiple
+// clients are onboarded, each client's agents will live in their own named Wazuh agent group —
+// lib/wazuh-group.ts's getAgentsForGroup()/getAgentNamesForGroup() already exist and scope by
+// group name, so the shape of the fix is "pass req.user.org_id as the group filter," not new
+// infrastructure. Routes below that query wazuh-alerts-4.x-* directly (not through those
+// group helpers) will additionally need an `agent.group: req.user.org_id` term added to their
+// query body.
+
 const groupParam = (req: import('express').Request) =>
     typeof req.query.group === 'string' ? req.query.group : null;
 
@@ -606,6 +615,89 @@ router.get('/incidents', async (req, res) => {
             incidents: [],
             kpis: { total: 0, critical: 0, high: 0, medium: 0, low: 0, investigating: 0, escalated: 0, avgSla: '00:00:00' },
         });
+    }
+});
+
+// POST /api/wazuh/hunt — Threat Hunting page's query builder. A POST (not GET) because the
+// query builder produces a list of conditions, not one field/operator/value triple — trying to
+// serialize an array of objects into GET querystring params is exactly the kind of thing that
+// looks fine for the single-condition case and breaks the moment someone adds a second row.
+interface HuntCondition {
+    field: 'agent.name' | 'rule.level' | 'rule.groups' | 'data.srcip' | 'data.dstip' | 'rule.description';
+    op: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'exists';
+    value: string;
+}
+const HUNT_TIME_RANGE_MS: Record<string, number> = {
+    '1h': 60 * 60 * 1000, '6h': 6 * 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000,
+};
+
+interface HuntQueryClause {
+    term?: Record<string, string>;
+    wildcard?: Record<string, string>;
+    range?: Record<string, { gte?: string | number; lte?: string | number }>;
+    exists?: { field: string };
+}
+
+router.post('/hunt', async (req, res) => {
+    const { conditions, time_range = '24h', limit = 100 }: { conditions?: HuntCondition[]; time_range?: string; limit?: number } = req.body ?? {};
+    const rangeMs = HUNT_TIME_RANGE_MS[time_range] ?? HUNT_TIME_RANGE_MS['24h'];
+
+    // ISO string, matching every other route's timestamp range query in this file/dashboard.ts
+    // — not epoch millis, which would still work (OpenSearch accepts both for a date field)
+    // but be the one inconsistent convention in this codebase for no reason.
+    const must: HuntQueryClause[] = [{ range: { timestamp: { gte: new Date(Date.now() - rangeMs).toISOString() } } }];
+    for (const cond of conditions ?? []) {
+        if (!cond?.field || !cond.op) continue;
+        if (cond.op === 'exists') {
+            must.push({ exists: { field: cond.field } });
+        } else if (cond.op === 'contains') {
+            if (!cond.value) continue;
+            must.push({ wildcard: { [cond.field]: `*${cond.value}*` } });
+        } else if (cond.op === 'equals') {
+            if (!cond.value) continue;
+            must.push({ term: { [cond.field]: cond.value } });
+        } else if (cond.op === 'greater_than' || cond.op === 'less_than') {
+            const n = Number(cond.value);
+            if (!cond.value || Number.isNaN(n)) continue;
+            must.push({ range: { [cond.field]: cond.op === 'greater_than' ? { gte: n } : { lte: n } } });
+        }
+    }
+
+    try {
+        const result = await search<{ hits?: { hits?: Array<{ _source: Record<string, unknown> }>; total?: { value?: number } } }>('wazuh-alerts-4.x-*', {
+            size: Math.min(Number(limit) || 100, 500),
+            sort: [{ timestamp: { order: 'desc' } }],
+            query: { bool: { must } },
+            _source: [
+                'timestamp', 'agent.name', 'agent.ip',
+                'rule.id', 'rule.level', 'rule.description', 'rule.groups',
+                'data.srcip', 'data.dstip',
+                'GeoLocation.country_name', 'GeoLocation.region_name',
+            ],
+        });
+
+        const hits = result?.hits?.hits ?? [];
+        res.json({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            results: hits.map((h) => {
+                const src = h._source as any;
+                return {
+                    timestamp: src?.timestamp,
+                    agent: src?.agent?.name,
+                    rule_id: src?.rule?.id,
+                    rule_level: src?.rule?.level,
+                    rule_description: src?.rule?.description,
+                    source_ip: src?.data?.srcip,
+                    dest_ip: src?.data?.dstip,
+                    country: src?.GeoLocation?.country_name,
+                    raw: src,
+                };
+            }),
+            total: result?.hits?.total?.value ?? 0,
+            source: 'wazuh',
+        });
+    } catch (err) {
+        res.status(502).json({ error: err instanceof Error ? err.message : 'Hunt query failed', results: [], total: 0 });
     }
 });
 
