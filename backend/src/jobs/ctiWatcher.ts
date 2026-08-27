@@ -15,8 +15,10 @@ export async function runCTIWatcher(): Promise<void> {
         }
     } catch (err) {
         // Indexer not configured/unreachable — same as threatManagement.ts's loadAlerts, this
-        // is an expected steady-state on a dev box without a live Wazuh indexer, not worth
-        // more than a log line.
-        console.error('[CTI Watcher] sync failed:', err instanceof Error ? err.message : err);
+        // is an expected steady-state on a box without a live Wazuh indexer (missing env vars,
+        // network unreachable, timeout — all land here), not worth more than a log line. This
+        // is a degraded state, never fatal: the interval below keeps retrying every 5 minutes,
+        // and /health (index.ts) is a static, unconditional 200 that never touches this at all.
+        console.log(`CTI Watcher: Wazuh indexer unavailable, will retry (${err instanceof Error ? err.message : err})`);
     }
 }

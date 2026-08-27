@@ -217,5 +217,18 @@ app.listen(PORT, () => {
 // store (lib/orgCtiStore.ts). Runs once on boot, then every 5 minutes; unref() so it can't
 // keep the process alive on its own (matches Node's default expectation that a bare interval
 // shouldn't block a clean shutdown).
-void runCTIWatcher();
-setInterval(runCTIWatcher, 5 * 60 * 1000).unref();
+//
+// runCTIWatcher() already catches every error internally (a Wazuh connection failure there
+// logs and returns, it never throws/rejects) — a synchronous try/catch wrapped around the call
+// site below would NOT actually add protection, since that only catches synchronous throws,
+// not a promise that rejects later. The real belt-and-suspenders equivalent is the .catch()
+// below: if runCTIWatcher's own handling were ever accidentally broken by a future edit, an
+// unhandled rejection here would otherwise crash the process outright on modern Node (default
+// behavior since Node 15) — this is what actually stands between "Wazuh down" and "server down".
+const startCTIWatcher = () => {
+    runCTIWatcher().catch((err) => {
+        console.log(`CTI Watcher: Wazuh indexer unavailable, will retry (${err instanceof Error ? err.message : err})`);
+    });
+};
+startCTIWatcher();
+setInterval(startCTIWatcher, 5 * 60 * 1000).unref();
