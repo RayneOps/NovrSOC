@@ -92,19 +92,24 @@ export function ThreatManagement() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [showAssignMenu, setShowAssignMenu] = useState(false);
+    const [alertSource, setAlertSource] = useState<'wazuh' | 'mock' | null>(null);
 
     const currentAnalyst = getAdminUser().name;
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/threats/alerts'))
+        fetch(apiUrl('/api/threats/alerts'), { signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => {
                 setAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
                 setStats(data?.stats ?? null);
+                setAlertSource(data?.source === 'wazuh' ? 'wazuh' : 'mock');
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => {
+                setAlertSource('mock');
+                setLoading(false);
+            });
     };
 
     useEffect(() => { load(); }, []);
@@ -168,6 +173,25 @@ export function ThreatManagement() {
                     <RefreshCw className="w-3.5 h-3.5" /> Refresh
                 </button>
             </div>
+
+            {alertSource === 'mock' && (
+                <div className="flex items-center gap-3 bg-amber/10 border border-amber/30 rounded-xl px-4 py-3">
+                    <div className="w-2 h-2 rounded-full bg-amber flex-shrink-0" />
+                    <div>
+                        <span className="text-sm font-semibold text-amber">Demo data — Wazuh indexer unreachable</span>
+                        <span className="text-xs text-foreground-muted ml-2">Alerts shown are not real. Connect Wazuh to see live events.</span>
+                    </div>
+                </div>
+            )}
+            {alertSource === 'wazuh' && (
+                <div className="flex items-center gap-2 bg-green/10 border border-green/30 rounded-xl px-4 py-3">
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-green" />
+                    </span>
+                    <span className="text-sm font-semibold text-green">Live — Real Wazuh alerts</span>
+                </div>
+            )}
 
             {/* KPI strip */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">

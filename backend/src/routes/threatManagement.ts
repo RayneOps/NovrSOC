@@ -359,7 +359,15 @@ router.get('/alerts', async (req, res) => {
     if (status && status !== 'all') alerts = alerts.filter((a) => a.status === status);
     alerts = alerts.slice(0, parsedLimit);
 
-    res.json({ alerts, stats: usingMockStats ? MOCK_STATS : computeStats(all) });
+    res.json({
+        alerts,
+        stats: usingMockStats ? MOCK_STATS : computeStats(all),
+        // usingMockStats was already tracked internally (loadAlerts sets it) but never left
+        // this function — the frontend had no way to tell a real Wazuh-indexer alert queue
+        // from the MOCK_ALERTS fallback it silently serves when the indexer is unreachable.
+        source: usingMockStats ? 'mock' : 'wazuh',
+        wazuh_connected: !usingMockStats,
+    });
 });
 
 router.get('/alerts/:id', (req, res) => {

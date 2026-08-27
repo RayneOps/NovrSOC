@@ -3,6 +3,12 @@ import { logAudit } from '../lib/audit';
 
 // SecOps Incident Response console — demo data (same pattern as routes/threatManagement.ts).
 // Not to be confused with the live Wazuh-backed incidents surfaced under /api/wazuh/incidents.
+//
+// TODO: Wire to TheHive API when VPS 6 SOAR stack is deployed.
+// TheHive URL: http://10.0.0.4:9000
+// TheHive API key: stored in THEHIVE_API_KEY env var (not yet set)
+// Migration: replace in-memory store with TheHive case CRUD
+// Reference: NovrSOC_WazuhMigration_ContaboSQL.md for deployment guide
 
 const router = Router();
 

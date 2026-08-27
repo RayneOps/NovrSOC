@@ -1,7 +1,9 @@
 export interface MetricItem {
     value: string;
     trend: string;
-    type: 'blue' | 'purple' | 'orange' | 'red';
+    // 'green' was already supported by KpiCard.tsx's own borderAccent map (border-l-green)
+    // but missing from this union, so no caller could actually reach it without a type error.
+    type: 'blue' | 'purple' | 'orange' | 'red' | 'green';
     label: string;
 }
 

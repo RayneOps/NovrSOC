@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Monitor, WifiOff } from 'lucide-react';
 import { getPortalContext } from '@/lib/portal-context';
 import { apiUrl } from '@/lib/api';
 
@@ -28,16 +29,55 @@ function formatLastSeen(iso: string | null): string {
     return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// GET /api/wazuh/agents (routes/wazuh.ts) only ever returns Shape 1 today — this also accepts
+// a raw Wazuh Manager API passthrough shape defensively, in case that ever changes.
+function normalizeAgents(data: unknown): Agent[] {
+    const d = data as { agents?: unknown; data?: { affected_items?: unknown[] } } | null;
+    if (Array.isArray(d?.agents)) return d.agents as Agent[];
+    if (Array.isArray(d?.data?.affected_items)) {
+        return d.data.affected_items.map((raw): Agent => {
+            const a = raw as { id?: string; name?: string; ip?: string; status?: string; lastKeepAlive?: string; last_keepalive?: string; os?: { name?: string; full?: string }; group?: string | string[] };
+            return {
+                id: String(a.id ?? ''),
+                name: a.name ?? '',
+                ip: a.ip ?? null,
+                status: a.status ?? 'never_connected',
+                lastSeen: a.lastKeepAlive ?? a.last_keepalive ?? null,
+                os: a.os?.name ?? a.os?.full ?? null,
+                group: Array.isArray(a.group) ? a.group.join(', ') : (a.group ?? 'default'),
+            };
+        });
+    }
+    return [];
+}
+
 export function DigitalAssets() {
     const [search, setSearch] = useState('');
     const [agents, setAgents] = useState<Agent[] | null>(null);
+    // Distinguishes "fetched successfully, zero agents enrolled" from "couldn't reach Wazuh
+    // at all" — both used to render as the same "No assets registered yet." message, which
+    // reads as "you have no assets" when the real story might be "we don't know."
+    const [fetchFailed, setFetchFailed] = useState(false);
 
     useEffect(() => {
+        // Deliberately NOT dropping the ?group= filter — this component is shared between
+        // /admin/infra/assets and /client/infra/assets (app/admin & app/client both import
+        // this same DigitalAssets). getPortalContext().wazuhGroup is already null for admin
+        // users (they authenticate via admin_token, not the portal_token that carries
+        // wazuhGroup — see lib/portal-context.ts), so admin's fetch is already unfiltered
+        // today. Removing the filter unconditionally would instead break tenant isolation for
+        // every client-portal user, who'd start seeing every other client's agents too.
         const group = getPortalContext().wazuhGroup;
-        fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store' })
-            .then(r => r.json())
-            .then(data => setAgents(Array.isArray(data?.agents) ? data.agents : []))
-            .catch(() => setAgents([]));
+        fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(data => setAgents(normalizeAgents(data)))
+            .catch(() => {
+                setAgents([]);
+                setFetchFailed(true);
+            });
     }, []);
 
     const filtered = (agents ?? []).filter(a => {
@@ -81,7 +121,23 @@ export function DigitalAssets() {
                     {loading ? (
                         <div className="p-6 space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-6 bg-card-muted rounded animate-pulse" />)}</div>
                     ) : filtered.length === 0 ? (
-                        <p className="text-xs text-foreground-muted text-center py-16">No assets registered yet.</p>
+                        <div className="text-center py-16">
+                            <div className="w-12 h-12 rounded-full bg-[#F5F0FF] flex items-center justify-center mx-auto mb-4">
+                                {fetchFailed
+                                    ? <WifiOff size={20} className="text-red" />
+                                    : <Monitor size={20} className="text-purple" />}
+                            </div>
+                            <h3 className="font-semibold text-sm text-foreground mb-1">
+                                {fetchFailed ? 'Wazuh unreachable' : (search ? 'No matching assets' : 'No agents found')}
+                            </h3>
+                            <p className="text-xs text-foreground-muted max-w-xs mx-auto">
+                                {fetchFailed
+                                    ? 'Could not reach the Wazuh Manager to list enrolled agents. This is a connectivity problem, not necessarily an empty inventory — try again shortly.'
+                                    : search
+                                        ? 'No assets match your search.'
+                                        : 'No agents are currently enrolled. Install the Wazuh agent on a device and point it at your organisation\'s configured Wazuh manager to see it appear here automatically.'}
+                            </p>
+                        </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs">

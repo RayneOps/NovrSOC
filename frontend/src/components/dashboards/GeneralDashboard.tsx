@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Monitor, AlertTriangle, AlertOctagon, Clock, Activity, Building2, Users, Server } from 'lucide-react';
+import { Monitor, Shield, AlertOctagon, Clock, Activity, Building2, Users, Server } from 'lucide-react';
 import { KpiCard, type KpiCardProps } from '../shared/KpiCard';
 import { ChartWrapper } from '../shared/ChartWrapper';
 import { DataTable } from '../shared/DataTable';
@@ -48,8 +48,8 @@ const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient
         if (!clients || clients.length === 0) return;
         const fetchGroup = async (group: string | null) => {
             const [agentsRes, incidentsRes] = await Promise.all([
-                fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store' }).then(r => r.json()).catch(() => null),
-                fetch(apiUrl(`/api/wazuh/incidents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store' }).then(r => r.json()).catch(() => null),
+                fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
+                fetch(apiUrl(`/api/wazuh/incidents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
             ]);
             return {
                 endpoints: typeof agentsRes?.total === 'number' ? agentsRes.total : 0,
@@ -121,32 +121,35 @@ const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient
 
 /* ── Main ── */
 export const GeneralDashboard = () => {
-    const [ctipStats, setCtipStats] = useState<{
-        total_iocs: number;
-        iocs_last_24h: number;
-        active_campaigns: number;
-        exploitable_cves_this_week: number;
-        sources_active: number;
-    } | null>(null);
+    // Total Assets + Active Agents cards both read this one call — cheaper than the old
+    // per-card /api/wazuh/agents fetch, and the fallback below is a real terminal value (not
+    // a no-op catch), so neither card can get stuck on "…" forever the way they used to.
+    const [wazuhStatus, setWazuhStatus] = useState<{ connected: boolean; agent_count: number; active_agents: number } | null>(null);
 
-    const [wazuhAgents, setWazuhAgents] = useState<{ active: number; total: number } | null>(null);
+    // Platform Health card — real per-service checks (Wazuh Manager, Database, Claude AI),
+    // replacing the old wazuhAgents/ctipStats-presence proxy that only ever said
+    // "Operational"/"Degraded" with no way to tell which dependency was actually down.
+    const [platformHealth, setPlatformHealth] = useState<{ overall: string; services: Array<{ name: string; status: string; latency_ms: number }> } | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/threat-intel/stats'), { cache: 'no-store' })
+        fetch(apiUrl('/api/wazuh/status'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
-            .then(data => setCtipStats(data))
-            .catch(() => {});
+            .then(data => setWazuhStatus({
+                connected: !!data?.connected,
+                agent_count: typeof data?.agent_count === 'number' ? data.agent_count : 0,
+                active_agents: typeof data?.active_agents === 'number' ? data.active_agents : 0,
+            }))
+            .catch(() => setWazuhStatus({ connected: false, agent_count: 0, active_agents: 0 }));
     }, []);
 
     useEffect(() => {
-        const group = getPortalContext().wazuhGroup;
-        fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store' })
+        fetch(apiUrl('/api/platform/health'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
-            .then(data => {
-                const conn = data?.data?.connection;
-                if (conn) setWazuhAgents({ active: conn.active, total: conn.total });
-            })
-            .catch(() => {});
+            .then(data => setPlatformHealth({
+                overall: typeof data?.overall === 'string' ? data.overall : 'unknown',
+                services: Array.isArray(data?.services) ? data.services : [],
+            }))
+            .catch(() => setPlatformHealth({ overall: 'unknown', services: [] }));
     }, []);
 
     const [wazuhAlerts, setWazuhAlerts] = useState<typeof generalActivityLog | null>(null);
@@ -160,7 +163,7 @@ export const GeneralDashboard = () => {
         setFeedLoading(true);
         const params = new URLSearchParams({ minLevel: '7', range: feedRange });
         if (group) params.set('group', group);
-        fetch(apiUrl(`/api/wazuh/alerts-indexer?${params.toString()}`), { cache: 'no-store' })
+        fetch(apiUrl(`/api/wazuh/alerts-indexer?${params.toString()}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 const hits = data?.hits;
@@ -178,17 +181,25 @@ export const GeneralDashboard = () => {
                 } else {
                     setWazuhAlerts([]);
                 }
-                if (typeof data?.criticalCount === 'number') setCriticalAlertsCount(data.criticalCount);
-                if (typeof data?.openIncidentsCount === 'number') setOpenIncidentsCount(data.openIncidentsCount);
+                // Was `if (typeof ... === 'number') set...` with no else — a hit with the
+                // wrong shape (or missing entirely, same as the .catch() case below) left
+                // these two at their initial `null` forever, which is exactly what stuck
+                // Critical Alerts and Open Incidents on "…" indefinitely.
+                setCriticalAlertsCount(typeof data?.criticalCount === 'number' ? data.criticalCount : 0);
+                setOpenIncidentsCount(typeof data?.openIncidentsCount === 'number' ? data.openIncidentsCount : 0);
             })
-            .catch(() => setWazuhAlerts([]))
+            .catch(() => {
+                setWazuhAlerts([]);
+                setCriticalAlertsCount(0);
+                setOpenIncidentsCount(0);
+            })
             .finally(() => setFeedLoading(false));
     }, [feedRange]);
 
     const [threatVectors, setThreatVectors] = useState<{ label: string; pct: number; color: string }[] | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/threat-intel/iocs?limit=500'), { cache: 'no-store' })
+        fetch(apiUrl('/api/threat-intel/iocs?limit=500'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 const items = data?.items;
@@ -222,7 +233,7 @@ export const GeneralDashboard = () => {
         setTrendLoading(true);
         const params = new URLSearchParams({ range: trendRange });
         if (group) params.set('group', group);
-        fetch(apiUrl(`/api/wazuh/trend?${params.toString()}`), { cache: 'no-store' })
+        fetch(apiUrl(`/api/wazuh/trend?${params.toString()}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 setTrendData(Array.isArray(data) && data.length > 0 ? data : null);
@@ -237,7 +248,7 @@ export const GeneralDashboard = () => {
     const [ctipCountries, setCtipCountries] = useState<CtipCountry[] | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/ctip/countries'), { cache: 'no-store' })
+        fetch(apiUrl('/api/ctip/countries'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setCtipCountries(Array.isArray(data) ? data : []))
             .catch(() => setCtipCountries([]));
@@ -247,7 +258,7 @@ export const GeneralDashboard = () => {
 
     useEffect(() => {
         const group = getPortalContext().wazuhGroup;
-        fetch(apiUrl(`/api/wazuh/attack-origins${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store' })
+        fetch(apiUrl(`/api/wazuh/attack-origins${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setWazuhAttackOrigins(Array.isArray(data) ? data : []))
             .catch(() => setWazuhAttackOrigins([]));
@@ -256,7 +267,7 @@ export const GeneralDashboard = () => {
     const [nigeriaAdvisories, setNigeriaAdvisories] = useState<FeedAdvisory[] | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/advisories'), { cache: 'no-store' })
+        fetch(apiUrl('/api/advisories'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setNigeriaAdvisories(Array.isArray(data?.advisories) ? data.advisories : []))
             .catch(() => setNigeriaAdvisories([]));
@@ -266,7 +277,7 @@ export const GeneralDashboard = () => {
     const [clientsLoading, setClientsLoading] = useState(true);
 
     useEffect(() => {
-        fetch(apiUrl('/api/customers'), { cache: 'no-store' })
+        fetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setClients(Array.isArray(data?.customers) ? data.customers : []))
             .catch(() => setClients([]))
@@ -276,7 +287,7 @@ export const GeneralDashboard = () => {
     const [vendorRisk, setVendorRisk] = useState<{ label: string; avg: number } | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/vendor-assessments'), { cache: 'no-store' })
+        fetch(apiUrl('/api/vendor-assessments'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 const assessments = Array.isArray(data?.assessments) ? data.assessments : [];
@@ -305,7 +316,13 @@ export const GeneralDashboard = () => {
     const critical = criticalAlertsCount ?? 0;
     const openTotal = openIncidentsCount ?? 0;
     const riskScoreValue = !hasClients ? 0 : Math.min(100, critical * 10 + openTotal * 2);
-    const platformOperational = wazuhAgents !== null && ctipStats !== null;
+
+    const servicesUp = platformHealth?.services.filter(s => s.status === 'up').length ?? 0;
+    const servicesTotal = platformHealth?.services.length ?? 0;
+    const platformHealthType: KpiCardProps['type'] =
+        platformHealth?.overall === 'operational' ? 'green'
+            : platformHealth?.overall === 'degraded' ? 'orange'
+            : 'red'; // 'outage' or 'unknown' — no neutral type exists on KpiCard, and "unknown" isn't good news either
 
     const THREAT_VECTORS_FALLBACK = [
         { label: "Malware", pct: 100, color: '#CC2B2B' },
@@ -318,17 +335,18 @@ export const GeneralDashboard = () => {
     const kpiCards: KpiCardProps[] = [
         {
             label: 'Total Assets',
-            value: wazuhAgents ? wazuhAgents.total.toLocaleString() : '...',
+            value: (wazuhStatus?.agent_count ?? 0).toLocaleString(),
             trend: '',
-            type: 'blue',
+            type: wazuhStatus?.connected ? 'purple' : 'red',
             icon: Monitor,
         },
         {
-            label: 'Active Incidents',
-            value: openIncidentsCount !== null ? String(openIncidentsCount) : '...',
+            label: 'Active Agents',
+            value: String(wazuhStatus?.active_agents ?? 0),
             trend: '',
-            type: 'orange',
-            icon: AlertTriangle,
+            type: (wazuhStatus?.active_agents ?? 0) > 0 ? 'green' : 'red',
+            icon: Shield,
+            subValue: wazuhStatus?.connected ? 'Wazuh connected' : 'Wazuh offline',
         },
         {
             label: 'Critical Alerts',
@@ -367,11 +385,14 @@ export const GeneralDashboard = () => {
         },
         {
             label: 'Platform Health',
-            value: platformOperational ? 'Operational' : 'Degraded',
+            value: platformHealth?.overall === 'operational' ? 'Operational'
+                : platformHealth?.overall === 'degraded' ? 'Degraded'
+                : platformHealth?.overall === 'outage' ? 'Outage'
+                : 'Unknown',
             trend: '',
-            type: platformOperational ? 'blue' : 'red',
+            type: platformHealthType,
             icon: Server,
-            subValue: ctipStats ? `${ctipStats.sources_active} sources active` : undefined,
+            subValue: platformHealth ? `${servicesUp}/${servicesTotal} services up` : undefined,
         },
     ];
 
