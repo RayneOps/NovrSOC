@@ -60,10 +60,27 @@ export async function authenticate(): Promise<string> {
     if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
     if (!WAZUH_HOST) throw new Error('WAZUH_HOST environment variable is not set');
     if (!WAZUH_PASS) throw new Error('WAZUH_API_PASSWORD (or WAZUH_PASS) environment variable is not set');
+
+    const url = `https://${WAZUH_HOST}:${WAZUH_PORT}/security/user/authenticate`;
+    // WAZUH_HOST and the target URL only — never the credential itself. This is a real
+    // network host, deliberately not logged with the password, since logs routinely end up
+    // somewhere with a wider audience than "people who should have this password" (Railway's
+    // dashboard, a log aggregator, etc.).
+    console.log(`[wazuh] authenticating as "${WAZUH_USER}" — WAZUH_HOST=${WAZUH_HOST}, url=${url}`);
+
     const basic = 'Basic ' + Buffer.from(`${WAZUH_USER}:${WAZUH_PASS}`).toString('base64');
-    const { json } = await request('/security/user/authenticate', basic, 'POST');
+    let json: unknown;
+    try {
+        ({ json } = await request('/security/user/authenticate', basic, 'POST'));
+    } catch (err) {
+        console.error(`[wazuh] connection to ${url} failed:`, err instanceof Error ? err.message : err);
+        throw err;
+    }
     const token = (json as { data?: { token?: string } } | null)?.data?.token;
-    if (!token) throw new Error('Wazuh authentication failed');
+    if (!token) {
+        console.error(`[wazuh] authentication to ${url} returned no token — response:`, JSON.stringify(json));
+        throw new Error('Wazuh authentication failed');
+    }
     cachedToken = { token, expires: Date.now() + 14 * 60 * 1000 };
     return token;
 }

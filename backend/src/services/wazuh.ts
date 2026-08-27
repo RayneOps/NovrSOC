@@ -59,10 +59,25 @@ export async function authenticate(): Promise<string> {
     if (!WAZUH_HOST) throw new Error('WAZUH_HOST environment variable is not set');
     if (!WAZUH_PASSWORD) throw new Error('WAZUH_PASSWORD (or WAZUH_API_PASSWORD / WAZUH_PASS) environment variable is not set');
 
+    const url = `https://${WAZUH_HOST}:${WAZUH_PORT}/security/user/authenticate`;
+    // Host and URL only, never the credential — see lib/wazuh.ts's identical logging (this
+    // file duplicates that one's auth logic; routes/wazuh.ts's /status and routes/platform.ts's
+    // health check both go through THIS file's authenticate(), not lib/wazuh.ts's).
+    console.log(`[wazuh] authenticating as "${WAZUH_USER}" — WAZUH_HOST=${WAZUH_HOST}, url=${url}`);
+
     const basic = 'Basic ' + Buffer.from(`${WAZUH_USER}:${WAZUH_PASSWORD}`).toString('base64');
-    const { status, json } = await request('/security/user/authenticate', basic, 'POST');
+    let status: number, json: unknown;
+    try {
+        ({ status, json } = await request('/security/user/authenticate', basic, 'POST'));
+    } catch (err) {
+        console.error(`[wazuh] connection to ${url} failed:`, err instanceof Error ? err.message : err);
+        throw err;
+    }
     const token = (json as { data?: { token?: string } } | null)?.data?.token;
-    if (!token) throw new Error(`Wazuh authentication failed (status ${status})`);
+    if (!token) {
+        console.error(`[wazuh] authentication to ${url} failed — status ${status}, response:`, JSON.stringify(json));
+        throw new Error(`Wazuh authentication failed (status ${status})`);
+    }
 
     cachedToken = { token, expires: Date.now() + 15 * 60 * 1000 };
     return token;
