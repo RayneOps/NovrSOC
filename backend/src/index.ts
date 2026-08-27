@@ -43,7 +43,6 @@ import emailRouter from './routes/email';
 import orgCTIRouter from './routes/orgCTI';
 import { runCTIWatcher } from './jobs/ctiWatcher';
 import platformRouter from './routes/platform';
-import debugRouter from './routes/debug'; // TEMPORARY — see routes/debug.ts's header comment
 
 const app = express();
 
@@ -220,7 +219,6 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/handover', handoverRouter);
 app.use('/api/org-cti', orgCTIRouter);
 app.use('/api/platform', platformRouter);
-app.use('/api/debug', debugRouter); // TEMPORARY — see routes/debug.ts's header comment
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
