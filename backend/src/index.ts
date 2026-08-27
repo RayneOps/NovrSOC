@@ -45,6 +45,19 @@ import { runCTIWatcher } from './jobs/ctiWatcher';
 import platformRouter from './routes/platform';
 
 const app = express();
+
+// Railway (and most PaaS hosts) terminate TLS and proxy requests to this process, setting
+// X-Forwarded-For/X-Forwarded-Proto on the way in. Without trust proxy set, express-rate-limit
+// treats an incoming X-Forwarded-For header as a spoofing attempt from a client that shouldn't
+// be able to set it (correct default for an app that IS the edge) and throws
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR — which crashed the whole process here, since nothing
+// downstream of the rate limiters' registration could catch a throw that happens during
+// request handling before Express's own error handler runs for it. `1` (not `true`) means
+// "trust exactly one hop" — Railway's own edge — rather than trusting the entire forwarded
+// chain, which matters for req.ip/rate-limit-by-IP actually reflecting the real client instead
+// of whatever a malicious client claims via its own X-Forwarded-For.
+app.set('trust proxy', 1);
+
 const PORT = Number(process.env.PORT || 8080);
 
 // Health check routes — registered before every other app.use() on purpose, not just
