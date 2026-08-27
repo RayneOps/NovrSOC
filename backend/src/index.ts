@@ -45,7 +45,26 @@ import { runCTIWatcher } from './jobs/ctiWatcher';
 import platformRouter from './routes/platform';
 
 const app = express();
-const PORT = Number(process.env.PORT || 4001);
+const PORT = Number(process.env.PORT || 8080);
+
+// Health check routes — registered before every other app.use() on purpose, not just
+// commented as such (a prior version of this file had that comment on a /health route that
+// was actually registered after helmet, a permissions-policy middleware, the HTTPS-redirect
+// below, cors, and express.json — the comment was simply wrong about what the code did).
+// This matters concretely for Railway: its healthcheck prober hits the container directly
+// over Railway's internal network, not through the public HTTPS edge, so it never sends
+// `x-forwarded-proto: https`. The production-only HTTPS-redirect middleware further down
+// treats that as "insecure request" and 301s it — which a healthcheck prober does not follow,
+// so it read as "unreachable" even though the process was up and the route existed. Placing
+// these two routes before any middleware at all — no helmet headers, no redirect, no CORS, no
+// body parsing, no rate limit — guarantees a direct 200 no matter what headers the caller did
+// or didn't send.
+app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'healthy' });
+});
+app.get('/', (_req, res) => {
+    res.status(200).json({ ok: true, service: 'novrsoc-backend' });
+});
 
 // middleware/auth.ts's requireAuth exists and is ready, but is deliberately NOT mounted here.
 // Verified before this security pass: zero fetch() calls anywhere in frontend/src send an
@@ -145,21 +164,6 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter, botProtection);
 app.use('/api/portal/auth', authLimiter, botProtection);
 app.use('/api', apiLimiter);
-
-// Health check endpoint (Railway uses this) — kept ahead of every other route so it's
-// always reachable even if a downstream router throws during registration.
-app.get('/health', (_req, res) => {
-    res.json({
-        status: 'healthy',
-        service: 'novrsoc-backend',
-        version: '1.0.0',
-        timestamp: new Date().toISOString(),
-    });
-});
-
-app.get('/', (_req, res) => {
-    res.json({ ok: true, service: 'novrsoc-backend' });
-});
 
 app.use('/api/auth', authRouter);
 app.use('/api/portal', portalRouter);
