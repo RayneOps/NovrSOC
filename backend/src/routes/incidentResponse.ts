@@ -6,7 +6,7 @@ import { logAudit } from '../lib/audit';
 //
 // TODO: Wire to TheHive API when VPS 6 SOAR stack is deployed.
 // TheHive URL: http://10.0.0.4:9000
-// TheHive API key: stored in THEHIVE_API_KEY env var (not yet set)
+// Auth: Basic (THEHIVE_USER + THEHIVE_PASSWORD env vars, not yet set) — see services/thehive.ts
 // Migration: replace in-memory store with TheHive case CRUD
 // Reference: NovrSOC_WazuhMigration_ContaboSQL.md for deployment guide
 
