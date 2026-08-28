@@ -103,18 +103,35 @@ function severityFromLevel(level: number): 'critical' | 'high' | 'medium' | 'low
     return 'low';
 }
 
+// Per-state map coloring/legend — deliberately keyed off raw threat *count*, not the
+// critical/high/medium/low severity mix computed above. Those two schemes answer different
+// questions (severity: "how bad is the worst thing here" vs. this: "how much is happening
+// here at all") and the map's legend previously described a third, unrelated thing entirely
+// (threat *type* colors that didn't match what getStateColor() in NigeriaMap2.tsx actually
+// rendered) — this is what NigeriaMap2.tsx's legend and fill color are wired to now.
+type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Critical';
+function getThreatLevel(count: number): ThreatLevel {
+    if (count === 0) return 'None';
+    if (count <= 5) return 'Low';
+    if (count <= 20) return 'Medium';
+    if (count <= 50) return 'High';
+    return 'Critical';
+}
+
 const emptyStates = () =>
     Object.entries(NIGERIA_STATE_CODES).map(([name, code]) => ({
         name, code, threats: 0, critical: 0, high: 0, medium: 0, low: 0,
         severity: 'clean' as const, top_threat_type: 'None', top_rule: 'None',
         ips_monitored: 0, latest_alert: null as string | null, threat_types: {} as Record<string, number>,
+        threat_level: 'None' as ThreatLevel, top_source_ip: null as string | null, affected_hosts: [] as string[],
     }));
 
 const emptySummary = (threatLevel: string, error?: string) => ({
-    total_threats: 0, threat_score: 0, critical_states: 0,
+    total_threats: 0, threat_score: 0, critical_states: 0, states_affected: 0,
     today_attacks: 0, malware: 0, phishing: 0, botnets: 0,
     ransomware: 0, ddos: 0, credential_theft: 0,
     highest_attack_states: [] as { name: string; count: number; state: string; threat_type: string }[],
+    top_state: null as string | null,
     threat_level: threatLevel,
     ...(error ? { error } : {}),
 });
@@ -160,11 +177,11 @@ router.get('/nigeria-threats', async (req, res) => {
 
         const stateMap: Record<string, {
             threats: number; critical: number; high: number; medium: number; low: number;
-            threat_types: Record<string, number>; top_rules: Record<string, number>;
-            ips: Set<string>; latest_alert: string;
+            threat_types: Record<string, number>; top_rules: Record<string, number>; top_source_ips: Record<string, number>;
+            ips: Set<string>; agents: Set<string>; latest_alert: string;
         }> = {};
         for (const stateName of Object.keys(NIGERIA_STATE_CODES)) {
-            stateMap[stateName] = { threats: 0, critical: 0, high: 0, medium: 0, low: 0, threat_types: {}, top_rules: {}, ips: new Set(), latest_alert: '' };
+            stateMap[stateName] = { threats: 0, critical: 0, high: 0, medium: 0, low: 0, threat_types: {}, top_rules: {}, top_source_ips: {}, ips: new Set(), agents: new Set(), latest_alert: '' };
         }
 
         // Scoped to genuinely Nigerian-geolocated events only — deliberately NOT falling back
@@ -205,6 +222,7 @@ router.get('/nigeria-threats', async (req, res) => {
             const severity = severityFromLevel(level);
             const threatType = classifyThreat(src.rule?.groups ?? []);
             const srcIp = src.data?.srcip ?? '';
+            const agentName = src.agent?.name ?? '';
 
             totalThreats++;
             if (severity === 'critical') totalCritical++;
@@ -216,7 +234,11 @@ router.get('/nigeria-threats', async (req, res) => {
             stateData.threat_types[threatType] = (stateData.threat_types[threatType] ?? 0) + 1;
             const ruleDesc = src.rule?.description ?? 'Unknown';
             stateData.top_rules[ruleDesc] = (stateData.top_rules[ruleDesc] ?? 0) + 1;
-            if (srcIp) stateData.ips.add(srcIp);
+            if (srcIp) {
+                stateData.ips.add(srcIp);
+                stateData.top_source_ips[srcIp] = (stateData.top_source_ips[srcIp] ?? 0) + 1;
+            }
+            if (agentName) stateData.agents.add(agentName);
             const ts = src.timestamp ?? '';
             if (!stateData.latest_alert || ts > stateData.latest_alert) stateData.latest_alert = ts;
         }
@@ -286,6 +308,7 @@ router.get('/nigeria-threats', async (req, res) => {
         const states = Object.entries(stateMap).map(([name, data]) => {
             const topThreatType = Object.entries(data.threat_types).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'None';
             const topRule = Object.entries(data.top_rules).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'None';
+            const topSourceIp = Object.entries(data.top_source_ips).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
             let severity: 'critical' | 'high' | 'medium' | 'low' | 'clean' = 'clean';
             if (data.critical > 0) severity = 'critical';
@@ -307,6 +330,9 @@ router.get('/nigeria-threats', async (req, res) => {
                 ips_monitored: data.ips.size,
                 latest_alert: data.latest_alert || null,
                 threat_types: data.threat_types,
+                threat_level: getThreatLevel(data.threats),
+                top_source_ip: topSourceIp,
+                affected_hosts: [...data.agents],
             };
         });
 
@@ -315,6 +341,8 @@ router.get('/nigeria-threats', async (req, res) => {
             ? Math.min(Math.round((totalCritical * 10 + totalThreats * 0.5) / Math.max(hits.length / 100, 1)), 100)
             : 0;
         const criticalStates = states.filter((s) => s.severity === 'critical').length;
+        const statesAffected = states.filter((s) => s.threats > 0).length;
+        const topState = sortedByThreats[0]?.name ?? null;
 
         // Supplemental sources — deliberately fetched even when Wazuh returned zero
         // Nigerian-attributed hits, since the whole point is showing real data in that case too.
@@ -326,6 +354,8 @@ router.get('/nigeria-threats', async (req, res) => {
                 total_threats: totalThreats,
                 threat_score: threatScore,
                 critical_states: criticalStates,
+                states_affected: statesAffected,
+                top_state: topState,
                 today_attacks: totalThreats,
                 malware: globalThreatTypes['Malware'] ?? 0,
                 phishing: globalThreatTypes['Phishing'] ?? 0,

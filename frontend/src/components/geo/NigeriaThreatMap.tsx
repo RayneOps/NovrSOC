@@ -31,6 +31,8 @@ interface NigeriaThreatsSummary {
     total_threats: number;
     threat_score: number;
     critical_states: number;
+    states_affected: number;
+    top_state: string | null;
     today_attacks: number;
     malware: number;
     phishing: number;
@@ -113,6 +115,8 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
         { title: 'Threat Score', value: summary?.threat_score ?? '—', color: 'text-red-500' },
         { title: "Today's Attacks", value: summary?.today_attacks ?? '—', color: 'text-red-500' },
         { title: 'Critical States', value: summary?.critical_states ?? '—', color: 'text-purple' },
+        { title: 'States Affected', value: summary ? `${summary.states_affected}/37` : '—', color: 'text-purple' },
+        { title: 'Most Targeted', value: summary?.top_state ?? 'None', color: 'text-foreground' },
         { title: 'Malware', value: summary?.malware ?? '—', color: 'text-blue' },
         { title: 'Botnets', value: summary?.botnets ?? '—', color: 'text-blue' },
         { title: 'Phishing', value: summary?.phishing ?? '—', color: 'text-amber-500' },
@@ -141,6 +145,18 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                         </h2>
                     </div>
                 </div>
+
+                {/* Honest zero-state — total_threats === 0 is a real, common state (no
+                    Nigerian-geolocated events this window), not an error. Distinct from
+                    summary.error, which means the fetch itself failed. */}
+                {data && summary?.total_threats === 0 && !summary.error && (
+                    <div className="mb-3 flex items-center gap-2 bg-card-muted border border-border rounded-xl px-4 py-2.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue flex-shrink-0" />
+                        <span className="text-xs text-foreground-muted">
+                            Monitoring active — no Nigerian-origin threats detected in this time range. Map will populate as threats are detected.
+                        </span>
+                    </div>
+                )}
 
                 {/* Main */}
                 <div className="grid lg:grid-cols-5 gap-6">
@@ -203,7 +219,9 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                         {STAT_CARDS.map((stat) => (
                             <div key={stat.title} className="rounded-xl border border-border p-4">
                                 <p className="text-xs uppercase tracking-wide text-foreground-muted">{stat.title}</p>
-                                <h3 className={`text-3xl font-black mt-2 ${stat.color}`}>{stat.value}</h3>
+                                <h3 className={`font-black mt-2 truncate ${stat.color} ${typeof stat.value === 'string' && stat.value.length > 6 ? 'text-lg' : 'text-3xl'}`} title={String(stat.value)}>
+                                    {stat.value}
+                                </h3>
                             </div>
                         ))}
                     </div>

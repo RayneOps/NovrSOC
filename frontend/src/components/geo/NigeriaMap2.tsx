@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 // One state's real, live-aggregated data from GET /api/dashboard/nigeria-threats (Wazuh
 // Indexer, last 24h, genuinely Nigerian-geolocated events only — see that route for why
 // there's no mock/estimated fallback baked in here anymore).
+export type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Critical';
+
 export interface NigeriaStateData {
   name: string;
   code: string;
@@ -17,14 +19,46 @@ export interface NigeriaStateData {
   ips_monitored: number;
   latest_alert: string | null;
   threat_types: Record<string, number>;
+  // Added alongside the fix that made the map's legend and fill color actually agree with
+  // each other — see backend/src/routes/dashboard.ts's getThreatLevel() for the exact
+  // count->level thresholds. Optional so a state object built before this fix (or the
+  // synthesized fallback in handleStateClick below) still satisfies the type.
+  threat_level?: ThreatLevel;
+  top_source_ip?: string | null;
+  affected_hosts?: string[];
 }
 
-const SEVERITY_COLORS: Record<NigeriaStateData['severity'], string> = {
-  critical: '#CC2B2B',
-  high: '#FF5500',
-  medium: '#F59E0B',
-  low: '#2B3BCC',
-  clean: '#CBD5E1',
+// Map fill + legend color, keyed by threat_level (raw threat *count* thresholds — see
+// getThreatLevel() in backend/src/routes/dashboard.ts). Deliberately NOT the same thing as
+// `severity` (critical/high/medium/low/clean) above, which reflects the worst single alert's
+// level, not how much is happening overall — two different, both-useful questions. The
+// popup's severity badge still uses SEVERITY_BADGE further down for that reason.
+const THREAT_LEVEL_COLORS: Record<ThreatLevel, string> = {
+  None: '#EEF0F6',
+  Low: '#FFF4EE',
+  Medium: '#FF5500',
+  High: '#CC2B2B',
+  Critical: '#7B0000',
+};
+
+// Mirrors backend/src/routes/dashboard.ts's getThreatLevel() — used only for the local
+// fallback state handleStateClick() synthesizes for a state with liveStates already loaded but
+// zero threats (which the real endpoint always sends threat_level for; this only matters if it
+// hasn't loaded yet, i.e. liveStates is still empty).
+function threatLevelFromCount(count: number): ThreatLevel {
+  if (count === 0) return 'None';
+  if (count <= 5) return 'Low';
+  if (count <= 20) return 'Medium';
+  if (count <= 50) return 'High';
+  return 'Critical';
+}
+
+const SEVERITY_BADGE: Record<NigeriaStateData['severity'], string> = {
+  critical: 'bg-red-500 text-white',
+  high: 'bg-orange text-white',
+  medium: 'bg-amber-400 text-white',
+  low: 'bg-blue text-white',
+  clean: 'bg-white/20 text-white',
 };
 
 // Capital/region/code metadata for all 37 states — keyed by the exact `name` used on each
@@ -111,6 +145,7 @@ export function NigeriaMap2({
       name: stateName, code: STATE_META[stateName]?.code ?? '—',
       threats: 0, critical: 0, high: 0, medium: 0, low: 0, severity: 'clean',
       top_threat_type: 'None', top_rule: 'None', ips_monitored: 0, latest_alert: null, threat_types: {},
+      threat_level: 'None' as ThreatLevel, top_source_ip: null, affected_hosts: [],
     };
     onStateSelect?.(data);
   };
@@ -132,7 +167,7 @@ export function NigeriaMap2({
     }
 
     const info = liveByName[state];
-    return SEVERITY_COLORS[info?.severity ?? 'clean'];
+    return THREAT_LEVEL_COLORS[info?.threat_level ?? threatLevelFromCount(info?.threats ?? 0)];
     };
 
     const selectedMeta = selectedState ? STATE_META[selectedState.name] : null;
@@ -461,7 +496,7 @@ export function NigeriaMap2({
             const info = liveByName[city.stateName];
             const count = info?.threats ?? 0;
             if (count <= 0) return null;
-            const color = SEVERITY_COLORS[info?.severity ?? 'clean'];
+            const color = THREAT_LEVEL_COLORS[info?.threat_level ?? threatLevelFromCount(count)];
             const r = Math.max(6, Math.min(28, 6 + count * 2));
             return (
               <circle
@@ -482,7 +517,10 @@ export function NigeriaMap2({
         </g>
       </svg>
 
-        {/* Legend */}
+        {/* Legend — matches getStateColor() above exactly (region mode: geopolitical zone;
+            threat mode: threat_level, i.e. raw threat count thresholds, not severity). A
+            previous version of this legend described threat *type* colors (malware/phishing/
+            botnet/ddos) that didn't correspond to what the map's fill color actually encoded. */}
         <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur rounded-lg border border-border px-3 py-2 text-[10px] space-y-1">
           <p className="font-bold text-foreground uppercase tracking-wide mb-1">
             {colorMode === 'region' ? 'Region' : 'Threat Level'}
@@ -490,15 +528,15 @@ export function NigeriaMap2({
           {(colorMode === 'region'
             ? Object.entries(REGION_COLORS)
             : ([
-                ['Malware / Ransomware', '#CC2B2B'],
-                ['Phishing / Cred. Theft', '#F59E0B'],
-                ['Botnet', '#520385'],
-                ['DDoS', '#2B3BCC'],
-                ['No data', '#CBD5E1'],
+                ['None (0)', THREAT_LEVEL_COLORS.None],
+                ['Low (1-5)', THREAT_LEVEL_COLORS.Low],
+                ['Medium (6-20)', THREAT_LEVEL_COLORS.Medium],
+                ['High (21-50)', THREAT_LEVEL_COLORS.High],
+                ['Critical (51+)', THREAT_LEVEL_COLORS.Critical],
               ] as [string, string][])
           ).map(([label, color]) => (
             <div key={label} className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0 border border-border" style={{ backgroundColor: color }} />
               <span className="text-foreground-muted">{label}</span>
             </div>
           ))}
@@ -524,13 +562,7 @@ export function NigeriaMap2({
                 <div className="text-white/60 text-xs">{selectedMeta?.region ?? '—'} · {selectedMeta?.capital ?? '—'}</div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
-                  selectedState.severity === 'critical' ? 'bg-red-500 text-white' :
-                  selectedState.severity === 'high' ? 'bg-orange text-white' :
-                  selectedState.severity === 'medium' ? 'bg-amber-400 text-white' :
-                  selectedState.severity === 'low' ? 'bg-blue text-white' :
-                  'bg-white/20 text-white'
-                }`}>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${SEVERITY_BADGE[selectedState.severity]}`}>
                   {selectedState.severity}
                 </span>
                 <button onClick={() => onCloseSelection?.()} className="text-white/60 hover:text-white text-lg leading-none" aria-label="Close">
@@ -553,6 +585,14 @@ export function NigeriaMap2({
                 </div>
               ))}
             </div>
+
+            {selectedState.threats === 0 && (
+              <div className="px-5 py-3 text-center border-b border-border">
+                <p className="text-xs text-foreground-muted">
+                  No threats detected in this state in the selected time range. This state is being monitored.
+                </p>
+              </div>
+            )}
 
             {/* Threat breakdown */}
             <div className="px-5 py-4 border-b border-border">
@@ -585,6 +625,31 @@ export function NigeriaMap2({
                 <div className="text-[10px] text-foreground-muted mt-1">Last seen: {new Date(selectedState.latest_alert).toLocaleString()}</div>
               )}
             </div>
+
+            {/* Top source IP */}
+            {selectedState.top_source_ip && (
+              <div className="px-5 py-3 border-b border-border">
+                <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-1">Top Source IP</div>
+                <div className="text-xs font-mono font-medium text-foreground bg-card-muted rounded-lg px-3 py-2">{selectedState.top_source_ip}</div>
+              </div>
+            )}
+
+            {/* Affected hosts */}
+            {selectedState.affected_hosts && selectedState.affected_hosts.length > 0 && (
+              <div className="px-5 py-3 border-b border-border">
+                <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-1.5">
+                  Affected Hosts ({selectedState.affected_hosts.length})
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedState.affected_hosts.slice(0, 8).map((host) => (
+                    <span key={host} className="text-[10px] font-medium text-foreground bg-card-muted rounded px-2 py-1">{host}</span>
+                  ))}
+                  {selectedState.affected_hosts.length > 8 && (
+                    <span className="text-[10px] text-foreground-muted px-2 py-1">+{selectedState.affected_hosts.length - 8} more</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="px-5 py-3 flex gap-2">
