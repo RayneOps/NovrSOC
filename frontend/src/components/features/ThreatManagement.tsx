@@ -92,7 +92,11 @@ export function ThreatManagement() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [showAssignMenu, setShowAssignMenu] = useState(false);
-    const [alertSource, setAlertSource] = useState<'wazuh' | 'mock' | null>(null);
+    // 'demo' (DEMO_MODE=true, explicitly set for a presentation) is kept distinct from 'mock'
+    // (an actual unplanned Wazuh indexer outage) — same underlying data, but an analyst should
+    // never read "someone deliberately started a demo" and "the indexer is down right now" as
+    // the same event. See backend/src/routes/threatManagement.ts's source field comment.
+    const [alertSource, setAlertSource] = useState<'wazuh' | 'mock' | 'demo' | null>(null);
 
     const currentAnalyst = getAdminUser().name;
 
@@ -103,7 +107,7 @@ export function ThreatManagement() {
             .then((data) => {
                 setAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
                 setStats(data?.stats ?? null);
-                setAlertSource(data?.source === 'wazuh' ? 'wazuh' : 'mock');
+                setAlertSource(data?.source === 'wazuh' ? 'wazuh' : data?.source === 'demo' ? 'demo' : 'mock');
                 setLoading(false);
             })
             .catch(() => {
@@ -180,6 +184,15 @@ export function ThreatManagement() {
                     <div>
                         <span className="text-sm font-semibold text-amber">Demo data — Wazuh indexer unreachable</span>
                         <span className="text-xs text-foreground-muted ml-2">Alerts shown are not real. Connect Wazuh to see live events.</span>
+                    </div>
+                </div>
+            )}
+            {alertSource === 'demo' && (
+                <div className="flex items-center gap-3 bg-purple/10 border border-purple/30 rounded-xl px-4 py-3">
+                    <div className="w-2 h-2 rounded-full bg-purple flex-shrink-0" />
+                    <div>
+                        <span className="text-sm font-semibold text-purple">Demo mode</span>
+                        <span className="text-xs text-foreground-muted ml-2">Showing fixed presentation data — DEMO_MODE is enabled on this backend.</span>
                     </div>
                 </div>
             )}

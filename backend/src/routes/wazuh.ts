@@ -3,6 +3,7 @@ import { wazuhGet } from '../lib/wazuh';
 import { getAgentsForGroup, getAgentNamesForGroup } from '../lib/wazuh-group';
 import { search } from '../lib/wazuh-indexer';
 import { isConfigured as wazuhConfigured, getAgents as getWazuhAgents } from '../services/wazuh';
+import { isDemoMode, DEMO_AGENTS } from '../lib/demoMode';
 
 const router = Router();
 const CTIP_URL = process.env.CTIP_API_URL || 'http://138.197.188.132:8001';
@@ -22,6 +23,10 @@ const groupParam = (req: import('express').Request) =>
 // GET /api/wazuh/status — connectivity test for the Manager REST API (services/wazuh.ts),
 // separate from the indexer-backed routes below which use lib/wazuh + lib/wazuh-indexer.
 router.get('/status', async (_req, res) => {
+    if (isDemoMode()) {
+        res.json({ connected: true, agent_count: DEMO_AGENTS.length, active_agents: DEMO_AGENTS.filter((a) => a.status === 'active').length, source: 'demo' });
+        return;
+    }
     if (!wazuhConfigured()) {
         res.json({ connected: false, agent_count: 0, active_agents: 0 });
         return;
@@ -47,6 +52,11 @@ router.get('/alerts', async (_req, res) => {
 
 // GET /api/wazuh/agents
 router.get('/agents', async (req, res) => {
+    if (isDemoMode()) {
+        const active = DEMO_AGENTS.filter((a) => a.status === 'active').length;
+        res.json({ active, total: DEMO_AGENTS.length, agents: DEMO_AGENTS, data: { connection: { active, total: DEMO_AGENTS.length } }, source: 'demo' });
+        return;
+    }
     try {
         const group = groupParam(req);
         const agents = await getAgentsForGroup(group);

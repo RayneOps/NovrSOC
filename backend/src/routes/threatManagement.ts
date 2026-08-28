@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { search } from '../lib/wazuh-indexer';
 import { sendCriticalAlertEmail } from '../services/email';
+import { isDemoMode } from '../lib/demoMode';
 
 // SecOps Threat Management console — live security event stream from the Wazuh Indexer
 // (wazuh-alerts-4.x-*, same OpenSearch backend /api/wazuh/alerts-indexer queries), falling
@@ -328,6 +329,13 @@ function notifyCriticalAlerts(alerts: ThreatAlert[]): void {
 }
 
 async function loadAlerts(limit: number): Promise<ThreatAlert[]> {
+    // Explicit opt-in only — see lib/demoMode.ts. Short-circuits before even attempting the
+    // real indexer, same as routes/wazuh.ts's /status and /agents.
+    if (isDemoMode()) {
+        liveAlerts = MOCK_ALERTS;
+        usingMockStats = true;
+        return liveAlerts;
+    }
     try {
         const result = await search<IndexerSearchResponse>('wazuh-alerts-4.x-*', {
             size: limit,
@@ -365,7 +373,11 @@ router.get('/alerts', async (req, res) => {
         // usingMockStats was already tracked internally (loadAlerts sets it) but never left
         // this function — the frontend had no way to tell a real Wazuh-indexer alert queue
         // from the MOCK_ALERTS fallback it silently serves when the indexer is unreachable.
-        source: usingMockStats ? 'mock' : 'wazuh',
+        // 'demo' vs 'mock' distinguishes *why* — DEMO_MODE was explicitly set (a presentation
+        // in progress) vs. an actual unplanned indexer outage — even though both currently
+        // serve the same MOCK_ALERTS; the frontend banner text differs ("Demo mode" vs
+        // "Wazuh indexer unreachable") so an analyst never mistakes a real outage for a demo.
+        source: usingMockStats ? (isDemoMode() ? 'demo' : 'mock') : 'wazuh',
         wazuh_connected: !usingMockStats,
     });
 });
