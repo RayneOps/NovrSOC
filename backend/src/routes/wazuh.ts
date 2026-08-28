@@ -77,6 +77,39 @@ router.get('/agents', async (req, res) => {
     }
 });
 
+// GET /api/wazuh/mitre-stats — tactic counts over the last 24h, for the dashboard's MITRE
+// ATT&CK widget. rule.mitre.tactic is a real Wazuh 4.x field (populated when a matching rule
+// has MITRE mapping enabled) — not every alert has one, so this is a genuine subset, not "all
+// alerts categorized." Demo mode bypasses this entirely (no MITRE data attached to the fixed
+// demo agents), so it returns the same honest empty state as a real Wazuh outage would.
+router.get('/mitre-stats', async (_req, res) => {
+    interface TacticBucket { key: string; doc_count: number }
+    interface SearchResponse { aggregations?: { mitre_tactics?: { buckets?: TacticBucket[] } } }
+
+    if (isDemoMode()) {
+        res.json({ tactics: {}, source: 'demo' });
+        return;
+    }
+
+    try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const result = await search<SearchResponse>('wazuh-alerts-4.x-*', {
+            size: 0,
+            query: { range: { timestamp: { gte: since } } },
+            aggs: { mitre_tactics: { terms: { field: 'rule.mitre.tactic', size: 20 } } },
+        });
+
+        const buckets = result?.aggregations?.mitre_tactics?.buckets ?? [];
+        const tactics: Record<string, number> = {};
+        for (const b of buckets) tactics[b.key] = b.doc_count;
+
+        res.json({ tactics, source: buckets.length > 0 ? 'wazuh' : 'unavailable' });
+    } catch {
+        // Honest empty state — same reasoning as every other Wazuh-backed route in this file.
+        res.json({ tactics: {}, source: 'unavailable' });
+    }
+});
+
 // GET /api/wazuh/notifications
 router.get('/notifications', async (_req, res) => {
     interface WazuhHit { _id: string; _source: { timestamp?: string; rule?: { description?: string; level?: number }; agent?: { name?: string } } }

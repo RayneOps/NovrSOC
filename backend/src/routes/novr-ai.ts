@@ -115,7 +115,7 @@ router.post('/', async (req, res) => {
             : SYSTEM_PROMPT;
 
         const response = await client.messages.create({
-            model: 'claude-sonnet-4-6',
+            model: 'claude-opus-5',
             max_tokens: 1024,
             system,
             messages,
