@@ -57,6 +57,13 @@ interface Incident {
     timeline: TimelineEntry[];
     containment_actions: ContainmentAction[];
     notes: AnalystNote[];
+    // Optional, none of the demo incidents below set them yet — TheHive isn't wired into this
+    // store (see this file's header comment / services/thehive.ts). Present in the shape now so
+    // the frontend's SOAR/TheHive badges (components/features/IncidentResponse.tsx) are ready
+    // the moment a real Shuffle-created or TheHive-linked incident starts flowing through here.
+    source?: 'thehive' | 'internal';
+    tags?: string[];
+    thehive_url?: string | null;
 }
 
 const MOCK_INCIDENTS: Incident[] = [

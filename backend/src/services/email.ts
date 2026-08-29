@@ -1,5 +1,7 @@
-// SendGrid transactional email — rich HTML templates for alerts, weekly reports,
-// incident resolutions, and client onboarding.
+// Transactional email — rich HTML templates for alerts, weekly reports, incident resolutions,
+// and client onboarding. Two providers: SMTP (e.g. Zoho, smtp.zoho.com:587) tried first when
+// configured, falling back to SendGrid — lets a client bring their own mailbox (SMTP_HOST/
+// SMTP_USER/SMTP_PASS) without losing SendGrid as a safety net, or the other way round.
 //
 // This is deliberately separate from services/sendgrid.ts (which stays wired to the
 // existing /api/alerts/incident flow with its plainer template) so that flow keeps working
@@ -10,6 +12,7 @@
 // where this codebase uses token classes throughout).
 
 import sgMail from '@sendgrid/mail';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 const FROM = {
     email: process.env.SENDGRID_FROM_EMAIL || 'alerts@novrsoc.com',
@@ -19,15 +22,69 @@ const FROM = {
 let initialized = false;
 function ensureInitialized(): void {
     if (initialized) return;
-    if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY !== 'REPLACE_WHEN_OBTAINED') {
-        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    if (isSendGridConfigured()) {
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
     }
     initialized = true;
 }
 
-export function isEmailEnabled(): boolean {
+function isSMTPConfigured(): boolean {
+    return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+function isSendGridConfigured(): boolean {
     const key = process.env.SENDGRID_API_KEY;
-    return !!(key && key !== 'REPLACE_WHEN_OBTAINED' && process.env.EMAIL_ENABLED === 'true');
+    return !!(key && key !== 'REPLACE_WHEN_OBTAINED');
+}
+
+export function isEmailEnabled(): boolean {
+    return process.env.EMAIL_ENABLED === 'true' && (isSMTPConfigured() || isSendGridConfigured());
+}
+
+// Built once and reused — nodemailer transporters pool connections internally, so recreating
+// one per send would throw that pooling away for nothing.
+let smtpTransporter: Transporter | null | undefined;
+function getSMTPTransporter(): Transporter | null {
+    if (smtpTransporter !== undefined) return smtpTransporter;
+    if (!isSMTPConfigured()) {
+        smtpTransporter = null;
+        return smtpTransporter;
+    }
+    const port = Number(process.env.SMTP_PORT || 587);
+    smtpTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: port === 465, // 465 = implicit TLS; 587 (Zoho's default) = STARTTLS, secure:false
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    return smtpTransporter;
+}
+
+// Every sendXEmail() function below calls this instead of sgMail.send() directly — SMTP first
+// if configured, SendGrid as fallback (or as the only path, if SMTP was never configured).
+// A hard failure on both throws, same as an sgMail.send() failure always has — callers
+// (routes/email.ts) already catch and report that.
+async function sendEmail(params: { to: string | string[]; subject: string; html: string }): Promise<void> {
+    const transporter = getSMTPTransporter();
+    if (transporter) {
+        try {
+            await transporter.sendMail({
+                from: `"${FROM.name}" <${FROM.email}>`,
+                to: Array.isArray(params.to) ? params.to.join(', ') : params.to,
+                subject: params.subject,
+                html: params.html,
+            });
+            return;
+        } catch (err) {
+            console.error('[email] SMTP send failed, falling back to SendGrid:', err instanceof Error ? err.message : err);
+            // falls through to SendGrid below
+        }
+    }
+
+    if (!isSendGridConfigured()) {
+        throw new Error('No email provider configured or reachable (SMTP and SendGrid both unavailable)');
+    }
+    ensureInitialized();
+    await sgMail.send({ to: params.to, from: FROM, subject: params.subject, html: params.html });
 }
 
 // ─── BASE HTML TEMPLATE ──────────────────────────────────────────────────────
@@ -126,7 +183,6 @@ export async function sendCriticalAlertEmail(params: {
     rawLog?: string;
 }): Promise<void> {
     if (!isEmailEnabled()) return;
-    ensureInitialized();
 
     const severityColor = {
         critical: '#CC2B2B',
@@ -258,9 +314,8 @@ export async function sendCriticalAlertEmail(params: {
     </tr>
   `;
 
-    await sgMail.send({
+    await sendEmail({
         to: params.to,
-        from: FROM,
         subject: `[NovrSOC ${params.severity.toUpperCase()}] ${params.alertTitle}`,
         html: baseTemplate(
             `NovrSOC Alert: ${alertTitle}`,
@@ -288,7 +343,6 @@ export async function sendWeeklyReportEmail(params: {
     openIncidents: number;
 }): Promise<void> {
     if (!isEmailEnabled()) return;
-    ensureInitialized();
 
     const orgName = escapeHtml(params.orgName);
 
@@ -426,9 +480,8 @@ export async function sendWeeklyReportEmail(params: {
     </tr>
   `;
 
-    await sgMail.send({
+    await sendEmail({
         to: params.to,
-        from: FROM,
         subject: `NovrSOC Weekly Report — ${params.orgName} — w/c ${params.weekStart}`,
         html: baseTemplate(
             `NovrSOC Weekly Security Report — ${orgName}`,
@@ -450,7 +503,6 @@ export async function sendIncidentResolvedEmail(params: {
     containment: string[];
 }): Promise<void> {
     if (!isEmailEnabled()) return;
-    ensureInitialized();
 
     const title = escapeHtml(params.title);
     const incidentId = escapeHtml(params.incidentId);
@@ -499,9 +551,8 @@ export async function sendIncidentResolvedEmail(params: {
     </tr>
   `;
 
-    await sgMail.send({
+    await sendEmail({
         to: params.to,
-        from: FROM,
         subject: `[RESOLVED] ${params.incidentId} — ${params.title}`,
         html: baseTemplate(
             `Incident Resolved: ${title}`,
@@ -519,7 +570,6 @@ export async function sendOnboardingEmail(params: {
     loginUrl: string;
 }): Promise<void> {
     if (!isEmailEnabled()) return;
-    ensureInitialized();
 
     const clientName = escapeHtml(params.clientName);
     const orgName = escapeHtml(params.orgName);
@@ -574,9 +624,8 @@ export async function sendOnboardingEmail(params: {
     </tr>
   `;
 
-    await sgMail.send({
+    await sendEmail({
         to: params.to,
-        from: FROM,
         subject: `Welcome to NovrSOC — ${params.orgName} is now protected`,
         html: baseTemplate(
             'Welcome to NovrSOC',
@@ -589,11 +638,9 @@ export async function sendOnboardingEmail(params: {
 // 5. TEST EMAIL
 export async function sendTestEmail(to: string): Promise<void> {
     if (!isEmailEnabled()) throw new Error('Email not configured');
-    ensureInitialized();
 
-    await sgMail.send({
+    await sendEmail({
         to,
-        from: FROM,
         subject: '[NovrSOC] Test Email — Email alerts are working',
         html: baseTemplate(
             'NovrSOC Test Email',

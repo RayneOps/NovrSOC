@@ -203,7 +203,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-card-muted p-4">
+                        <div className="rounded-xl border border-border bg-card-muted p-4 min-h-[600px]">
                             <NigeriaMap2
                                 liveStates={states}
                                 colorMode={colorMode}

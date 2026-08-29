@@ -23,6 +23,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
+    "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -33,6 +34,7 @@
     "jsonwebtoken": "^9.0.3",
     "maxmind": "^5.0.7",
     "multer": "^2.2.0",
+    "nodemailer": "^9.0.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {

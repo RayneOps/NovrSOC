@@ -109,12 +109,13 @@ function severityFromLevel(level: number): 'critical' | 'high' | 'medium' | 'low
 // here at all") and the map's legend previously described a third, unrelated thing entirely
 // (threat *type* colors that didn't match what getStateColor() in NigeriaMap2.tsx actually
 // rendered) — this is what NigeriaMap2.tsx's legend and fill color are wired to now.
-type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Critical';
+type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Severe' | 'Critical';
 function getThreatLevel(count: number): ThreatLevel {
     if (count === 0) return 'None';
     if (count <= 5) return 'Low';
     if (count <= 20) return 'Medium';
     if (count <= 50) return 'High';
+    if (count <= 100) return 'Severe';
     return 'Critical';
 }
 

@@ -54,6 +54,12 @@ interface Incident {
     timeline: TimelineEntry[];
     containment_actions: ContainmentAction[];
     notes: AnalystNote[];
+    // Optional — no incident in the current demo data sets these yet (TheHive isn't wired into
+    // the incident store, see backend/src/services/thehive.ts's header comment), but the badges
+    // below are ready for the moment routes/incidentResponse.ts starts populating them.
+    source?: 'thehive' | 'internal';
+    tags?: string[];
+    thehive_url?: string | null;
 }
 
 interface Summary {
@@ -200,10 +206,21 @@ export function IncidentResponse() {
                         <button onClick={() => setSelectedId(null)} className="flex items-center gap-1 text-[11px] font-bold text-foreground-muted hover:text-foreground mb-2">
                             <ArrowLeft className="w-3.5 h-3.5" /> Back to Incidents
                         </button>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${SEV_STYLE[selected.severity]}`}>{selected.severity}</span>
                             <span className="text-[10px] font-mono text-foreground-muted">{selected.id}</span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${STATUS_STYLE[selected.status]}`}>{STATUS_LABELS[selected.status]}</span>
+                            {selected.source === 'thehive' && (
+                                <span className="text-[10px] bg-purple/10 text-purple px-2 py-0.5 rounded-full font-bold">TheHive</span>
+                            )}
+                            {selected.tags?.includes('automated') && (
+                                <span className="text-[10px] bg-green/10 text-green px-2 py-0.5 rounded-full font-bold">Auto-SOAR</span>
+                            )}
+                            {selected.thehive_url && (
+                                <a href={selected.thehive_url} target="_blank" rel="noreferrer" className="text-[10px] text-purple font-medium hover:underline">
+                                    Open in TheHive →
+                                </a>
+                            )}
                         </div>
                         <h1 className="text-lg font-black text-foreground mt-1.5">{selected.title}</h1>
                         <p className="text-xs text-foreground-muted">Incident Response · Opened {selected.opened_at} · Analyst: {selected.assigned_analyst}</p>
@@ -418,10 +435,16 @@ export function IncidentResponse() {
                             className="w-full text-left bg-card border border-border rounded-xl p-4 hover:bg-card-muted transition-colors flex items-center justify-between gap-4"
                         >
                             <div className="min-w-0">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${SEV_STYLE[inc.severity]}`}>{inc.severity}</span>
                                     <span className="text-[10px] font-mono text-foreground-muted">{inc.id}</span>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${STATUS_STYLE[inc.status]}`}>{STATUS_LABELS[inc.status]}</span>
+                                    {inc.source === 'thehive' && (
+                                        <span className="text-[9px] bg-purple/10 text-purple px-1.5 py-0.5 rounded-full font-bold">TheHive</span>
+                                    )}
+                                    {inc.tags?.includes('automated') && (
+                                        <span className="text-[9px] bg-green/10 text-green px-1.5 py-0.5 rounded-full font-bold">Auto-SOAR</span>
+                                    )}
                                 </div>
                                 <p className="text-sm font-bold text-foreground mt-1.5 truncate">{inc.title}</p>
                                 <p className="text-[10px] text-foreground-muted mt-1">

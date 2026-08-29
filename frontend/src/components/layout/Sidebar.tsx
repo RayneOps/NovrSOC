@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight, LogOut, type LucideIcon } from 'lucide-react';
@@ -30,6 +30,8 @@ interface SidebarProps {
     onLogout: () => void;
 }
 
+const STORAGE_KEY = 'sidebar_collapsed';
+
 export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
     const pathname = usePathname();
 
@@ -40,27 +42,58 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
         .map((group) => ({ ...group, items: group.items.filter((item) => !item.adminOnly || user.role === 'super_admin') }))
         .filter((group) => group.items.length > 0);
 
-    const getDefaultOpen = () => {
-        for (const group of visibleGroups) {
-            if (group.collapsible && group.items.some((item) => pathname.startsWith(item.href))) {
-                return group.section;
+    // Independently toggleable per section (not a single-open accordion) and persisted, so a
+    // reload doesn't collapse every section the user had open. Stores which sections are
+    // OPEN (not "collapsed", despite the storage key name inherited from the original ask) —
+    // true where the section is open, false/absent where it's closed.
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+    const [hydrated, setHydrated] = useState(false);
+
+    useEffect(() => {
+        let stored: Record<string, boolean> = {};
+        try {
+            stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        } catch {
+            stored = {};
+        }
+        // First load ever (nothing in storage): default-open whichever section contains the
+        // current route, matching the old accordion's "auto-expand where you are" behavior.
+        if (Object.keys(stored).length === 0) {
+            for (const group of visibleGroups) {
+                if (group.collapsible && group.items.some((item) => pathname.startsWith(item.href))) {
+                    stored = { [group.section]: true };
+                    break;
+                }
             }
         }
-        return null;
-    };
+        // localStorage doesn't exist during SSR, so this can't be a lazy useState initializer
+        // (the usual way to avoid a synchronous setState-in-effect) — reading a browser-only
+        // API that's genuinely unavailable on the server is one of the few legitimate uses of
+        // this pattern, not the "derived state" anti-pattern the rule is written to catch.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOpenSections(stored);
+        setHydrated(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const [openGroup, setOpenGroup] = useState<string | null>(getDefaultOpen);
-
-    const toggleGroup = (section: string) => {
-        setOpenGroup((prev) => (prev === section ? null : section));
+    const toggleSection = (section: string) => {
+        setOpenSections((prev) => {
+            const next = { ...prev, [section]: !prev[section] };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            } catch {
+                // localStorage unavailable (private mode, quota) — state still updates in-memory
+            }
+            return next;
+        });
     };
 
     const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
     return (
-        <aside className="w-[260px] min-h-screen bg-white border-r border-border text-foreground flex flex-col fixed left-0 top-0 z-40">
+        <aside className="w-[260px] h-screen bg-white border-r border-border text-foreground flex flex-col fixed left-0 top-0 z-40">
             {/* Logo */}
-            <div className="px-6 py-5 border-b border-border">
+            <div className="flex-shrink-0 px-6 py-5 border-b border-border">
                 <Logo size="md" />
             </div>
 
@@ -96,7 +129,7 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
                                 {/* The section label IS the accordion trigger — no separate button row */}
                                 {group.section && (
                                     <button
-                                        onClick={() => toggleGroup(group.section)}
+                                        onClick={() => toggleSection(group.section)}
                                         className="w-full flex items-center justify-between px-4 py-2 mt-3 group"
                                     >
                                         <span className="text-foreground-muted text-[9px] font-bold uppercase tracking-widest">
@@ -104,12 +137,12 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
                                         </span>
                                         <ChevronRight
                                             size={14}
-                                            className={cn('text-foreground-muted transition-transform duration-200', openGroup === group.section && 'rotate-90')}
+                                            className={cn('text-foreground-muted transition-transform duration-200', hydrated && openSections[group.section] && 'rotate-90')}
                                         />
                                     </button>
                                 )}
 
-                                {openGroup === group.section && (
+                                {hydrated && openSections[group.section] && (
                                     <div className="mt-1 mb-2">
                                         {group.items.map((item) => {
                                             const Icon = item.icon;
@@ -137,7 +170,7 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
             </nav>
 
             {/* User footer */}
-            <div className="border-t border-border px-4 py-4 flex items-center gap-3">
+            <div className="flex-shrink-0 border-t border-border px-4 py-4 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-purple text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                     {initials}
                 </div>

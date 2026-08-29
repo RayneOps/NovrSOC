@@ -2,7 +2,8 @@
 
 import { ExternalLink, Briefcase } from 'lucide-react';
 
-const THEHIVE_URL = process.env.NEXT_PUBLIC_THEHIVE_URL;
+// 169.58.242.194 is VPS 6's address per the user's own VPS6_TheHive_Shuffle_Guide.md.
+const THEHIVE_URL = process.env.NEXT_PUBLIC_THEHIVE_URL || 'http://169.58.242.194:9000';
 
 export function CasesPage() {
     return (
@@ -18,13 +19,9 @@ export function CasesPage() {
                 <p className="text-xs text-foreground-muted max-w-md mx-auto mb-5">
                     NovrSOC doesn&apos;t duplicate case data — TheHive is the system of record for every security case once VPS 6&apos;s SOAR stack is deployed and wired in (see SOAR Automation for status). Use Incident Response for this platform&apos;s own incident tracking today.
                 </p>
-                {THEHIVE_URL ? (
-                    <a href={THEHIVE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-purple-hover transition-colors">
-                        Open TheHive <ExternalLink size={12} />
-                    </a>
-                ) : (
-                    <p className="text-[10px] text-foreground-muted">Set NEXT_PUBLIC_THEHIVE_URL once VPS 6 is confirmed reachable.</p>
-                )}
+                <a href={THEHIVE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-purple-hover transition-colors">
+                    Open TheHive <ExternalLink size={12} />
+                </a>
             </div>
         </div>
     );

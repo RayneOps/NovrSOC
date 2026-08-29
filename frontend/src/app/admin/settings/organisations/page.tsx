@@ -2,34 +2,7 @@
 
 import { useState } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
-
-// Mock client roster — replace with a real organisations table once one exists (today every
-// client-facing number elsewhere in the app — agents, alerts, incidents — is either live
-// Wazuh data or per-feature demo data; there is no persisted "list of onboarded orgs" yet).
-interface MockOrg {
-    id: string;
-    name: string;
-    industry: string;
-    plan: 'Starter' | 'Professional' | 'Enterprise';
-    agents: number;
-    domains: number;
-    status: 'active' | 'trial' | 'suspended';
-    joined: string;
-    monthly_value: number;
-}
-
-const MOCK_ORGS: MockOrg[] = [
-    {
-        id: 'org_001', name: 'Cybernovr (Internal)', industry: 'Cybersecurity',
-        plan: 'Enterprise', agents: 2, domains: 2, status: 'active',
-        joined: '2026-01-01', monthly_value: 0,
-    },
-    {
-        id: 'org_002', name: 'Dangote Group', industry: 'Manufacturing',
-        plan: 'Professional', agents: 0, domains: 3, status: 'trial',
-        joined: '2026-08-10', monthly_value: 799,
-    },
-];
+import { MOCK_ORGS, type MockOrg } from '@/lib/mockOrgs';
 
 const STATUS_STYLE: Record<MockOrg['status'], string> = {
     active: 'bg-green/10 text-green',
@@ -124,6 +97,12 @@ export default function OrganisationsPage() {
                                     className="text-xs font-bold text-purple border border-purple/30 bg-purple/5 rounded-lg px-3 py-2 text-center hover:bg-purple/10 transition-colors"
                                 >
                                     View Billing
+                                </a>
+                                <a
+                                    href={`/admin/settings/organisations/${org.id}/setup`}
+                                    className="text-xs font-bold text-white bg-orange hover:bg-orange-hover rounded-lg px-3 py-2 text-center transition-colors"
+                                >
+                                    Setup Wizard
                                 </a>
                                 <p className="col-span-2 md:col-span-4 text-[10px] text-foreground-muted">
                                     Monthly value: ${org.monthly_value.toLocaleString()} · Management actions above are not yet wired to a backend — no organisations table exists yet to persist them against.

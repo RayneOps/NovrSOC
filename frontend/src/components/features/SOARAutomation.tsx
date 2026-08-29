@@ -3,14 +3,13 @@
 import { ExternalLink } from 'lucide-react';
 
 // SOAR (Shuffle) isn't wired up yet — no Shuffle API integration exists in this backend, and
-// VPS 6 infrastructure is explicitly out of scope to touch here. The two prompts that
-// mentioned a TheHive/Shuffle address this session gave two different IPs for the same
-// service, so rather than hardcode either unverified address, both links below read from env
-// vars and show an honest "not configured" state if unset — set NEXT_PUBLIC_SHUFFLE_URL /
-// NEXT_PUBLIC_THEHIVE_URL once VPS 6 is confirmed reachable.
+// VPS 6 infrastructure is explicitly out of scope to touch here. 169.58.242.194 is VPS 6's
+// address per the user's own VPS6_TheHive_Shuffle_Guide.md (confirmed the same IP across
+// multiple mentions this session) — used as the default here, overridable via
+// NEXT_PUBLIC_SHUFFLE_URL / NEXT_PUBLIC_THEHIVE_URL once actually verified reachable.
 
-const SHUFFLE_URL = process.env.NEXT_PUBLIC_SHUFFLE_URL;
-const THEHIVE_URL = process.env.NEXT_PUBLIC_THEHIVE_URL;
+const SHUFFLE_URL = process.env.NEXT_PUBLIC_SHUFFLE_URL || 'http://169.58.242.194:3001';
+const THEHIVE_URL = process.env.NEXT_PUBLIC_THEHIVE_URL || 'http://169.58.242.194:9000';
 
 export function SOARAutomation() {
     return (
@@ -20,30 +19,31 @@ export function SOARAutomation() {
                 <p className="text-xs text-foreground-muted">Shuffle workflow status and execution history.</p>
             </div>
 
-            <div className={`rounded-xl p-4 flex items-center gap-3 border ${SHUFFLE_URL ? 'bg-green/10 border-green/30' : 'bg-card-muted border-border'}`}>
-                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${SHUFFLE_URL ? 'bg-green animate-pulse' : 'bg-grey-300'}`} />
+            {/* "Configured" — a URL is known — not "connected"/verified reachable. VPS 6 isn't
+                reachable from wherever this was last verified, so this can't honestly claim
+                more than that. */}
+            <div className="rounded-xl p-4 flex items-center gap-3 border bg-blue/10 border-blue/30">
+                <div className="w-3 h-3 rounded-full flex-shrink-0 bg-blue" />
                 <div>
-                    <div className={`font-bold text-sm ${SHUFFLE_URL ? 'text-green' : 'text-foreground-muted'}`}>{SHUFFLE_URL ? 'Shuffle SOAR configured' : 'Shuffle SOAR not configured'}</div>
-                    <div className="text-xs text-foreground-muted">{SHUFFLE_URL ? 'Wazuh Critical Alert Response workflow' : 'Set NEXT_PUBLIC_SHUFFLE_URL to connect'}</div>
+                    <div className="font-bold text-sm text-blue">Shuffle SOAR configured</div>
+                    <div className="text-xs text-foreground-muted">Wazuh Critical Alert Response workflow — reachability not verified from here</div>
                 </div>
-                {SHUFFLE_URL && (
-                    <a href={SHUFFLE_URL} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1.5 text-xs bg-green text-white px-3 py-1.5 rounded-lg font-bold hover:opacity-90 transition-opacity flex-shrink-0">
-                        Open Shuffle <ExternalLink size={12} />
-                    </a>
-                )}
+                <a href={SHUFFLE_URL} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1.5 text-xs bg-blue text-white px-3 py-1.5 rounded-lg font-bold hover:opacity-90 transition-opacity flex-shrink-0">
+                    Open Shuffle <ExternalLink size={12} />
+                </a>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
                 <h2 className="font-bold text-sm text-foreground mb-4">Active Workflows</h2>
-                {[{ name: 'Wazuh Critical Alert Response', trigger: 'Wazuh webhook (level 9+)', action: 'Create TheHive case', status: SHUFFLE_URL ? 'active' : 'not configured', executions: 0 }].map((wf) => (
+                {[{ name: 'Wazuh Critical Alert Response', trigger: 'Wazuh webhook (level 9+)', action: 'Create TheHive case', status: 'configured', executions: 0 }].map((wf) => (
                     <div key={wf.name} className="flex items-center justify-between p-4 bg-card-muted rounded-xl border border-border flex-wrap gap-2">
                         <div>
                             <div className="font-semibold text-sm text-foreground">{wf.name}</div>
                             <div className="text-xs text-foreground-muted mt-1">Trigger: {wf.trigger} → Action: {wf.action}</div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full border ${wf.status === 'active' ? 'text-green bg-green/10 border-green/30' : 'text-foreground-muted bg-card-muted border-border'}`}>
-                                {wf.status === 'active' ? 'Active' : 'Not Configured'}
+                            <span className="text-xs font-bold px-2 py-1 rounded-full border text-blue bg-blue/10 border-blue/30">
+                                Configured
                             </span>
                             <span className="text-xs text-foreground-muted">{wf.executions} executions</span>
                         </div>
@@ -71,13 +71,9 @@ export function SOARAutomation() {
                     Security incidents are managed in TheHive once VPS 6&apos;s SOAR stack is deployed. See{' '}
                     <span className="font-mono">backend/src/services/thehive.ts</span> — Basic Auth client is built, not yet wired into the incident store.
                 </p>
-                {THEHIVE_URL ? (
-                    <a href={THEHIVE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-purple-hover transition-colors">
-                        Open TheHive Case Manager <ExternalLink size={12} />
-                    </a>
-                ) : (
-                    <p className="text-[10px] text-foreground-muted">Set NEXT_PUBLIC_THEHIVE_URL once VPS 6 is confirmed reachable.</p>
-                )}
+                <a href={THEHIVE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-purple-hover transition-colors">
+                    Open TheHive Case Manager <ExternalLink size={12} />
+                </a>
             </div>
         </div>
     );
