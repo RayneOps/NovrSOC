@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Real entries (marked LIVE below) come from GET /api/platform/audit-log (lib/audit.ts) —
 // currently logged for LOGIN, CREATE_INCIDENT, and ADD_EXECUTIVE only (see those routes'
@@ -36,7 +36,7 @@ export function AuditLog() {
     const [liveEntries, setLiveEntries] = useState<AuditEntry[]>([]);
 
     useEffect(() => {
-        fetch(apiUrl('/api/platform/audit-log?limit=100'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/platform/audit-log?limit=100'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data: { entries?: BackendAuditEntry[] }) => {
                 const entries = (data.entries ?? []).map((e): AuditEntry => ({

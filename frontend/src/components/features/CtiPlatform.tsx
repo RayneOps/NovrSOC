@@ -7,7 +7,7 @@ import {
     Plus, X, Trash2, Users, Rss, Download, Router as RouterIcon, MapPin, Building,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 type IOCType = 'ip' | 'domain' | 'hash' | 'url';
 type Verdict = 'clean' | 'suspicious' | 'malicious';
@@ -194,7 +194,7 @@ export function CtiPlatform() {
         if (orgFilter.type) params.set('type', orgFilter.type);
         if (orgFilter.verdict) params.set('verdict', orgFilter.verdict);
         if (orgFilter.source) params.set('source', orgFilter.source);
-        fetch(apiUrl(`/api/org-cti/iocs?${params}`), { cache: 'no-store' })
+        apiFetch(apiUrl(`/api/org-cti/iocs?${params}`), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => { setOrgIocs(Array.isArray(data?.iocs) ? data.iocs : []); setOrgSummary(data?.summary ?? null); })
             .catch(() => { setOrgIocs([]); setOrgSummary(null); })
@@ -202,7 +202,7 @@ export function CtiPlatform() {
     };
 
     const loadShared = () => {
-        fetch(apiUrl('/api/org-cti/shared'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/org-cti/shared'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => { setSharedIocs(Array.isArray(data?.shared_iocs) ? data.shared_iocs : []); setParticipatingClients(data?.participating_clients ?? 0); })
             .catch(() => { setSharedIocs([]); setParticipatingClients(0); })
@@ -224,7 +224,7 @@ export function CtiPlatform() {
 
     const addOrgIoc = async () => {
         if (!newIoc.value.trim()) return;
-        await fetch(apiUrl('/api/org-cti/iocs'), {
+        await apiFetch(apiUrl('/api/org-cti/iocs'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -244,7 +244,7 @@ export function CtiPlatform() {
 
     const shareOrgIoc = async (ioc: OrgIOC) => {
         if (ioc.source !== 'analyst') return; // only analyst-added IOCs are editable/shareable
-        await fetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), {
+        await apiFetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ shared: !ioc.shared }),
@@ -255,7 +255,7 @@ export function CtiPlatform() {
 
     const removeOrgIoc = async (ioc: OrgIOC) => {
         if (ioc.source !== 'analyst') return;
-        await fetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), { method: 'DELETE' });
+        await apiFetch(apiUrl(`/api/org-cti/iocs/${ioc.id}`), { method: 'DELETE' });
         loadOrgIocs();
     };
 
@@ -270,7 +270,7 @@ export function CtiPlatform() {
         setAsnError(null);
         setAsnResult(null);
         try {
-            const res = await fetch(apiUrl(`/api/org-cti/network/asn/${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
+            const res = await apiFetch(apiUrl(`/api/org-cti/network/asn/${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
             setAsnResult(data);
@@ -289,7 +289,7 @@ export function CtiPlatform() {
         setIpRouteError(null);
         setIpRouteResult(null);
         try {
-            const res = await fetch(apiUrl(`/api/geo/enrich?ip=${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
+            const res = await apiFetch(apiUrl(`/api/geo/enrich?ip=${encodeURIComponent(trimmed)}`), { cache: 'no-store' });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
             if (data?.is_private) throw new Error('Private/internal IP — no public routing data');
@@ -318,14 +318,14 @@ export function CtiPlatform() {
     const loadFeed = () => {
         const params = new URLSearchParams({ limit: '50' });
         if (feedFilter !== 'all') params.set('type', feedFilter);
-        fetch(apiUrl(`/api/cti/feed?${params}`), { cache: 'no-store' })
+        apiFetch(apiUrl(`/api/cti/feed?${params}`), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setFeed(Array.isArray(data?.iocs) ? data.iocs : []))
             .catch(() => setFeed([]));
     };
 
     const loadStats = () => {
-        fetch(apiUrl('/api/cti/stats'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/cti/stats'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setStats({ total: data.total ?? 0, malicious: data.malicious ?? 0, suspicious: data.suspicious ?? 0, clean: data.clean ?? 0 }))
             .catch(() => {});
@@ -333,7 +333,7 @@ export function CtiPlatform() {
 
     const loadPulses = () => {
         setPulsesLoading(true);
-        fetch(apiUrl('/api/cti/pulses?limit=20'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/cti/pulses?limit=20'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setPulses(Array.isArray(data?.pulses) ? data.pulses : []))
             .catch(() => setPulses([]))
@@ -349,7 +349,7 @@ export function CtiPlatform() {
         setResult(null);
 
         try {
-            const res = await fetch(apiUrl('/api/cti/lookup'), {
+            const res = await apiFetch(apiUrl('/api/cti/lookup'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: trimmed, type: iocType }),

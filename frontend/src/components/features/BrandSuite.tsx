@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Shield, Pencil, X, Upload, Search, ExternalLink, CheckCircle, AlertTriangle, History, FileText } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { ExportButton } from '@/components/shared/ExportButton';
 
 // Mock brand-wide violation report — a real report generator (aggregating scan history +
@@ -134,7 +134,7 @@ export function BrandSuite() {
     const scanFor = async (brandName: string, officialDomain: string) => {
         setScanning(true);
         try {
-            const res = await fetch(apiUrl('/api/brand/search'), {
+            const res = await apiFetch(apiUrl('/api/brand/search'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ brand_name: brandName, official_domains: [officialDomain], search_type: 'counterfeit' }),
@@ -150,7 +150,7 @@ export function BrandSuite() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/brand/assets'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/brand/assets'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data: BrandAssets) => {
                 setAssets(data);
@@ -175,7 +175,7 @@ export function BrandSuite() {
     const saveAssets = async () => {
         setSaving(true);
         try {
-            const res = await fetch(apiUrl('/api/brand/assets'), {
+            const res = await apiFetch(apiUrl('/api/brand/assets'), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ official_domain: domainInput.trim(), brand_name: brandNameInput.trim(), trademark_keywords: keywords }),
@@ -189,7 +189,7 @@ export function BrandSuite() {
     };
 
     const uploadLogo = async (file: File) => {
-        await fetch(apiUrl('/api/brand/assets/logo'), {
+        await apiFetch(apiUrl('/api/brand/assets/logo'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename: file.name }),

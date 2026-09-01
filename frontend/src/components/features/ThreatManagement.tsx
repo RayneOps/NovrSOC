@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { getAdminUser } from '@/lib/admin-auth';
 import { ASSIGNABLE_ANALYSTS } from '@/lib/mockTeam';
 import {
@@ -102,7 +102,7 @@ export function ThreatManagement() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/threats/alerts'), { signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/threats/alerts'), { signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => {
                 setAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
@@ -130,7 +130,7 @@ export function ThreatManagement() {
     async function updateStatus(id: string, status: AlertStatus) {
         setBusy(true);
         try {
-            await fetch(apiUrl(`/api/threats/alerts/${id}`), {
+            await apiFetch(apiUrl(`/api/threats/alerts/${id}`), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status }),
@@ -144,7 +144,7 @@ export function ThreatManagement() {
     async function createIncident(id: string) {
         setBusy(true);
         try {
-            await fetch(apiUrl(`/api/threats/alerts/${id}/create-incident`), { method: 'POST' });
+            await apiFetch(apiUrl(`/api/threats/alerts/${id}/create-incident`), { method: 'POST' });
             await updateStatus(id, 'investigating');
         } finally {
             setBusy(false);
@@ -155,7 +155,7 @@ export function ThreatManagement() {
         setBusy(true);
         setShowAssignMenu(false);
         try {
-            await fetch(apiUrl(`/api/threats/alerts/${id}`), {
+            await apiFetch(apiUrl(`/api/threats/alerts/${id}`), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ assigned_to: assignedTo }),

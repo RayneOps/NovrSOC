@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
     Link as LinkIcon, Search, RefreshCw, ExternalLink, Clock, Shield, Zap,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 type Verdict = 'clean' | 'suspicious' | 'malicious';
 
@@ -63,7 +63,7 @@ export function UrlScanSuite() {
     const [activeTab, setActiveTab] = useState<Tab>('scan');
 
     const loadHistory = () => {
-        fetch(apiUrl('/api/urlscan/history?limit=20'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/urlscan/history?limit=20'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setHistory(Array.isArray(data?.scans) ? data.scans : []))
             .catch(() => setHistory([]));
@@ -82,7 +82,7 @@ export function UrlScanSuite() {
         setResult(null);
 
         try {
-            const res = await fetch(apiUrl('/api/urlscan/submit'), {
+            const res = await apiFetch(apiUrl('/api/urlscan/submit'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: fullUrl }),

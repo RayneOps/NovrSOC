@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import {
     AlertTriangle, RefreshCw, Cpu, Server, Zap, Layers, ChevronRight, ArrowLeft,
 } from 'lucide-react';
@@ -77,7 +77,7 @@ export function WebLogicAppliances() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/weblogic/domains'))
+        apiFetch(apiUrl('/api/weblogic/domains'))
             .then((r) => r.json())
             .then((data) => {
                 setDomains(Array.isArray(data?.domains) ? data.domains : []);
@@ -96,7 +96,7 @@ export function WebLogicAppliances() {
     async function forceGC(id: string) {
         setBusyId(id);
         try {
-            const res = await fetch(apiUrl(`/api/weblogic/${id}/gc`), { method: 'POST' });
+            const res = await apiFetch(apiUrl(`/api/weblogic/${id}/gc`), { method: 'POST' });
             const data = await res.json();
             if (data?.server) {
                 setDomains((prev) => prev.map((d) => ({

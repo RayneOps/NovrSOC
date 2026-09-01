@@ -5,7 +5,7 @@ import {
     Bell, CheckCircle, AlertTriangle, Send, MessageSquare, Mail, Phone, Zap, RefreshCw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface ChannelStatus {
     configured: boolean;
@@ -109,11 +109,11 @@ export function AlertCommunication() {
     const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/alerts/status'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/alerts/status'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((d) => setChannels(d.channels ?? null))
             .catch(() => {});
-        fetch(apiUrl('/api/email/status'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/email/status'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((d) => setEmailStatus(d ?? null))
             .catch(() => {});
@@ -124,7 +124,7 @@ export function AlertCommunication() {
         setTestingEmail(true);
         setTestEmailResult(null);
         try {
-            const res = await fetch(apiUrl('/api/email/test'), {
+            const res = await apiFetch(apiUrl('/api/email/test'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ to: testEmailTo }),
@@ -142,7 +142,7 @@ export function AlertCommunication() {
         setTesting(true);
         setTestResult(null);
         try {
-            const res = await fetch(apiUrl('/api/alerts/test'), { method: 'POST' });
+            const res = await apiFetch(apiUrl('/api/alerts/test'), { method: 'POST' });
             const data = await res.json();
             setTestResult(data.message);
         } catch {
@@ -157,7 +157,7 @@ export function AlertCommunication() {
         setSending(true);
         setSendResult(null);
         try {
-            const res = await fetch(apiUrl('/api/alerts/incident'), {
+            const res = await apiFetch(apiUrl('/api/alerts/incident'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

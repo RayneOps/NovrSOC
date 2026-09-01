@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, X, Download, Save, Play, RefreshCw, Crosshair } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Wired to the real Wazuh Indexer via POST /api/wazuh/hunt (routes/wazuh.ts). Saved Hunt
 // Templates and Export Results are still frontend-only — a template just fills the query
@@ -49,7 +49,7 @@ export function ThreatHunting() {
         setResults(null);
         setError(null);
         try {
-            const res = await fetch(apiUrl('/api/wazuh/hunt'), {
+            const res = await apiFetch(apiUrl('/api/wazuh/hunt'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { MOCK_ORGS } from '@/lib/mockOrgs';
 
 // 4-step org onboarding wizard. Step 1 pre-fills from the same MOCK_ORGS list the parent
@@ -36,7 +36,7 @@ export function OrgSetupWizard({ orgId }: { orgId: string }) {
 
     useEffect(() => {
         // Resume a previously-saved setup, if this wizard was already run for this org.
-        fetch(apiUrl(`/api/organisations/${orgId}/setup`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/organisations/${orgId}/setup`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => {
                 if (!data?.setup_complete) return;
@@ -59,7 +59,7 @@ export function OrgSetupWizard({ orgId }: { orgId: string }) {
         setSaving(true);
         setError(null);
         try {
-            const res = await fetch(apiUrl(`/api/organisations/${orgId}/setup`), {
+            const res = await apiFetch(apiUrl(`/api/organisations/${orgId}/setup`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

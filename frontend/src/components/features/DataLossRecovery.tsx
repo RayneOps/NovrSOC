@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
     CheckCircle, AlertTriangle, RefreshCw, Clock, Shield, Database, RotateCcw, Lock, Server,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 type BackupStatus = 'success' | 'failed' | 'running' | 'missed';
 
@@ -87,8 +87,8 @@ export function DataLossRecovery() {
         setLoading(true);
         try {
             const [jobsRes, healthRes] = await Promise.all([
-                fetch(apiUrl('/api/recovery/jobs'), { cache: 'no-store' }),
-                fetch(apiUrl('/api/recovery/health'), { cache: 'no-store' }),
+                apiFetch(apiUrl('/api/recovery/jobs'), { cache: 'no-store' }),
+                apiFetch(apiUrl('/api/recovery/health'), { cache: 'no-store' }),
             ]);
             const jobsData = await jobsRes.json();
             const healthData = await healthRes.json();
@@ -105,7 +105,7 @@ export function DataLossRecovery() {
     const loadJobDetail = async (job: BackupJob) => {
         setSelectedJob(job);
         try {
-            const res = await fetch(apiUrl(`/api/recovery/jobs/${job.id}`), { cache: 'no-store' });
+            const res = await apiFetch(apiUrl(`/api/recovery/jobs/${job.id}`), { cache: 'no-store' });
             const data = await res.json();
             setRetention(Array.isArray(data.retention) ? data.retention : []);
         } catch {
@@ -116,7 +116,7 @@ export function DataLossRecovery() {
     const retryJob = async (jobId: string) => {
         setRetrying(jobId);
         try {
-            await fetch(apiUrl(`/api/recovery/jobs/${jobId}/retry`), { method: 'POST' });
+            await apiFetch(apiUrl(`/api/recovery/jobs/${jobId}/retry`), { method: 'POST' });
             setTimeout(() => setRetrying(null), 2000);
         } catch {
             setRetrying(null);

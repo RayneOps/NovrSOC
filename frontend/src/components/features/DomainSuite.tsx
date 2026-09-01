@@ -24,7 +24,7 @@ import {
     History,
     Search,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
 
@@ -168,7 +168,7 @@ export function DomainSuite() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/brand/domains'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/brand/domains'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => {
                 const list: MonitoredDomain[] = Array.isArray(data?.domains) ? data.domains : [];
@@ -211,7 +211,7 @@ export function DomainSuite() {
         if (!cleaned) return;
         setSaving(true);
         try {
-            const res = await fetch(apiUrl('/api/brand/domains'), {
+            const res = await apiFetch(apiUrl('/api/brand/domains'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ domain: cleaned, brand_keywords: keywords, similarity_threshold: threshold, alerts }),
@@ -227,14 +227,14 @@ export function DomainSuite() {
     };
 
     const removeDomain = async (id: string) => {
-        await fetch(apiUrl(`/api/brand/domains/${id}`), { method: 'DELETE' });
+        await apiFetch(apiUrl(`/api/brand/domains/${id}`), { method: 'DELETE' });
         setDomains((prev) => prev.filter((d) => d.id !== id));
     };
 
     const runScan = async (id: string) => {
         setScanningId(id);
         try {
-            const res = await fetch(apiUrl(`/api/brand/domains/${id}/scan`));
+            const res = await apiFetch(apiUrl(`/api/brand/domains/${id}/scan`));
             const data = await res.json();
             setScanResults((prev) => ({ ...prev, [id]: data }));
             setExpanded((prev) => new Set(prev).add(id));
@@ -246,7 +246,7 @@ export function DomainSuite() {
     const viewDns = async (id: string) => {
         setDnsLoadingId(id);
         try {
-            const res = await fetch(apiUrl(`/api/brand/domains/${id}/dns`));
+            const res = await apiFetch(apiUrl(`/api/brand/domains/${id}/dns`));
             const data = await res.json();
             setDnsResults((prev) => ({ ...prev, [id]: data }));
             setExpanded((prev) => new Set(prev).add(id));

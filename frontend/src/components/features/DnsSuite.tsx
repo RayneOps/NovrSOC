@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getPortalContext } from '@/lib/portal-context';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 const RECORD_TYPES = ['A', 'AAAA', 'MX', 'TXT', 'NS', 'CNAME', 'SOA'] as const;
 type RecordType = typeof RECORD_TYPES[number];
@@ -156,7 +156,7 @@ function DNSPageContent() {
         setError(null);
         try {
             const orgId = getPortalContext().orgId;
-            const res = await fetch(apiUrl('/api/dns/lookup'), {
+            const res = await apiFetch(apiUrl('/api/dns/lookup'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ domain: target, record_types: Array.from(selectedTypes), ...(orgId ? { orgId } : {}) }),

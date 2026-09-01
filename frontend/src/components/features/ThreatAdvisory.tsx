@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Shield, RefreshCw, ExternalLink, Server, Clock } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface CVESummary {
     id: string;
@@ -75,7 +75,7 @@ export function ThreatAdvisory() {
         setLoading(true);
         const params = new URLSearchParams({ days: String(days) });
         if (severityFilter !== 'ALL') params.set('severity', severityFilter);
-        fetch(apiUrl(`/api/threat/advisory/recent?${params}`), { cache: 'no-store' })
+        apiFetch(apiUrl(`/api/threat/advisory/recent?${params}`), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setRecentCVEs(Array.isArray(data?.cves) ? data.cves : []))
             .catch(() => setRecentCVEs([]))
@@ -84,7 +84,7 @@ export function ThreatAdvisory() {
 
     const loadKEV = () => {
         setLoading(true);
-        fetch(apiUrl('/api/threat/advisory/kev'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/threat/advisory/kev'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => {
                 setKevEntries(Array.isArray(data?.recent) ? data.recent : []);
@@ -96,7 +96,7 @@ export function ThreatAdvisory() {
 
     const loadAssets = () => {
         setLoading(true);
-        fetch(apiUrl('/api/threat/advisory/assets'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/threat/advisory/assets'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setAssets(Array.isArray(data?.assets) ? data.assets : []))
             .catch(() => setAssets([]))

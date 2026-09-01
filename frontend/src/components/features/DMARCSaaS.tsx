@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Copy, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { GaugeChart } from '@/components/shared/GaugeChart';
 
 interface DmarcDomain {
@@ -84,8 +84,8 @@ export function DMARCSaaS() {
     useEffect(() => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/email/dmarc/domains'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ domains: [] })),
-            fetch(apiUrl('/api/email/dmarc/senders'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ senders: [] })),
+            apiFetch(apiUrl('/api/email/dmarc/domains'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ domains: [] })),
+            apiFetch(apiUrl('/api/email/dmarc/senders'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ senders: [] })),
         ]).then(([domainsRes, sendersRes]) => {
             setDomains(Array.isArray(domainsRes?.domains) ? domainsRes.domains : []);
             setSenders(Array.isArray(sendersRes?.senders) ? sendersRes.senders : []);
@@ -100,7 +100,7 @@ export function DMARCSaaS() {
 
     const addDomain = async () => {
         if (!newDomain.trim()) return;
-        await fetch(apiUrl('/api/email/dmarc/domains'), {
+        await apiFetch(apiUrl('/api/email/dmarc/domains'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ domain: newDomain.trim() }),

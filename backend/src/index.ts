@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { botProtection } from './middleware/auth';
+import { botProtection, requireAuth } from './middleware/auth';
 
 import authRouter from './routes/auth';
 import portalRouter from './routes/portal';
@@ -80,14 +80,36 @@ app.get('/', (_req, res) => {
     res.status(200).json({ ok: true, service: 'novrsoc-backend' });
 });
 
-// middleware/auth.ts's requireAuth exists and is ready, but is deliberately NOT mounted here.
-// Verified before this security pass: zero fetch() calls anywhere in frontend/src send an
-// Authorization header today. Mounting `app.use('/api', requireAuth)` (minus an exemption
-// list) right now would 401 every request the app currently makes — the whole admin
-// dashboard and client portal, not a short whitelist of routes to fix up after. Wire it in
-// once the frontend attaches `Authorization: Bearer <token>` to its calls; see
-// middleware/auth.ts's AUTH_EXEMPT_PATHS for the routes that must stay exempt even then
-// (including /api/portal/* generally — that proxies to a separate backend with its own JWTs).
+// requireAuth is now mounted, but only on routes confirmed to have ZERO client-portal
+// exposure — see the per-route comment below. It is NOT mounted globally, and NOT mounted
+// on most feature routes, for a reason specific to this app's architecture:
+//
+// 22 feature components (ThreatManagement, IncidentResponse, CtiPlatform, DnsSuite,
+// BrandSuite, DomainSuite, UrlScanSuite, WebsiteScanning, VendorAssessments,
+// WebLogicAppliances, MessagingSuite, PHISHIDProtection, DataLossRecovery, RecoveryCredit,
+// AlertCommunication, DMARCSaaS, MobileAppSuite, SocialSuite, CopyIdSuite, ExecutiveMonitor,
+// ThreatAdvisory, DigitalAssets — cross-checked by diffing every component imported by any
+// /admin page against every component imported by any /client page) are rendered by BOTH the
+// admin app and the client portal, and call the same backend routes either way: /api/wazuh,
+// /api/incidents, /api/threats, /api/threat, /api/brand, /api/dns, /api/urlscan,
+// /api/webscan, /api/vendor-assessments, /api/sla, /api/org-cti, /api/recovery,
+// /api/weblogic, /api/alerts, /api/advisories.
+//
+// Client-portal users only ever hold a `portal_token` (see frontend/src/lib/portal-auth.ts),
+// minted by the separate external backend at APP_API_BASE_URL with a secret this backend
+// does not have. requireAuth can only verify admin JWTs (JWT_SECRET/DEV_TOKEN_SECRET) — it
+// has no way to verify a portal_token's signature. Mounting requireAuth on any of the 15
+// routes above would 401 every client-portal user immediately, the same "platform
+// inaccessible" failure this whole rollout is trying to avoid, just for portal users instead
+// of admins. Fixing that needs requireAuth (or a sibling middleware) to accept both token
+// shapes — either a shared signing secret with the external backend, or a per-request
+// verification call to it — neither confirmed to exist. Until that's built, those 15 routes
+// stay open on purpose; don't "fix" this by mounting requireAuth on them blind.
+//
+// frontend/src/lib/api.ts's apiFetch() already attaches whichever token the browser holds
+// (portal_token or admin_token — see lib/account.ts's getAuthToken()) to every apiUrl() call,
+// admin and portal alike, so no further frontend work is needed once a route below starts
+// enforcing auth — the header is already there, just currently ignored by most routes.
 
 // Origins allowed to call this API with credentials. Known Vercel deployments (prod +
 // preview) and local dev ports are listed explicitly; FRONTEND_URL and the legacy
@@ -187,15 +209,18 @@ app.use('/api', apiLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api/portal', portalRouter);
 app.use('/api/account', accountRouter);
-app.use('/api/customers', customersRouter);
+// admin-only — no client-portal component calls these, confirmed safe to gate now (see the
+// block comment above for how that was checked and why most other routes aren't gated yet).
+app.use('/api/customers', requireAuth, customersRouter);
 app.use('/api/advisories', advisoriesRouter);
-app.use('/api/compliance', complianceRouter);
+app.use('/api/compliance', requireAuth, complianceRouter);
 app.use('/api/vendor-assessments', vendorAssessmentsRouter);
 app.use('/api/scan', scanRouter);
 app.use('/api/dns', dnsRouter);
 app.use('/api/domains', domainsRouter);
 app.use('/api/reports', reportsRouter);
-app.use('/api/novr-ai', novrAiRouter);
+// admin-only — no client-portal component calls this, confirmed safe to gate now.
+app.use('/api/novr-ai', requireAuth, novrAiRouter);
 app.use('/api/ctip', ctipRouter);
 app.use('/api/threat-intel', threatIntelRouter);
 app.use('/api/wazuh', wazuhRouter);
@@ -221,11 +246,13 @@ app.use('/api/threats', threatManagementRouter);
 app.use('/api/incidents', incidentResponseRouter);
 app.use('/api/weblogic', weblogicRouter);
 app.use('/api/assets', assetsRouter);
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/handover', handoverRouter);
+// admin-only — no client-portal component calls these, confirmed safe to gate now (see the
+// block comment above for how that was checked and why most other routes aren't gated yet).
+app.use('/api/dashboard', requireAuth, dashboardRouter);
+app.use('/api/handover', requireAuth, handoverRouter);
 app.use('/api/org-cti', orgCTIRouter);
-app.use('/api/platform', platformRouter);
-app.use('/api/organisations', organisationsRouter);
+app.use('/api/platform', requireAuth, platformRouter);
+app.use('/api/organisations', requireAuth, organisationsRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

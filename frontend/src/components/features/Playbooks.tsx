@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowLeft, Play, Plus, X, Clock, Repeat, Tag, AlertTriangle } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Playbook definitions themselves are still hand-authored mock data (there's no backend
 // concept of a "playbook" to fetch from). "Start Playbook" is wired for real, though — it
@@ -216,7 +216,7 @@ function StartModal({ playbook, form, setForm, onClose }: {
         setStatus('creating');
         setErrorMsg(null);
         try {
-            const res = await fetch(apiUrl('/api/incidents'), {
+            const res = await apiFetch(apiUrl('/api/incidents'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

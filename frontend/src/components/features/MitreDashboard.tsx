@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Real data from GET /api/wazuh/mitre-stats — aggregates rule.mitre.tactic over the last 24h.
 // The technique lists under each tactic below are reference/navigational only (MITRE's public
@@ -36,7 +36,7 @@ export function MitreDashboard() {
     const [source, setSource] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/wazuh/mitre-stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/mitre-stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => { setTactics(data?.tactics ?? {}); setSource(data?.source ?? 'unavailable'); })
             .catch(() => { setTactics({}); setSource('unavailable'); });

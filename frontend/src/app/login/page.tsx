@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import type { CredentialResponse } from '@react-oauth/google';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 const GoogleLogin = dynamic(
     () => import('@react-oauth/google').then((m) => ({ default: m.GoogleLogin })),
@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
         setSubmitting(true);
         setError(null);
         try {
-            const res = await fetch(apiUrl('/api/auth/signin'), {
+            const res = await apiFetch(apiUrl('/api/auth/signin'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, _gotcha: gotcha }),
@@ -54,7 +54,7 @@ export default function AdminLoginPage() {
     const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
         setError(null);
         try {
-            const res = await fetch(apiUrl('/api/auth/google'), {
+            const res = await apiFetch(apiUrl('/api/auth/google'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ credential: credentialResponse.credential }),
