@@ -53,7 +53,7 @@ const adminNav: NavGroup[] = [
             { label: 'Nigerian Threat Feed', href: '/admin/threat/nigeria', icon: Globe },
             { label: 'MITRE ATT&CK', href: '/admin/threat/mitre', icon: ShieldAlert },
             { label: 'Threat Advisory', href: '/admin/threat/advisory', icon: AlertTriangle },
-            { label: 'URL Scanner', href: '/admin/threat/urlscan', icon: LinkIcon },
+            { label: 'URL & Website Scanner', href: '/admin/threat/scanner', icon: LinkIcon },
             { label: 'Vendor Assessments', href: '/admin/threat/vendor', icon: Building },
         ],
     },

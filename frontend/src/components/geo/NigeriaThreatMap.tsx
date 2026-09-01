@@ -1,20 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, AlertCircle, RefreshCw } from 'lucide-react';
 import { NigeriaMap2, type NigeriaStateData } from './NigeriaMap2';
 import { apiUrl } from '@/lib/api';
 
 const Card = ({ children }: { children: React.ReactNode }) => (
     <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-        <div className="h-[3px] bg-grey-100" />
+        <div className="h-[3px] bg-purple" />
         {children}
     </div>
 );
 
 const SectionHeader = ({ title }: { title: string }) => (
     <div className="flex items-center gap-2 mb-1">
-        <div className="flex items-center gap-2 border-l-2 border-amber pl-2">
+        <div className="flex items-center gap-2 border-l-2 border-amber-500 pl-2">
             <h3 className="text-xs font-black text-foreground uppercase tracking-widest">{title}</h3>
         </div>
     </div>
@@ -68,10 +68,10 @@ const TIME_RANGES: { value: '1h' | '24h' | '7d'; label: string }[] = [
 
 const THREAT_LEVEL_COLOR: Record<string, string> = {
     CRITICAL: 'text-red-500',
-    HIGH: 'text-orange',
+    HIGH: 'text-orange-500',
     MEDIUM: 'text-amber-500',
-    LOW: 'text-blue',
-    CLEAR: 'text-green-500',
+    LOW: 'text-blue-500',
+    CLEAR: 'text-emerald-500',
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -79,17 +79,32 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
     const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d'>('24h');
     const [colorMode, setColorMode] = useState<'threat' | 'region'>('threat');
     const [data, setData] = useState<NigeriaThreatsResponse | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [popupState, setPopupState] = useState<NigeriaStateData | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const mapSectionRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
+    const loadData = () => {
+        setIsLoading(true);
+        setFetchError(null);
         fetch(apiUrl(`/api/dashboard/nigeria-threats?range=${timeRange}`), { cache: 'no-store' })
-            .then((r) => r.json())
-            .then(setData)
-            // Real endpoint, no mock fallback — a failed fetch just means "no data to show
-            // yet" (data stays null, everything below renders its own zero/loading state).
-            .catch(() => {});
+            .then(async (r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then((res) => {
+                setData(res);
+                setIsLoading(false);
+            })
+            .catch((err) => {
+                setFetchError(err.message || 'Failed to fetch threat data');
+                setIsLoading(false);
+            });
+    };
+
+    useEffect(() => {
+        loadData();
     }, [timeRange]);
 
     useEffect(() => {
@@ -112,69 +127,61 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
     const states = data?.states ?? [];
 
     const STAT_CARDS: { title: string; value: number | string; color: string }[] = [
-        { title: 'Threat Score', value: summary?.threat_score ?? '—', color: 'text-red-500' },
-        { title: "Today's Attacks", value: summary?.today_attacks ?? '—', color: 'text-red-500' },
-        { title: 'Critical States', value: summary?.critical_states ?? '—', color: 'text-purple' },
-        { title: 'States Affected', value: summary ? `${summary.states_affected}/37` : '—', color: 'text-purple' },
+        { title: 'Threat Score', value: summary?.threat_score ?? 0, color: 'text-red-500' },
+        { title: "Today's Attacks", value: summary?.today_attacks ?? 0, color: 'text-red-500' },
+        { title: 'Critical States', value: summary?.critical_states ?? 0, color: 'text-purple' },
+        { title: 'States Affected', value: summary ? `${summary.states_affected}/37` : '0/37', color: 'text-purple' },
         { title: 'Most Targeted', value: summary?.top_state ?? 'None', color: 'text-foreground' },
-        { title: 'Malware', value: summary?.malware ?? '—', color: 'text-blue' },
-        { title: 'Botnets', value: summary?.botnets ?? '—', color: 'text-blue' },
-        { title: 'Phishing', value: summary?.phishing ?? '—', color: 'text-amber-500' },
-        { title: 'Ransomware', value: summary?.ransomware ?? '—', color: 'text-red-500' },
-        { title: 'DDoS', value: summary?.ddos ?? '—', color: 'text-blue' },
+        { title: 'Malware', value: summary?.malware ?? 0, color: 'text-blue-500' },
+        { title: 'Botnets', value: summary?.botnets ?? 0, color: 'text-blue-500' },
+        { title: 'Phishing', value: summary?.phishing ?? 0, color: 'text-amber-500' },
+        { title: 'Ransomware', value: summary?.ransomware ?? 0, color: 'text-red-500' },
+        { title: 'DDoS', value: summary?.ddos ?? 0, color: 'text-blue-500' },
     ];
 
     const highestAttackStates = summary?.highest_attack_states ?? [];
 
     return (
         <Card>
-            <div ref={mapSectionRef} className={isFullscreen ? 'fixed inset-0 z-40 bg-white p-6 overflow-auto' : 'p-6'}>
+            <div ref={mapSectionRef} className={isFullscreen ? 'fixed inset-0 z-40 bg-background p-6 overflow-auto' : 'p-6'}>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <SectionHeader title="Nigeria National Threat Landscape" />
-                        <p className="text-sm text-foreground-muted">
+                        <p className="text-sm text-muted-foreground">
                             Real-time cyber activity across Nigerian states
+                            {fetchError && <span className="text-red-500"> · Connection error: {fetchError}</span>}
                             {data?.summary.error && <span className="text-amber-500"> · {data.summary.error}</span>}
                         </p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-xs uppercase text-foreground-muted">Threat Level</p>
-                        <h2 className={`text-2xl font-black ${THREAT_LEVEL_COLOR[summary?.threat_level ?? ''] ?? 'text-foreground-muted'}`}>
-                            {summary?.threat_level ?? 'LOADING'}
-                        </h2>
+                    <div className="text-right flex items-center gap-4">
+                        {isLoading && <RefreshCw size={16} className="animate-spin text-muted-foreground" />}
+                        <div>
+                            <p className="text-xs uppercase text-muted-foreground">Threat Level</p>
+                            <h2 className={`text-2xl font-black ${THREAT_LEVEL_COLOR[summary?.threat_level ?? ''] ?? 'text-muted-foreground'}`}>
+                                {isLoading ? 'SYNCING...' : summary?.threat_level ?? 'CLEAR'}
+                            </h2>
+                        </div>
                     </div>
                 </div>
 
-                {/* Honest zero-state — total_threats === 0 is a real, common state (no
-                    Nigerian-geolocated events this window), not an error. Distinct from
-                    summary.error, which means the fetch itself failed. */}
-                {data && summary?.total_threats === 0 && !summary.error && (
-                    <div className="mb-3 flex items-center gap-2 bg-card-muted border border-border rounded-xl px-4 py-2.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue flex-shrink-0" />
-                        <span className="text-xs text-foreground-muted">
-                            Monitoring active — no Nigerian-origin threats detected in this time range. Map will populate as threats are detected.
-                        </span>
-                    </div>
-                )}
-
-                {/* Main */}
+                {/* Main Content Grid */}
                 <div className="grid lg:grid-cols-5 gap-6">
-                    {/* MAP */}
-                    <div className="lg:col-span-3">
+                    {/* MAP - 3 Columns */}
+                    <div className="lg:col-span-3 flex flex-col">
                         <div className="flex items-center justify-between mb-3">
                             <div>
                                 <p className="text-xs font-semibold tracking-widest text-foreground uppercase">Live Attack Map</p>
-                                <p className="text-xs text-foreground-muted mt-0.5">Inbound attacks targeting NovrSOC-protected clients</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">Inbound attacks targeting NovrSOC-protected clients</p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <div className="flex items-center gap-0.5 bg-card-muted border border-border rounded-lg p-0.5 mr-1">
+                                <div className="flex items-center gap-0.5 bg-muted border border-border rounded-lg p-0.5 mr-1">
                                     {(['threat', 'region'] as const).map((mode) => (
                                         <button
                                             key={mode}
                                             onClick={() => setColorMode(mode)}
                                             className={`px-2.5 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
-                                                colorMode === mode ? 'bg-purple text-white' : 'text-foreground-muted hover:text-foreground'
+                                                colorMode === mode ? 'bg-purple text-white' : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
                                             {mode}
@@ -186,7 +193,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                                         key={r.value}
                                         onClick={() => setTimeRange(r.value)}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                                            timeRange === r.value ? 'bg-blue text-white' : 'bg-card-muted text-foreground-muted border border-border hover:text-foreground'
+                                            timeRange === r.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground border border-border hover:text-foreground'
                                         }`}
                                     >
                                         {r.label}
@@ -194,7 +201,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                                 ))}
                                 <button
                                     onClick={toggleFullscreen}
-                                    className="p-1.5 rounded-lg hover:bg-[#F5F0FF] text-foreground-muted hover:text-purple transition-colors"
+                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                     title="Toggle fullscreen"
                                     aria-label="Toggle fullscreen"
                                 >
@@ -203,7 +210,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-border bg-card-muted p-4 min-h-[600px]">
+                        <div className="relative rounded-xl border border-border bg-muted/40 p-4 min-h-[520px] flex-1 flex items-center justify-center">
                             <NigeriaMap2
                                 liveStates={states}
                                 colorMode={colorMode}
@@ -214,57 +221,71 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
                         </div>
                     </div>
 
-                    {/* RIGHT */}
-                    <div className="lg:col-span-2 flex flex-col gap-4 grid grid-cols-2">
-                        {STAT_CARDS.map((stat) => (
-                            <div key={stat.title} className="rounded-xl border border-border p-4">
-                                <p className="text-xs uppercase tracking-wide text-foreground-muted">{stat.title}</p>
-                                <h3 className={`font-black mt-2 truncate ${stat.color} ${typeof stat.value === 'string' && stat.value.length > 6 ? 'text-lg' : 'text-3xl'}`} title={String(stat.value)}>
-                                    {stat.value}
-                                </h3>
+                    {/* STATS SIDEBAR - 2 Columns */}
+                    <div className="lg:col-span-2 flex flex-col justify-between">
+                        <div>
+                            <p className="text-xs font-semibold tracking-widest text-foreground uppercase mb-3">Threat Metrics Breakdown</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                {STAT_CARDS.map((stat, i) => (
+                                    <div key={i} className="bg-card border border-border rounded-xl p-3.5 shadow-sm">
+                                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">{stat.title}</p>
+                                        <p className={`text-xl font-black ${stat.color}`}>{stat.value}</p>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Selected State Mini Card if active */}
+                        {popupState && (
+                            <div className="mt-4 p-4 rounded-xl border border-purple/30 bg-purple/5">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-bold text-sm text-foreground">{popupState.name} State</h4>
+                                    <span className="text-xs px-2 py-0.5 rounded bg-purple text-white font-semibold">{popupState.threatLevel || 'CLEAR'}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">Recorded Threat Events: <strong className="text-foreground">{popupState.threatCount || 0}</strong></p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Data source badges */}
                 <div className="flex items-center gap-2 mt-6 mb-3 px-1 flex-wrap">
-                    <span className="text-[10px] text-foreground-muted uppercase tracking-wider font-medium">Data sources:</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Data sources:</span>
                     {[
                         { name: 'Wazuh', active: !!data && !data.summary.error, color: 'bg-purple' },
-                        { name: 'IPregistry', active: !!data, color: 'bg-blue' },
-                        { name: 'RIPE Stat', active: !!data, color: 'bg-blue' },
-                        { name: 'AFRINIC', active: !!data, color: 'bg-green' },
+                        { name: 'IPregistry', active: !!data, color: 'bg-blue-500' },
+                        { name: 'RIPE Stat', active: !!data, color: 'bg-blue-500' },
+                        { name: 'AFRINIC', active: !!data, color: 'bg-emerald-500' },
                     ].map((source) => (
                         <div key={source.name} className="flex items-center gap-1.5 bg-card border border-border rounded-full px-2.5 py-1">
-                            <div className={`w-1.5 h-1.5 rounded-full ${source.active ? source.color : 'bg-grey-300'}`} />
-                            <span className="text-[9px] font-medium text-foreground-muted">{source.name}</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${source.active ? source.color : 'bg-muted-foreground/30'}`} />
+                            <span className="text-[9px] font-medium text-muted-foreground">{source.name}</span>
                         </div>
                     ))}
-                    <span className="text-[10px] text-foreground-muted ml-auto">
+                    <span className="text-[10px] text-muted-foreground ml-auto">
                         {data?.enrichment_coverage?.nigerian_confirmed ?? 0} Nigerian IPs enriched beyond Wazuh&apos;s own geolocation
                     </span>
                 </div>
 
-                {/* Highest attack states — real data, no filler when there are fewer than 6 */}
-                <div className="grid grid-cols-6 gap-3 mt-6">
+                {/* Highest attack states */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
                     {highestAttackStates.map((item, i) => (
                         <div
                             key={i}
-                            className="bg-white border border-border rounded-xl p-3 text-center cursor-pointer hover:border-purple/30 transition-colors"
+                            className="bg-card border border-border rounded-xl p-3 text-center cursor-pointer hover:border-purple/40 transition-colors"
                             onClick={() => {
                                 const found = states.find((s) => s.name === item.state);
                                 if (found) setPopupState(found);
                             }}
                         >
-                            <div className="text-[10px] text-foreground-muted uppercase tracking-wider mb-1 truncate">{item.name}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 truncate">{item.name}</div>
                             <div className="font-black text-xl text-red-500">{item.count}</div>
                         </div>
                     ))}
                     {Array.from({ length: Math.max(0, 6 - highestAttackStates.length) }).map((_, i) => (
-                        <div key={`empty-${i}`} className="bg-card-muted border border-border rounded-xl p-3 text-center">
-                            <div className="text-[10px] text-grey-300 uppercase tracking-wider mb-1">No data</div>
-                            <div className="font-black text-xl text-grey-300">—</div>
+                        <div key={`empty-${i}`} className="bg-muted/50 border border-border rounded-xl p-3 text-center">
+                            <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider mb-1">No data</div>
+                            <div className="font-black text-xl text-muted-foreground/40">—</div>
                         </div>
                     ))}
                 </div>

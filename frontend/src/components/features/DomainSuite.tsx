@@ -1,7 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, X, Loader2, AlertTriangle } from 'lucide-react';
+import {
+    Globe,
+    Plus,
+    RefreshCw,
+    Trash2,
+    X,
+    Loader2,
+    AlertTriangle,
+    Shield,
+    ShieldCheck,
+    ShieldAlert,
+    ExternalLink,
+    ChevronDown,
+    ChevronUp,
+    Copy,
+    Check,
+    Lock,
+    Mail,
+    Server,
+    FileText,
+    History,
+    Search,
+} from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
@@ -87,22 +109,34 @@ interface DnsResult {
     checked_at: string;
 }
 
-const RISK_STYLE: Record<Lookalike['risk'], string> = {
-    HIGH: 'bg-red-500/10 text-red-500 border-red-500/30',
-    MEDIUM: 'bg-grey-100 text-amber border-amber/30',
-    LOW: 'bg-card-muted text-foreground-muted border-border',
+const RISK_BADGE: Record<Lookalike['risk'], string> = {
+    HIGH: 'bg-red-500/15 text-red-500 border-red-500/30',
+    MEDIUM: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
+    LOW: 'bg-slate-500/10 text-foreground-muted border-border',
 };
 
 const DNS_TYPES = ['A', 'MX', 'TXT', 'NS'] as const;
+type DetailTab = 'overview' | 'lookalikes' | 'certs' | 'dns' | 'alerts';
 
-// Small ✓/✗ health-strip badge — SPF/DMARC/DKIM/DNSSEC all follow the same shape.
 function HealthBadge({ ok, label }: { ok: boolean | null; label: string }) {
     if (ok === null) {
-        return <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-card-muted text-foreground-muted border-border">{label}: —</span>;
+        return (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border bg-card-muted/50 text-foreground-muted border-border">
+                <span className="w-1.5 h-1.5 rounded-full bg-foreground-muted/40" />
+                {label}: —
+            </span>
+        );
     }
     return (
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${ok ? 'bg-blue/10 text-blue border-blue/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
-            {ok ? '✓' : '✗'} {label}
+        <span
+            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-all ${
+                ok
+                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                    : 'bg-red-500/10 text-red-500 border-red-500/30'
+            }`}
+        >
+            <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            {label}
         </span>
     );
 }
@@ -120,14 +154,17 @@ export function DomainSuite() {
     const [alerts, setAlerts] = useState<DomainAlerts>({ lookalike: true, dns_change: true, expiry: true, new_cert: true });
     const [saving, setSaving] = useState(false);
 
-    // Scan / DNS panel state — live fetches override the pre-seeded last_scan once run.
+    // Scan / DNS state
     const [scanningId, setScanningId] = useState<string | null>(null);
     const [scanResults, setScanResults] = useState<Record<string, ScanResult>>({});
     const [dnsLoadingId, setDnsLoadingId] = useState<string | null>(null);
     const [dnsResults, setDnsResults] = useState<Record<string, DnsResult>>({});
-    // Panels start expanded for every domain — data is shown immediately, no click required.
+
+    // UI state
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [activeTabs, setActiveTabs] = useState<Record<string, DetailTab>>({});
     const [dnsTab, setDnsTab] = useState<(typeof DNS_TYPES)[number]>('A');
+    const [copiedDomain, setCopiedDomain] = useState<string | null>(null);
 
     const load = () => {
         setLoading(true);
@@ -137,12 +174,23 @@ export function DomainSuite() {
                 const list: MonitoredDomain[] = Array.isArray(data?.domains) ? data.domains : [];
                 setDomains(list);
                 setExpanded(new Set(list.map((d) => d.id)));
+                const defaultTabs: Record<string, DetailTab> = {};
+                list.forEach((d) => {
+                    defaultTabs[d.id] = 'overview';
+                });
+                setActiveTabs(defaultTabs);
             })
             .catch(() => setDomains([]))
             .finally(() => setLoading(false));
     };
 
     useEffect(load, []);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedDomain(text);
+        setTimeout(() => setCopiedDomain(null), 2000);
+    };
 
     const addKeyword = () => {
         const v = keywordInput.trim().toLowerCase();
@@ -202,6 +250,7 @@ export function DomainSuite() {
             const data = await res.json();
             setDnsResults((prev) => ({ ...prev, [id]: data }));
             setExpanded((prev) => new Set(prev).add(id));
+            setActiveTabs((prev) => ({ ...prev, [id]: 'dns' }));
         } finally {
             setDnsLoadingId(null);
         }
@@ -216,7 +265,10 @@ export function DomainSuite() {
         });
     };
 
-    // Merge live-fetched results over the pre-seeded last_scan cache — same shape either way.
+    const setTabForDomain = (domainId: string, tab: DetailTab) => {
+        setActiveTabs((prev) => ({ ...prev, [domainId]: tab }));
+    };
+
     const viewFor = (d: MonitoredDomain) => {
         const liveScan = scanResults[d.id];
         const liveDns = dnsResults[d.id];
@@ -232,7 +284,6 @@ export function DomainSuite() {
         };
     };
 
-    // Summary bar + top-level alert banner, computed across every monitored domain.
     const allViews = domains.map((d) => ({ domain: d.domain, ...viewFor(d) }));
     const totalLookalikes = allViews.reduce((sum, v) => sum + v.lookalikes.length, 0);
     const suspiciousCerts = allViews.reduce((sum, v) => sum + v.ct_logs.filter((c) => c.suspicious).length, 0);
@@ -240,99 +291,161 @@ export function DomainSuite() {
     const highAlerts = allViews.flatMap((v) => v.alert_history.filter((a) => a.severity === 'HIGH').map((a) => ({ ...a, domain: v.domain })));
 
     return (
-        <div id="report-content" className="space-y-4">
-            <div className="flex items-start justify-between">
+        <div id="report-content" className="space-y-5 max-w-7xl mx-auto">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
                 <div>
-                    <h1 className="text-lg font-black text-foreground">Domain Suite</h1>
-                    <p className="text-xs text-foreground-muted">Brand Protection · Typosquatting, DNS hijacking, and unauthorized SSL cert monitoring</p>
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                            <Shield className="w-4 h-4 text-orange" />
+                        </div>
+                        <h1 className="text-xl font-bold tracking-tight text-foreground">Domain Suite</h1>
+                    </div>
+                    <p className="text-xs text-foreground-muted mt-1">
+                        Brand Protection · Typosquatting detection, DNS telemetry, and SSL certificate transparency
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                     <ExportButton elementId="report-content" filename="domain-suite" title="Domain Suite" />
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors"
+                        className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition-all active:scale-[0.98]"
                     >
-                        <Plus size={14} />
+                        <Plus size={15} />
                         Add Domain
                     </button>
                 </div>
             </div>
 
             {!loading && domains.length > 0 && (
-                <>
-                    {/* Summary bar */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-card border border-border rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-foreground">{domains.length}</p>
-                            <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Domains Monitored</p>
+                <div className="space-y-4">
+                    {/* Summary Metric Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-xs">
+                            <div>
+                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Monitored Domains</p>
+                                <p className="text-2xl font-black text-foreground mt-1">{domains.length}</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-blue/10 flex items-center justify-center text-blue">
+                                <Globe size={20} />
+                            </div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-red-500">{totalLookalikes}</p>
-                            <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Lookalikes</p>
+
+                        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-xs">
+                            <div>
+                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Lookalike Threats</p>
+                                <p className="text-2xl font-black text-red-500 mt-1">{totalLookalikes}</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
+                                <ShieldAlert size={20} />
+                            </div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-amber">{suspiciousCerts}</p>
-                            <p className="text-[10px] text-foreground-muted uppercase tracking-wide">Suspicious Certs</p>
+
+                        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-xs">
+                            <div>
+                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Suspicious Certs</p>
+                                <p className="text-2xl font-black text-amber-500 mt-1">{suspiciousCerts}</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                <Lock size={20} />
+                            </div>
                         </div>
-                        <div className="bg-card border border-border rounded-xl p-3 text-center">
-                            <p className="text-xl font-black text-purple">{dmarcIssues}</p>
-                            <p className="text-[10px] text-foreground-muted uppercase tracking-wide">DMARC Issues</p>
+
+                        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-xs">
+                            <div>
+                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">DMARC Vulnerabilities</p>
+                                <p className="text-2xl font-black text-purple mt-1">{dmarcIssues}</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-purple/10 flex items-center justify-center text-purple">
+                                <Mail size={20} />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Active alert banner */}
+                    {/* Active Alert Banner */}
                     {highAlerts.length > 0 && (
-                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 space-y-1.5">
-                            {highAlerts.map((a, i) => (
-                                <div key={i} className="flex items-start gap-2 text-xs">
-                                    <AlertTriangle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
-                                    <span className="text-red-500 font-semibold">{a.domain}:</span>
-                                    <span className="text-foreground-muted">{a.message}</span>
-                                </div>
-                            ))}
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
+                                <span className="text-xs font-bold text-red-500 uppercase tracking-wide">High Priority Domain Alerts</span>
+                            </div>
+                            <div className="space-y-1.5 pl-6">
+                                {highAlerts.map((a, i) => (
+                                    <div key={i} className="flex items-start gap-2 text-xs">
+                                        <span className="text-red-500 font-mono font-semibold">{a.domain}:</span>
+                                        <span className="text-foreground-muted">{a.message}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
-                </>
+                </div>
             )}
 
+            {/* Main Content Area */}
             {loading ? (
-                <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-24 bg-card-muted rounded-xl animate-pulse" />)}</div>
+                <div className="space-y-3.5">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-32 bg-card-muted/60 border border-border rounded-xl animate-pulse" />
+                    ))}
+                </div>
             ) : domains.length === 0 ? (
                 <EmptyState
                     icon={Globe}
                     title="No domains monitored yet"
-                    description="Add your brand domain to start monitoring for typosquatting, DNS hijacking, and unauthorized SSL certificates."
+                    description="Add your brand domain to start continuous monitoring for typosquatting, DNS spoofing, and unauthorized SSL certificates."
                     actionLabel="Add Your First Domain"
                     onAction={() => setShowAddModal(true)}
                 />
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {domains.map((d) => {
                         const view = viewFor(d);
                         const isOpen = expanded.has(d.id);
+                        const activeTab = activeTabs[d.id] || 'overview';
+
                         return (
-                            <div key={d.id} className="bg-card border border-border rounded-xl overflow-hidden">
-                                <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-10 h-10 rounded-lg bg-blue/10 flex items-center justify-center flex-shrink-0">
-                                            <Globe size={18} className="text-blue" />
+                            <div key={d.id} className="bg-card border border-border rounded-xl shadow-xs overflow-hidden transition-all">
+                                {/* Domain Header */}
+                                <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="flex items-start gap-3.5 min-w-0">
+                                        <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 border border-border">
+                                            <Globe size={20} className="text-blue" />
                                         </div>
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-foreground font-mono truncate">{d.domain}</span>
-                                                <span className="flex items-center gap-1 text-[10px] font-bold text-blue">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue" /> Active
+
+                                        <div className="min-w-0 space-y-1">
+                                            <div className="flex items-center gap-2.5 flex-wrap">
+                                                <span className="text-base font-bold text-foreground font-mono tracking-tight">{d.domain}</span>
+                                                <button
+                                                    onClick={() => copyToClipboard(d.domain)}
+                                                    className="text-foreground-muted hover:text-foreground transition-colors"
+                                                    title="Copy domain"
+                                                >
+                                                    {copiedDomain === d.domain ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                                                </button>
+                                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                    Active
                                                 </span>
                                             </div>
-                                            <p className="text-[11px] text-foreground-muted">
-                                                Keywords: {d.brand_keywords.join(', ')} · Threshold {d.similarity_threshold}%
+
+                                            <p className="text-xs text-foreground-muted truncate">
+                                                Keywords: <span className="text-foreground font-medium">{d.brand_keywords.join(', ') || 'None'}</span>
+                                                {' · '}Threshold: <span className="text-foreground font-medium">{d.similarity_threshold}%</span>
                                                 {view.whois?.registrar && ` · ${view.whois.registrar}`}
-                                                {view.whois?.expires && ` · Expires ${view.whois.expires.slice(0, 10)}`}
+                                                {view.whois?.expires && ` · Expires: ${view.whois.expires.slice(0, 10)}`}
                                             </p>
-                                            {/* Health strip */}
-                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                                {view.ssl_grade && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-blue/10 text-blue border-blue/30">SSL: {view.ssl_grade}</span>
+
+                                            {/* Security Health Strip */}
+                                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                                {view.ssl_grade ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border bg-blue/10 text-blue border-blue/30">
+                                                        <Lock size={10} /> SSL: {view.ssl_grade}
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border bg-card-muted/50 text-foreground-muted border-border">
+                                                        <Lock size={10} /> SSL: —
+                                                    </span>
                                                 )}
                                                 <HealthBadge ok={view.email_security?.spf ?? null} label="SPF" />
                                                 <HealthBadge ok={view.email_security?.dmarc ?? null} label="DMARC" />
@@ -340,168 +453,276 @@ export function DomainSuite() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-2 self-end md:self-center flex-shrink-0">
                                         <button
                                             onClick={() => runScan(d.id)}
                                             disabled={scanningId === d.id}
-                                            className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-blue rounded-lg px-3 py-1.5 disabled:opacity-50"
+                                            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-blue hover:bg-blue/90 rounded-lg px-3.5 py-2 transition-all disabled:opacity-50"
                                         >
-                                            {scanningId === d.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                            {scanningId === d.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                                             {scanningId === d.id ? 'Scanning…' : 'Run Scan'}
                                         </button>
+
                                         <button
                                             onClick={() => viewDns(d.id)}
                                             disabled={dnsLoadingId === d.id}
-                                            className="flex items-center gap-1.5 text-[11px] font-bold text-foreground border border-border rounded-lg px-3 py-1.5 disabled:opacity-50"
+                                            className="flex items-center gap-1.5 text-xs font-semibold text-foreground border border-border hover:bg-card-muted rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
                                         >
-                                            {dnsLoadingId === d.id && <Loader2 size={12} className="animate-spin" />}
+                                            {dnsLoadingId === d.id ? <Loader2 size={13} className="animate-spin" /> : <Server size={13} />}
                                             View DNS
                                         </button>
+
                                         <button
                                             onClick={() => toggleExpanded(d.id)}
-                                            className="text-[11px] font-bold text-foreground-muted hover:text-foreground border border-border rounded-lg px-3 py-1.5"
+                                            className="flex items-center gap-1 text-xs font-semibold text-foreground-muted hover:text-foreground border border-border hover:bg-card-muted rounded-lg px-3 py-2 transition-colors"
                                         >
-                                            {isOpen ? 'Collapse' : 'Expand'}
+                                            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            {isOpen ? 'Collapse' : 'Details'}
                                         </button>
+
                                         <button
                                             onClick={() => removeDomain(d.id)}
-                                            className="flex items-center gap-1.5 text-[11px] font-bold text-foreground-muted hover:text-red-500 border border-border rounded-lg px-3 py-1.5"
+                                            title="Delete domain"
+                                            className="p-2 text-foreground-muted hover:text-red-500 hover:bg-red-500/10 border border-border hover:border-red-500/30 rounded-lg transition-colors"
                                         >
-                                            <Trash2 size={12} />
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </div>
 
+                                {/* Expanded Detail Drawer with Sub-Tabs */}
                                 {isOpen && (
-                                    <div className="border-t border-border p-4 space-y-4 bg-card-muted/40">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">WHOIS</p>
-                                            {view.whois ? (
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-                                                    <div><p className="text-foreground-muted">Registrar</p><p className="font-bold text-foreground">{view.whois.registrar}</p></div>
-                                                    <div><p className="text-foreground-muted">Created</p><p className="font-bold text-foreground">{view.whois.created?.slice(0, 10) ?? '—'}</p></div>
-                                                    <div><p className="text-foreground-muted">Expires</p><p className="font-bold text-foreground">{view.whois.expires?.slice(0, 10) ?? '—'}</p></div>
-                                                    <div>
-                                                        <p className="text-foreground-muted">Days Until Expiry</p>
-                                                        <p className={`font-bold ${view.whois.daysUntilExpiry !== null && view.whois.daysUntilExpiry < 30 ? 'text-amber' : 'text-foreground'}`}>
-                                                            {view.whois.daysUntilExpiry ?? '—'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <p className="text-xs text-foreground-muted">WHOIS lookup unavailable for this domain. Click Run Scan to check.</p>
-                                            )}
+                                    <div className="border-t border-border bg-card-muted/30">
+                                        {/* Drawer Tabs */}
+                                        <div className="flex items-center gap-1 px-4 pt-3 border-b border-border/80 overflow-x-auto">
+                                            {[
+                                                { id: 'overview', label: 'Overview & WHOIS', icon: FileText, count: null },
+                                                { id: 'lookalikes', label: 'Lookalikes', icon: ShieldAlert, count: view.lookalikes.length },
+                                                { id: 'certs', label: 'Cert Logs', icon: Lock, count: view.ct_logs.length },
+                                                { id: 'dns', label: 'DNS & Email', icon: Server, count: view.dns_records.length },
+                                                { id: 'alerts', label: 'Alert History', icon: History, count: view.alert_history.length },
+                                            ].map((tab) => {
+                                                const Icon = tab.icon;
+                                                const active = activeTab === tab.id;
+                                                return (
+                                                    <button
+                                                        key={tab.id}
+                                                        onClick={() => setTabForDomain(d.id, tab.id as DetailTab)}
+                                                        className={`flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+                                                            active
+                                                                ? 'border-blue text-blue bg-card'
+                                                                : 'border-transparent text-foreground-muted hover:text-foreground hover:bg-card/50'
+                                                        }`}
+                                                    >
+                                                        <Icon size={14} />
+                                                        {tab.label}
+                                                        {tab.count !== null && (
+                                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${active ? 'bg-blue/15 text-blue' : 'bg-card-muted text-foreground-muted'}`}>
+                                                                {tab.count}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
 
-                                        <div>
-                                            <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Certificate Transparency Logs ({view.ct_logs.length})</p>
-                                            {view.ct_logs.length === 0 ? (
-                                                <p className="text-xs text-foreground-muted">No certificates found in CT logs.</p>
-                                            ) : (
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-xs">
-                                                        <thead><tr className="border-b border-border">
-                                                            {['Cert Domain', 'Issuer', 'Not Before', 'Not After'].map((h) => (
-                                                                <th key={h} className="text-left px-3 py-1.5 text-[10px] font-bold text-foreground-muted uppercase tracking-wider">{h}</th>
-                                                            ))}
-                                                        </tr></thead>
-                                                        <tbody>
-                                                            {view.ct_logs.map((c, i) => (
-                                                                <tr key={i} className="border-b border-border">
-                                                                    <td className={`px-3 py-1.5 font-mono ${c.suspicious ? 'text-red-500 font-bold' : 'text-foreground'}`}>
-                                                                        {c.suspicious && '⚠ '}{c.domain}
-                                                                    </td>
-                                                                    <td className="px-3 py-1.5 text-foreground-muted">{c.issuer}</td>
-                                                                    <td className="px-3 py-1.5 text-foreground-muted">{c.not_before?.slice(0, 10)}</td>
-                                                                    <td className="px-3 py-1.5 text-foreground-muted">{c.not_after?.slice(0, 10)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Lookalike Domains ({view.lookalikes.length})</p>
-                                            {view.lookalikes.length === 0 ? (
-                                                <p className="text-xs text-foreground-muted">No lookalikes detected.</p>
-                                            ) : (
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-xs">
-                                                        <thead><tr className="border-b border-border">
-                                                            {['Domain', 'Similarity', 'Risk', 'Registered'].map((h) => (
-                                                                <th key={h} className="text-left px-3 py-1.5 text-[10px] font-bold text-foreground-muted uppercase tracking-wider">{h}</th>
-                                                            ))}
-                                                        </tr></thead>
-                                                        <tbody>
-                                                            {view.lookalikes.map((l) => (
-                                                                <tr key={l.domain} className="border-b border-border">
-                                                                    <td className="px-3 py-1.5 font-mono text-foreground">{l.domain}</td>
-                                                                    <td className="px-3 py-1.5 text-foreground">{l.similarity}%</td>
-                                                                    <td className="px-3 py-1.5"><span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${RISK_STYLE[l.risk]}`}>{l.risk}</span></td>
-                                                                    <td className="px-3 py-1.5 text-foreground-muted">{l.registered ?? '—'}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {view.alert_history.length > 0 && (
-                                            <div>
-                                                <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Alert History</p>
-                                                <div className="space-y-1">
-                                                    {view.alert_history.map((a, i) => (
-                                                        <div key={i} className="flex items-center gap-2 text-xs">
-                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.severity === 'HIGH' ? 'bg-red-500 text-white' : 'bg-grey-100 text-amber'}`}>{a.severity}</span>
-                                                            <span className="text-foreground-muted">{a.message}</span>
-                                                            <span className="text-foreground-muted ml-auto flex-shrink-0">{a.time}</span>
+                                        {/* Tab Content Panes */}
+                                        <div className="p-4 sm:p-5">
+                                            {/* Overview / WHOIS */}
+                                            {activeTab === 'overview' && (
+                                                <div className="space-y-4">
+                                                    {view.whois ? (
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-card border border-border">
+                                                            <div>
+                                                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Registrar</p>
+                                                                <p className="text-sm font-bold text-foreground mt-0.5">{view.whois.registrar}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Creation Date</p>
+                                                                <p className="text-sm font-bold text-foreground mt-0.5">{view.whois.created?.slice(0, 10) ?? '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Expiry Date</p>
+                                                                <p className="text-sm font-bold text-foreground mt-0.5">{view.whois.expires?.slice(0, 10) ?? '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">Days Until Expiry</p>
+                                                                <p className={`text-sm font-bold mt-0.5 ${view.whois.daysUntilExpiry !== null && view.whois.daysUntilExpiry < 30 ? 'text-amber-500' : 'text-foreground'}`}>
+                                                                    {view.whois.daysUntilExpiry !== null ? `${view.whois.daysUntilExpiry} days` : '—'}
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                                    ) : (
+                                                        <div className="p-6 text-center rounded-xl bg-card border border-dashed border-border">
+                                                            <p className="text-xs text-foreground-muted">WHOIS record has not been queried yet.</p>
+                                                            <button onClick={() => runScan(d.id)} className="mt-2 text-xs font-semibold text-blue hover:underline">
+                                                                Click here to run full domain scan
+                                                            </button>
+                                                        </div>
+                                                    )}
 
-                                        <div>
-                                            <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">DNS Records ({view.dns_records.length})</p>
-                                            {view.dns_records.length === 0 ? (
-                                                <p className="text-xs text-foreground-muted">No DNS records loaded yet. Click View DNS to check live records.</p>
-                                            ) : (
-                                                <>
-                                                    <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit mb-2">
+                                                    {view.scanned_at && (
+                                                        <p className="text-[11px] text-foreground-muted text-right">
+                                                            Telemetry synchronized: {new Date(view.scanned_at).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Lookalikes Tab */}
+                                            {activeTab === 'lookalikes' && (
+                                                <div className="bg-card rounded-xl border border-border overflow-hidden">
+                                                    {view.lookalikes.length === 0 ? (
+                                                        <p className="text-xs text-foreground-muted p-5 text-center">No typosquatted or lookalike domains detected for current keywords.</p>
+                                                    ) : (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left text-xs">
+                                                                <thead className="bg-card-muted/50 border-b border-border">
+                                                                    <tr>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Detected Lookalike</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Similarity Match</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Threat Level</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Registration</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-border font-mono">
+                                                                    {view.lookalikes.map((l) => (
+                                                                        <tr key={l.domain} className="hover:bg-card-muted/30 transition-colors">
+                                                                            <td className="px-4 py-2.5 font-bold text-foreground flex items-center gap-2">
+                                                                                <Globe size={13} className="text-foreground-muted" />
+                                                                                {l.domain}
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5">
+                                                                                <div className="flex items-center gap-2 max-w-[120px]">
+                                                                                    <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
+                                                                                        <div className="bg-blue h-full" style={{ width: `${l.similarity}%` }} />
+                                                                                    </div>
+                                                                                    <span className="text-[11px] font-sans font-semibold text-foreground">{l.similarity}%</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5 font-sans">
+                                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${RISK_BADGE[l.risk]}`}>
+                                                                                    {l.risk}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5 font-sans text-foreground-muted">{l.registered ?? 'Active'}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Certs Tab */}
+                                            {activeTab === 'certs' && (
+                                                <div className="bg-card rounded-xl border border-border overflow-hidden">
+                                                    {view.ct_logs.length === 0 ? (
+                                                        <p className="text-xs text-foreground-muted p-5 text-center">No certificates identified in public Transparency Logs.</p>
+                                                    ) : (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left text-xs">
+                                                                <thead className="bg-card-muted/50 border-b border-border">
+                                                                    <tr>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Domain Scope</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">CA Issuer</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Valid From</th>
+                                                                        <th className="px-4 py-2.5 font-bold text-foreground-muted uppercase text-[10px]">Expires</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-border font-mono">
+                                                                    {view.ct_logs.map((c, i) => (
+                                                                        <tr key={i} className="hover:bg-card-muted/30 transition-colors">
+                                                                            <td className={`px-4 py-2.5 ${c.suspicious ? 'text-red-500 font-bold' : 'text-foreground'}`}>
+                                                                                {c.suspicious && <AlertTriangle size={12} className="inline mr-1.5" />}
+                                                                                {c.domain}
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5 font-sans text-foreground-muted">{c.issuer}</td>
+                                                                            <td className="px-4 py-2.5 font-sans text-foreground-muted">{c.not_before?.slice(0, 10)}</td>
+                                                                            <td className="px-4 py-2.5 font-sans text-foreground-muted">{c.not_after?.slice(0, 10)}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* DNS Tab */}
+                                            {activeTab === 'dns' && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg p-1 w-fit">
                                                         {DNS_TYPES.map((t) => (
                                                             <button
                                                                 key={t}
                                                                 onClick={() => setDnsTab(t)}
-                                                                className={`text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors ${dnsTab === t ? 'bg-blue text-white' : 'text-foreground-muted hover:text-foreground'}`}
+                                                                className={`text-xs font-semibold px-3 py-1 rounded-md transition-all ${
+                                                                    dnsTab === t ? 'bg-blue text-white shadow-xs' : 'text-foreground-muted hover:text-foreground'
+                                                                }`}
                                                             >
-                                                                {t}
+                                                                {t} Records
                                                             </button>
                                                         ))}
                                                     </div>
-                                                    {view.dns_records.filter((r) => r.type === dnsTab).length === 0 ? (
-                                                        <p className="text-xs text-foreground-muted py-2">No {dnsTab} records found.</p>
+
+                                                    <div className="bg-card rounded-xl border border-border overflow-hidden">
+                                                        {view.dns_records.filter((r) => r.type === dnsTab).length === 0 ? (
+                                                            <p className="text-xs text-foreground-muted p-5 text-center">No {dnsTab} records returned for this hostname.</p>
+                                                        ) : (
+                                                            <div className="divide-y divide-border font-mono text-xs">
+                                                                {view.dns_records
+                                                                    .filter((r) => r.type === dnsTab)
+                                                                    .map((r, i) => (
+                                                                        <div key={i} className="p-3 flex items-center justify-between gap-3 hover:bg-card-muted/20">
+                                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-border">
+                                                                                    {r.type}
+                                                                                </span>
+                                                                                <span className="text-foreground-muted font-sans text-xs">{r.name}</span>
+                                                                                <span className="text-foreground font-semibold truncate">{r.value}</span>
+                                                                            </div>
+                                                                            <span className="text-[11px] font-sans text-foreground-muted flex-shrink-0">TTL: {r.ttl}s</span>
+                                                                        </div>
+                                                                    ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Alert History Tab */}
+                                            {activeTab === 'alerts' && (
+                                                <div className="bg-card rounded-xl border border-border overflow-hidden">
+                                                    {view.alert_history.length === 0 ? (
+                                                        <p className="text-xs text-foreground-muted p-5 text-center">Zero security incidents or configuration changes logged.</p>
                                                     ) : (
-                                                        <div className="space-y-1.5">
-                                                            {view.dns_records.filter((r) => r.type === dnsTab).map((r, i) => (
-                                                                <div key={i} className="flex items-center gap-3 text-xs border-b border-border pb-1.5">
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 bg-card-muted text-foreground-muted rounded">{r.type}</span>
-                                                                    <span className="text-foreground-muted">{r.name}</span>
-                                                                    <span className="font-mono text-foreground flex-1 truncate">{r.value}</span>
-                                                                    <span className="text-foreground-muted">TTL {r.ttl}</span>
+                                                        <div className="divide-y divide-border p-3 space-y-2">
+                                                            {view.alert_history.map((a, i) => (
+                                                                <div key={i} className="flex items-center justify-between gap-3 text-xs pt-1">
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <span
+                                                                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                                                                a.severity === 'HIGH'
+                                                                                    ? 'bg-red-500/10 text-red-500 border border-red-500/30'
+                                                                                    : 'bg-amber-500/10 text-amber-500 border border-amber-500/30'
+                                                                            }`}
+                                                                        >
+                                                                            {a.severity}
+                                                                        </span>
+                                                                        <span className="text-foreground">{a.message}</span>
+                                                                    </div>
+                                                                    <span className="text-foreground-muted text-[11px] flex-shrink-0">{a.time}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     )}
-                                                </>
+                                                </div>
                                             )}
                                         </div>
-
-                                        {view.scanned_at && (
-                                            <p className="text-[10px] text-foreground-muted">Last scanned: {new Date(view.scanned_at).toLocaleString()}</p>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -510,68 +731,120 @@ export function DomainSuite() {
                 </div>
             )}
 
+            {/* Modal: Add Domain */}
             {showAddModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-                    <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-xl">
-                        <h3 className="font-heading font-bold text-lg text-foreground mb-4">Add Domain</h3>
-                        <div className="space-y-4">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+                    <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                                <Plus size={18} className="text-orange" />
+                                Add Domain to Brand Monitor
+                            </h3>
+                            <button onClick={() => { setShowAddModal(false); resetForm(); }} className="text-foreground-muted hover:text-foreground">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 text-xs">
                             <div>
-                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Domain Name</label>
+                                <label className="font-semibold text-foreground-muted uppercase tracking-wider block mb-1">Target FQDN / Domain</label>
                                 <input
                                     type="text"
                                     value={domainInput}
                                     onChange={(e) => setDomainInput(e.target.value)}
-                                    placeholder="cybernovr.com"
-                                    className="w-full mt-1 bg-card-muted border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue"
+                                    placeholder="e.g., cybernovr.com"
+                                    className="w-full bg-card-muted border border-border rounded-lg px-3.5 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:border-blue"
                                 />
                             </div>
+
                             <div>
-                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Brand Keywords</label>
-                                <div className="flex flex-wrap gap-1.5 mt-1.5 mb-1.5">
-                                    {keywords.map((k) => (
-                                        <span key={k} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-card-muted text-foreground rounded-full">
-                                            {k}
-                                            <button onClick={() => setKeywords(keywords.filter((x) => x !== k))}><X size={10} /></button>
-                                        </span>
-                                    ))}
-                                </div>
+                                <label className="font-semibold text-foreground-muted uppercase tracking-wider block mb-1">Brand Name Variants & Keywords</label>
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
                                         value={keywordInput}
                                         onChange={(e) => setKeywordInput(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
-                                        placeholder="cybernovr"
-                                        className="flex-1 bg-card-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                addKeyword();
+                                            }
+                                        }}
+                                        placeholder="Add keyword and hit Enter..."
+                                        className="flex-1 bg-card-muted border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-blue"
                                     />
-                                    <button onClick={addKeyword} className="text-xs font-bold text-blue px-2">+ Add</button>
+                                    <button onClick={addKeyword} className="bg-card border border-border hover:bg-card-muted px-3 py-2 rounded-lg font-bold text-foreground">
+                                        Add
+                                    </button>
                                 </div>
+                                {keywords.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {keywords.map((k) => (
+                                            <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 bg-primary/10 text-primary rounded-md border border-border">
+                                                {k}
+                                                <button onClick={() => setKeywords(keywords.filter((x) => x !== k))} className="hover:text-red-500">
+                                                    <X size={11} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
+
                             <div>
-                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">Similarity Threshold: {threshold}%</label>
-                                <input type="range" min={70} max={100} value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="w-full mt-1.5" />
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="font-semibold text-foreground-muted uppercase tracking-wider">Similarity Fuzzy Threshold</label>
+                                    <span className="font-mono font-bold text-blue">{threshold}%</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min={70}
+                                    max={100}
+                                    value={threshold}
+                                    onChange={(e) => setThreshold(Number(e.target.value))}
+                                    className="w-full accent-blue cursor-pointer"
+                                />
                             </div>
-                            <div>
-                                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-1.5 block">Alert On</label>
-                                <div className="space-y-1.5">
+
+                            <div className="border-t border-border pt-3">
+                                <label className="font-semibold text-foreground-muted uppercase tracking-wider block mb-2">Automated Threat Triggers</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {([
                                         ['lookalike', 'New lookalike domain registered'],
-                                        ['dns_change', 'DNS record changes'],
-                                        ['expiry', 'Domain expiring < 30 days'],
-                                        ['new_cert', 'New SSL certificate issued'],
+                                        ['dns_change', 'DNS record modification'],
+                                        ['expiry', 'Domain expiration < 30 days'],
+                                        ['new_cert', 'Unauthorized SSL cert issued'],
                                     ] as const).map(([key, label]) => (
-                                        <label key={key} className="flex items-center gap-2 text-xs text-foreground">
-                                            <input type="checkbox" checked={alerts[key]} onChange={(e) => setAlerts({ ...alerts, [key]: e.target.checked })} />
-                                            {label}
+                                        <label key={key} className="flex items-center gap-2 p-2 rounded-lg bg-card-muted/40 border border-border cursor-pointer hover:bg-card-muted">
+                                            <input
+                                                type="checkbox"
+                                                checked={alerts[key]}
+                                                onChange={(e) => setAlerts({ ...alerts, [key]: e.target.checked })}
+                                                className="rounded accent-blue"
+                                            />
+                                            <span className="text-foreground">{label}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                        <div className="flex gap-3 mt-6">
-                            <button onClick={() => { setShowAddModal(false); resetForm(); }} className="flex-1 border border-border text-foreground-muted py-2.5 rounded-lg text-sm hover:border-grey-300 transition-colors">Cancel</button>
-                            <button onClick={addDomain} disabled={saving || !domainInput.trim()} className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-semibold transition-colors">
-                                {saving ? 'Adding…' : 'Start Monitoring'}
+
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    setShowAddModal(false);
+                                    resetForm();
+                                }}
+                                className="flex-1 border border-border text-foreground-muted hover:text-foreground py-2.5 rounded-lg font-semibold transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={addDomain}
+                                disabled={saving || !domainInput.trim()}
+                                className="flex-1 bg-orange hover:bg-orange-hover disabled:opacity-50 text-white py-2.5 rounded-lg font-bold transition-all shadow-sm"
+                            >
+                                {saving ? 'Registering…' : 'Start Monitoring'}
                             </button>
                         </div>
                     </div>

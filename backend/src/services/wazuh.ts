@@ -1,19 +1,19 @@
 import https from 'https';
 
-// Wazuh Manager REST API (port 55000). Self-signed cert by default — rejectUnauthorized
-// is disabled on this client only (not process-wide), scoped to this known, config-pinned
-// host, not arbitrary user-supplied URLs.
-//
-// Accepts WAZUH_PASSWORD, WAZUH_API_PASSWORD, or WAZUH_PASS for the password — different
-// deploys (local .env vs Railway) have used different names for the same value.
+// Wazuh Manager REST API (port 55000)
 const WAZUH_HOST = process.env.WAZUH_HOST || '';
 const WAZUH_PORT = Number(process.env.WAZUH_PORT || 55000);
 const WAZUH_USER = process.env.WAZUH_USER || 'wazuh-wui';
 const WAZUH_PASSWORD =
     process.env.WAZUH_API_PASSWORD || process.env.WAZUH_PASSWORD || process.env.WAZUH_PASS || '';
 
-/** True once host + password are both present — routes use this to skip straight to a
- *  graceful "not configured" response instead of attempting (and failing) a connection. */
+// Wazuh Indexer / OpenSearch (port 9200)
+const WAZUH_INDEXER_HOST = process.env.WAZUH_INDEXER_HOST || WAZUH_HOST || '10.0.0.1';
+const WAZUH_INDEXER_PORT = Number(process.env.WAZUH_INDEXER_PORT || 9200);
+const WAZUH_INDEXER_USER = process.env.WAZUH_INDEXER_USER || 'admin';
+const WAZUH_INDEXER_PASSWORD = process.env.WAZUH_INDEXER_PASSWORD || '';
+
+/** True once host + password are both present */
 export function isConfigured(): boolean {
     return Boolean(WAZUH_HOST && WAZUH_PASSWORD);
 }
@@ -57,25 +57,19 @@ let cachedToken: { token: string; expires: number } | null = null;
 export async function authenticate(): Promise<string> {
     if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
     if (!WAZUH_HOST) throw new Error('WAZUH_HOST environment variable is not set');
-    if (!WAZUH_PASSWORD) throw new Error('WAZUH_PASSWORD (or WAZUH_API_PASSWORD / WAZUH_PASS) environment variable is not set');
-
-    const url = `https://${WAZUH_HOST}:${WAZUH_PORT}/security/user/authenticate`;
-    // Host and URL only, never the credential — see lib/wazuh.ts's identical logging (this
-    // file duplicates that one's auth logic; routes/wazuh.ts's /status and routes/platform.ts's
-    // health check both go through THIS file's authenticate(), not lib/wazuh.ts's).
-    console.log(`[wazuh] authenticating as "${WAZUH_USER}" — WAZUH_HOST=${WAZUH_HOST}, url=${url}`);
+    if (!WAZUH_PASSWORD) throw new Error('WAZUH_PASSWORD environment variable is not set');
 
     const basic = 'Basic ' + Buffer.from(`${WAZUH_USER}:${WAZUH_PASSWORD}`).toString('base64');
     let status: number, json: unknown;
     try {
         ({ status, json } = await request('/security/user/authenticate', basic, 'POST'));
     } catch (err) {
-        console.error(`[wazuh] connection to ${url} failed:`, err instanceof Error ? err.message : err);
+        console.error(`[wazuh] connection failed:`, err instanceof Error ? err.message : err);
         throw err;
     }
     const token = (json as { data?: { token?: string } } | null)?.data?.token;
     if (!token) {
-        console.error(`[wazuh] authentication to ${url} failed — status ${status}, response:`, JSON.stringify(json));
+        console.error(`[wazuh] authentication failed — status ${status}, response:`, JSON.stringify(json));
         throw new Error(`Wazuh authentication failed (status ${status})`);
     }
 
@@ -122,7 +116,7 @@ export async function getAgents(): Promise<WazuhAgent[]> {
     });
 }
 
-// ── Alerts ──────────────────────────────────────────────────────────────
+// ── Alerts (Queried from OpenSearch Indexer) ────────────────────────────
 
 export interface WazuhAlert {
     id: string;
@@ -139,27 +133,81 @@ export interface WazuhAlert {
     location: string | null;
 }
 
-/** GET /alerts — most recent alerts recorded by the manager. */
+/** Queries the Wazuh Indexer (OpenSearch) for the latest security alerts. */
 export async function getAlerts(limit = 50): Promise<WazuhAlert[]> {
-    const { json } = await authedGet(`/alerts?limit=${limit}&sort=-timestamp`);
-    return affectedItems(json).map((a) => {
-        const rule = a.rule as { id?: number | string; level?: number; description?: string; groups?: string[]; mitre?: { tactic?: string[]; technique?: string[] } } | undefined;
-        const agent = a.agent as { id?: string; name?: string } | undefined;
-        const data = a.data as { srcip?: string } | undefined;
-        return {
-            id: a.id != null ? String(a.id) : `${a.timestamp ?? ''}-${rule?.id ?? ''}`,
-            timestamp: (a.timestamp as string) ?? null,
-            rule_id: rule?.id != null ? String(rule.id) : '',
-            rule_level: rule?.level ?? 0,
-            rule_description: rule?.description ?? 'Wazuh alert',
-            rule_groups: rule?.groups ?? [],
-            mitre_tactic: rule?.mitre?.tactic?.[0] ?? null,
-            mitre_technique: rule?.mitre?.technique?.[0] ?? null,
-            agent_id: agent?.id ?? '',
-            agent_name: agent?.name ?? 'Unknown',
-            source_ip: data?.srcip ?? null,
-            location: (a.location as string) ?? null,
-        };
+    const authHeader = 'Basic ' + Buffer.from(`${WAZUH_INDEXER_USER}:${WAZUH_INDEXER_PASSWORD}`).toString('base64');
+    const postData = JSON.stringify({
+        size: limit,
+        sort: [{ '@timestamp': { order: 'desc' } }],
+    });
+
+    return new Promise((resolve) => {
+        const req = https.request(
+            {
+                hostname: WAZUH_INDEXER_HOST,
+                port: WAZUH_INDEXER_PORT,
+                path: '/wazuh-alerts-*/_search',
+                method: 'POST',
+                headers: {
+                    Authorization: authHeader,
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData),
+                },
+                rejectUnauthorized: false,
+            },
+            (res) => {
+                let body = '';
+                res.on('data', (chunk) => (body += chunk));
+                res.on('end', () => {
+                    try {
+                        const parsed = JSON.parse(body);
+                        const hits = parsed.hits?.hits || [];
+
+                        const alerts: WazuhAlert[] = hits.map((h: any) => {
+                            const src = h._source || {};
+                            const rule = src.rule || {};
+                            const agent = src.agent || {};
+                            const data = src.data || {};
+
+                            const mitreTactic = Array.isArray(rule.mitre_tactics)
+                                ? rule.mitre_tactics[0]
+                                : rule.mitre_tactics || null;
+
+                            const mitreTechnique = Array.isArray(rule.mitre_techniques)
+                                ? rule.mitre_techniques[0]
+                                : rule.mitre_techniques || null;
+
+                            return {
+                                id: String(h._id || src.id || ''),
+                                timestamp: src.timestamp || src['@timestamp'] || null,
+                                rule_id: String(rule.id || ''),
+                                rule_level: Number(rule.level || 0),
+                                rule_description: String(rule.description || 'Wazuh alert'),
+                                rule_groups: Array.isArray(rule.groups) ? rule.groups : [],
+                                mitre_tactic: mitreTactic,
+                                mitre_technique: mitreTechnique,
+                                agent_id: String(agent.id || ''),
+                                agent_name: String(agent.name || 'Unknown'),
+                                source_ip: data.srcip || null,
+                                location: src.location || null,
+                            };
+                        });
+                        resolve(alerts);
+                    } catch (e) {
+                        console.error('[wazuh] Failed to parse alerts from indexer:', e);
+                        resolve([]);
+                    }
+                });
+            }
+        );
+
+        req.on('error', (err) => {
+            console.error('[wazuh] Indexer alert request error:', err);
+            resolve([]);
+        });
+
+        req.write(postData);
+        req.end();
     });
 }
 
@@ -174,9 +222,7 @@ export interface WazuhVulnerability {
     version: string;
 }
 
-/** GET /vulnerability/{agent_id} — CVE matches for one agent's installed packages.
- *  Only present on managers still running the legacy vulnerability-detector module
- *  (Wazuh <=4.7); 4.8+ moved this to the indexer instead. */
+/** GET /vulnerability/{agent_id} — CVE matches for one agent's installed packages. */
 export async function getAgentVulnerabilities(agentId: string): Promise<WazuhVulnerability[]> {
     const { json } = await authedGet(`/vulnerability/${encodeURIComponent(agentId)}?limit=100`);
     return affectedItems(json).map((v) => ({

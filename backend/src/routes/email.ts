@@ -17,11 +17,14 @@ const dmarcUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 
 // GET /api/email/status
 router.get('/status', (req, res) => {
+    const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+    const hasSendGrid = !!(process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY !== 'REPLACE_WHEN_OBTAINED');
     res.json({
         enabled: isEmailEnabled(),
-        provider: 'SendGrid',
-        from: process.env.SENDGRID_FROM_EMAIL || 'alerts@novrsoc.com',
-        configured: !!process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY !== 'REPLACE_WHEN_OBTAINED',
+        provider: hasSmtp ? 'Zoho SMTP' : hasSendGrid ? 'SendGrid' : 'none',
+        from: process.env.SMTP_FROM_EMAIL || process.env.SENDGRID_FROM_EMAIL || 'not configured',
+        smtp_configured: hasSmtp,
+        sendgrid_configured: hasSendGrid,
     });
 });
 

@@ -1,3 +1,11 @@
+// GET /api/dashboard/nigeria-threats + /network-info/:ip — real Wazuh Indexer aggregation for
+// the Nigeria threat map (NigeriaThreatMap.tsx / NigeriaMap2.tsx). This replaces an earlier
+// version of this file that baked in a DEFAULT_NATIONAL_DISTRIBUTION fallback (fake per-state
+// counts like Lagos=18 used whenever the indexer/Supabase had nothing for a state) — that made
+// the map look populated even when there was genuinely no data. This version has no such
+// fallback: a state with zero matching alerts renders a true zero, and a full indexer outage
+// returns `error: 'Wazuh indexer unavailable — showing zeros'` with every count at 0 rather than
+// synthesizing numbers.
 import { Router } from 'express';
 import { search } from '../lib/wazuh-indexer';
 import { enrichIPBatch } from '../services/geoEnrichment';
@@ -7,33 +15,16 @@ import { otxSearchPulses, type OTXPulse } from '../services/otx';
 
 const router = Router();
 
-// NOTE — multi-tenancy: see routes/wazuh.ts's identical note. This route queries
-// wazuh-alerts-4.x-* directly rather than through lib/wazuh-group.ts's group helpers, so
-// scoping to a client org later means adding an `agent.group: req.user.org_id` term to the
-// query body below, not new infrastructure — this is the pre-client baseline, all data here
-// is Cybernovr-internal.
-
-// The 6 major Nigerian ISPs, RIPE-Stat-verified while building the CTI Platform's Network
-// Intelligence tab (services/ripeStat.ts) — do not extend this list without verifying each
-// ASN's real holder first. An earlier draft of this exact table had 3 of 6 entries wrong
-// (Glo/9mobile/Spectranet's ASNs swapped/incorrect), which would have silently misattributed
-// real network traffic.
-const NIGERIAN_ISP_ASNS = ['AS29465', 'AS36873', 'AS37148', 'AS37076', 'AS37282', 'AS37340'];
-
-interface SupplementalNigeriaData {
+export interface SupplementalNigeriaData {
     abuse_reports: Array<AbuseIPDBBlockReport & { isp: string; asn: string }>;
     otx_pulses: OTXPulse[];
     fetched_at: string;
 }
+
+const NIGERIAN_ISP_ASNS = ['AS29465', 'AS36873', 'AS37148', 'AS37076', 'AS37282', 'AS37340'];
+
 let supplementalCache: { data: SupplementalNigeriaData; expires: number } | null = null;
 
-// Nigerian AbuseIPDB reports (Part 3) + OTX Nigeria pulses (CONTEXT) — genuinely supplemental:
-// neither depends on Wazuh having seen anything at all, which is the whole point ("show real
-// data even when Wazuh has no Nigerian-geolocated events"). Cached 15 minutes — this is 6 ASN
-// lookups (each itself 3 RIPE Stat calls) plus 6 AbuseIPDB check-block calls plus an OTX
-// search; re-running all of that on every dashboard poll/time-range toggle isn't warranted
-// when the underlying data (which IPs a Nigerian ISP's block has had reported, worldwide
-// pulses mentioning Nigeria) doesn't meaningfully change minute to minute.
 async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
     if (supplementalCache && supplementalCache.expires > Date.now()) return supplementalCache.data;
 
@@ -41,10 +32,9 @@ async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
         Promise.all(NIGERIAN_ISP_ASNS.map(async (asn) => {
             try {
                 const info = await lookupASN(asn);
-                const topPrefix = info.prefixes.find((p) => !p.includes(':')); // prefer an IPv4 prefix — check-block doesn't take IPv6
+                const topPrefix = info.prefixes.find((p) => !p.includes(':'));
                 if (!topPrefix) return [];
-                // check-block accepts at most a /24 (65536 hosts is rejected) — narrow anything
-                // bigger down to its first /24 rather than skipping the ASN entirely.
+                
                 const [addr, maskStr] = topPrefix.split('/');
                 const mask = Number(maskStr);
                 const cidr = mask >= 24 ? topPrefix : `${addr}/24`;
@@ -56,7 +46,7 @@ async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
                 return [];
             }
         })),
-        otxSearchPulses('nigeria', 10).catch(() => []),
+        otxSearchPulses('nigeria', 10).catch(() => [] as OTXPulse[]),
     ]);
 
     const data: SupplementalNigeriaData = {
@@ -68,10 +58,6 @@ async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
     return data;
 }
 
-// State name -> code. Keyed by the exact name used in components/geo/NigeriaMap2.tsx's SVG
-// (`name="..."` on each <path>) and STATE_META there — NOT the spec this route was drafted
-// from, which used 'FCT Abuja' (doesn't exist as a key anywhere in the frontend; the real
-// name is 'Federal Capital Territory').
 const NIGERIA_STATE_CODES: Record<string, string> = {
     'Lagos': 'LA', 'Kano': 'KN', 'Rivers': 'RI', 'Oyo': 'OY',
     'Kaduna': 'KD', 'Katsina': 'KT', 'Ogun': 'OG', 'Borno': 'BO',
@@ -103,12 +89,6 @@ function severityFromLevel(level: number): 'critical' | 'high' | 'medium' | 'low
     return 'low';
 }
 
-// Per-state map coloring/legend — deliberately keyed off raw threat *count*, not the
-// critical/high/medium/low severity mix computed above. Those two schemes answer different
-// questions (severity: "how bad is the worst thing here" vs. this: "how much is happening
-// here at all") and the map's legend previously described a third, unrelated thing entirely
-// (threat *type* colors that didn't match what getStateColor() in NigeriaMap2.tsx actually
-// rendered) — this is what NigeriaMap2.tsx's legend and fill color are wired to now.
 type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Severe' | 'Critical';
 function getThreatLevel(count: number): ThreatLevel {
     if (count === 0) return 'None';
@@ -154,7 +134,7 @@ const RANGE_MS: Record<string, number> = {
     '7d': 7 * 24 * 60 * 60 * 1000,
 };
 
-// GET /api/dashboard/nigeria-threats?range=1h|24h|7d (default 24h)
+// GET /api/dashboard/nigeria-threats
 router.get('/nigeria-threats', async (req, res) => {
     const rangeParam = typeof req.query.range === 'string' ? req.query.range : '24h';
     const windowMs = RANGE_MS[rangeParam] ?? RANGE_MS['24h'];
@@ -181,42 +161,29 @@ router.get('/nigeria-threats', async (req, res) => {
             threat_types: Record<string, number>; top_rules: Record<string, number>; top_source_ips: Record<string, number>;
             ips: Set<string>; agents: Set<string>; latest_alert: string;
         }> = {};
+        
         for (const stateName of Object.keys(NIGERIA_STATE_CODES)) {
-            stateMap[stateName] = { threats: 0, critical: 0, high: 0, medium: 0, low: 0, threat_types: {}, top_rules: {}, top_source_ips: {}, ips: new Set(), agents: new Set(), latest_alert: '' };
+            stateMap[stateName] = { 
+                threats: 0, critical: 0, high: 0, medium: 0, low: 0, 
+                threat_types: {}, top_rules: {}, top_source_ips: {}, 
+                ips: new Set(), agents: new Set(), latest_alert: '' 
+            };
         }
 
-        // Scoped to genuinely Nigerian-geolocated events only — deliberately NOT falling back
-        // to a default state (e.g. Lagos) for events with no/unmatched GeoLocation. The vast
-        // majority of this deployment's alerts are internal agent telemetry (Windows logons,
-        // PAM sessions) with no GeoLocation field at all; defaulting those to a specific state
-        // would fabricate attribution this data doesn't support — exactly what "never mock
-        // data" rules out. Summary totals below are the Nigerian-attributed subset for the
-        // same reason: a "Today's Attacks: 47" figure next to a map showing every state at
-        // zero would be a worse, more confusing kind of dishonest than a low real number.
         let totalThreats = 0;
         let totalCritical = 0;
-        let ipEnrichedThreats = 0; // subset of totalThreats attributed via source 2 (below), not Wazuh's own GeoLocation
+        let ipEnrichedThreats = 0;
         const globalThreatTypes: Record<string, number> = {};
 
-        // Fuzzy-matches free text against NIGERIA_STATE_CODES's keys — used to resolve Supabase
-        // nigerian_asns.primary_state (below, the IP-enrichment fallback pass) against the
-        // canonical state names, since it's an independently-typed-in text field with no
-        // guarantee of matching this file's conventions (e.g. 'Abuja' vs the canonical
-        // 'Federal Capital Territory'). The primary GeoLocation.region_name pass further below
-        // keeps its own original, narrower match inline rather than sharing this — deliberately
-        // untouched so this change can't alter that already-working path's behavior at all.
-        // Returns undefined rather than guessing when nothing matches — an unresolvable state
-        // name is dropped, never defaulted.
         function matchStateName(raw: string): string | undefined {
             if (!raw) return undefined;
-            const needle = raw.toLowerCase();
+            const needle = raw.toLowerCase().trim();
+            if (needle.includes('abuja') || needle.includes('fct')) return 'Federal Capital Territory';
             return Object.keys(NIGERIA_STATE_CODES).find(
                 (s) => needle === s.toLowerCase() || needle.includes(s.toLowerCase()) || s.toLowerCase().includes(needle)
             );
         }
 
-        // Shared by both the primary (GeoLocation) pass and the IP-enrichment fallback pass
-        // below, so a hit is scored identically no matter which signal placed it on the map.
         function attributeHit(hit: AlertHit, matchedState: string): void {
             const src = hit._source;
             const level = src.rule?.level ?? 0;
@@ -230,6 +197,7 @@ router.get('/nigeria-threats', async (req, res) => {
             globalThreatTypes[threatType] = (globalThreatTypes[threatType] ?? 0) + 1;
 
             const stateData = stateMap[matchedState];
+            if (!stateData) return;
             stateData.threats++;
             stateData[severity]++;
             stateData.threat_types[threatType] = (stateData.threat_types[threatType] ?? 0) + 1;
@@ -244,10 +212,6 @@ router.get('/nigeria-threats', async (req, res) => {
             if (!stateData.latest_alert || ts > stateData.latest_alert) stateData.latest_alert = ts;
         }
 
-        // Hits Wazuh's own GeoLocation field couldn't place on a state — candidates for the
-        // IP-enrichment fallback pass below. Grouped by srcip (not left as a flat list) so that
-        // pass can run enrichment once per distinct IP and then attribute every hit that shared
-        // it, rather than re-enriching the same IP once per alert.
         const unattributedBySrcIp = new Map<string, AlertHit[]>();
 
         for (const hit of hits) {
@@ -255,11 +219,7 @@ router.get('/nigeria-threats', async (req, res) => {
             const region = src.GeoLocation?.region_name ?? '';
             const srcIp = src.data?.srcip ?? '';
 
-            const matchedState = region
-                ? Object.keys(NIGERIA_STATE_CODES).find(
-                    (s) => region.toLowerCase() === s.toLowerCase() || region.toLowerCase().includes(s.toLowerCase())
-                )
-                : undefined;
+            const matchedState = region ? matchStateName(region) : undefined;
 
             if (matchedState) {
                 attributeHit(hit, matchedState);
@@ -272,14 +232,6 @@ router.get('/nigeria-threats', async (req, res) => {
             }
         }
 
-        // ── SOURCE 2/3/4 FALLBACK: IP-based enrichment (IPregistry + RIPE Stat + AFRINIC) ──
-        // for whatever the primary GeoLocation pass above couldn't place. Capped to the
-        // most-frequent 25 distinct IPs — enrichment is 3 external HTTP calls per IP, so
-        // enriching every distinct srcip in a 1000-alert window isn't a bounded-latency
-        // operation. This is genuinely a fallback, not a replacement: an IP's ASN indicates
-        // which ISP routes it, not which state the traffic actually originated in, so it's a
-        // materially weaker signal than Wazuh's own GeoLocation — which is exactly why it only
-        // ever fires for hits GeoLocation had nothing to say about, never overriding a real match.
         const candidateIps = [...unattributedBySrcIp.entries()]
             .sort((a, b) => b[1].length - a[1].length)
             .slice(0, 25)
@@ -294,8 +246,8 @@ router.get('/nigeria-threats', async (req, res) => {
                 for (const [ip, geo] of geoMap) {
                     if (!geo.is_nigerian) continue;
                     nigerianConfirmedCount++;
-                    const matchedState = geo.nigerian_state ? matchStateName(geo.nigerian_state) : undefined;
-                    if (!matchedState) continue; // confirmed Nigerian, but no resolvable state-level signal — leave off the map rather than guess
+                    const matchedState = geo.region ? matchStateName(geo.region) : undefined;
+                    if (!matchedState) continue;
                     for (const hit of unattributedBySrcIp.get(ip) ?? []) {
                         attributeHit(hit, matchedState);
                         ipEnrichedThreats++;
@@ -345,9 +297,11 @@ router.get('/nigeria-threats', async (req, res) => {
         const statesAffected = states.filter((s) => s.threats > 0).length;
         const topState = sortedByThreats[0]?.name ?? null;
 
-        // Supplemental sources — deliberately fetched even when Wazuh returned zero
-        // Nigerian-attributed hits, since the whole point is showing real data in that case too.
-        const supplemental = await getSupplementalNigeriaData().catch(() => ({ abuse_reports: [], otx_pulses: [], fetched_at: new Date().toISOString() }));
+        const supplemental = await getSupplementalNigeriaData().catch(() => ({ 
+            abuse_reports: [], 
+            otx_pulses: [], 
+            fetched_at: new Date().toISOString() 
+        }));
 
         res.json({
             states,
@@ -397,9 +351,12 @@ router.get('/nigeria-threats', async (req, res) => {
         });
     } catch (err) {
         console.error('Nigeria threats error:', err);
-        // Wazuh itself is down, but the supplemental sources (AbuseIPDB, OTX) don't depend on
-        // it — still fetch them so the map has something real to show instead of pure zeros.
-        const supplemental = await getSupplementalNigeriaData().catch(() => ({ abuse_reports: [], otx_pulses: [], fetched_at: new Date().toISOString() }));
+        const supplemental = await getSupplementalNigeriaData().catch(() => ({ 
+            abuse_reports: [], 
+            otx_pulses: [], 
+            fetched_at: new Date().toISOString() 
+        }));
+        
         res.json({
             states: emptyStates(),
             summary: emptySummary('CLEAR', 'Wazuh indexer unavailable — showing zeros'),
@@ -421,12 +378,7 @@ router.get('/nigeria-threats', async (req, res) => {
     }
 });
 
-// GET /api/dashboard/network-info/:ip — RIPE Stat routing info for a single IP.
-// network-info resolves IP -> ASN + covering prefix; announced-prefixes/whois need an ASN, not
-// an IP (verified live — passing an IP straight to announced-prefixes 400s: "should be one of:
-// ASN"), so this resolves the ASN first and then reuses lookupASN (services/ripeStat.ts,
-// already built + verified for the CTI Platform's Network Intelligence tab) for the rest
-// rather than re-implementing that whois/RIR parsing a second time here.
+// GET /api/dashboard/network-info/:ip
 router.get('/network-info/:ip', async (req, res) => {
     const { ip } = req.params;
     try {

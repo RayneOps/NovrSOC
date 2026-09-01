@@ -28,20 +28,26 @@ export function search<T = unknown>(index: string, body: unknown): Promise<T | n
         }
         const payload = JSON.stringify(body);
         const auth = 'Basic ' + Buffer.from(`${INDEXER_USER}:${INDEXER_PASS}`).toString('base64');
+        const agent = new https.Agent({
+            rejectUnauthorized: false,
+            keepAlive: true,
+        });
+
         const req = https.request(
             {
                 hostname: INDEXER_HOST,
                 port: INDEXER_PORT,
                 path: `/${index}/_search`,
                 method: 'POST',
+                agent: agent, // Use explicit permissive agent
                 headers: {
                     Authorization: auth,
                     'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(payload),
                 },
-                rejectUnauthorized: false,
                 timeout: 15000,
             },
+    // ... rest of the handler remains the same
             (res) => {
                 let data = '';
                 res.on('data', (chunk) => (data += chunk));

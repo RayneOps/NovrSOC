@@ -6,26 +6,25 @@
 export type ThreatLevel = 'None' | 'Low' | 'Medium' | 'High' | 'Severe' | 'Critical';
 
 export interface NigeriaStateData {
-  name: string;
-  code: string;
-  threats: number;
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'clean';
-  top_threat_type: string;
-  top_rule: string;
-  ips_monitored: number;
-  latest_alert: string | null;
-  threat_types: Record<string, number>;
-  // Added alongside the fix that made the map's legend and fill color actually agree with
-  // each other — see backend/src/routes/dashboard.ts's getThreatLevel() for the exact
-  // count->level thresholds. Optional so a state object built before this fix (or the
-  // synthesized fallback in handleStateClick below) still satisfies the type.
-  threat_level?: ThreatLevel;
-  top_source_ip?: string | null;
-  affected_hosts?: string[];
+    name: string;
+    code: string;
+    region?: string;
+    threats: number;
+    threatCount?: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    severity: 'critical' | 'high' | 'medium' | 'low' | 'clean';
+    top_threat_type: string;
+    top_rule: string;
+    ips_monitored: number;
+    latest_alert: string | null;
+    threat_level: ThreatLevel;
+    threatLevel?: ThreatLevel;
+    threat_types?: Record<string, number>;
+    top_source_ip?: string | null;
+    affected_hosts?: string[];
 }
 
 // Map fill + legend color, keyed by threat_level (raw threat *count* thresholds — see
@@ -34,13 +33,32 @@ export interface NigeriaStateData {
 // level, not how much is happening overall — two different, both-useful questions. The
 // popup's severity badge still uses SEVERITY_BADGE further down for that reason.
 const THREAT_LEVEL_COLORS: Record<ThreatLevel, string> = {
-  None: '#EEF0F6',
-  Low: '#FFF4EE',
-  Medium: '#FF9966',
-  High: '#FF5500',
-  Severe: '#CC2B2B',
-  Critical: '#7B0000',
+    None: '#EEF0F6',
+    Low: '#FFF4EE',
+    Medium: '#FF9966',
+    High: '#FF5500',
+    Severe: '#CC2B2B',
+    Critical: '#7B0000',
 };
+
+function getStateColor(state: NigeriaStateData | undefined, colorMode: 'threat' | 'region') {
+    if (!state) return THREAT_LEVEL_COLORS.None;
+
+    if (colorMode === 'region') {
+        const regionColors: Record<string, string> = {
+            'South West': '#3B82F6',
+            'South South': '#06B6D4',
+            'South East': '#8B5CF6',
+            'North Central': '#10B981',
+            'North West': '#F59E0B',
+            'North East': '#EF4444',
+        };
+        return regionColors[state.region || ''] || '#94A3B8';
+    }
+
+    const level = (state.threat_level || state.threatLevel || 'None') as ThreatLevel;
+    return THREAT_LEVEL_COLORS[level] || THREAT_LEVEL_COLORS.None;
+}
 
 // Mirrors backend/src/routes/dashboard.ts's getThreatLevel() — used only for the local
 // fallback state handleStateClick() synthesizes for a state with liveStates already loaded but
@@ -600,9 +618,9 @@ export function NigeriaMap2({
             {/* Threat breakdown */}
             <div className="px-5 py-4 border-b border-border">
               <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-3">Threat Breakdown (24h)</div>
-              {Object.entries(selectedState.threat_types).length > 0 ? (
-                Object.entries(selectedState.threat_types)
-                  .sort((a, b) => b[1] - a[1])
+          {Object.entries(selectedState?.threat_types || {}).length > 0 ? (
+              Object.entries(selectedState?.threat_types || {})
+                  .sort((a, b) => (b[1] as number) - (a[1] as number))
                   .slice(0, 4)
                   .map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between py-1">

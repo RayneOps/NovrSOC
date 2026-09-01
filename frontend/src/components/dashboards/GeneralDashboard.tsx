@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-    Monitor, Siren, ShieldAlert, Shield, Building2, Timer, Zap, Activity,
+    Monitor, Siren, ShieldAlert, Shield, Clock, Laptop, Server, ChevronRight, Building2, Timer, Zap, Activity,
     CheckCircle, Bell,
 } from 'lucide-react';
 import { KpiCard, type KpiCardProps } from '../shared/KpiCard';
@@ -40,42 +40,133 @@ const WidgetCard = ({ title, linkHref, linkLabel, children }: { title: string; l
 );
 
 /* ── Incident Queue Widget (Row 2, right) ── */
-interface QueueIncident { id: string; severity: string; name: string; asset: string; status: string; slaTime: string }
-const SEV_BADGE: Record<string, string> = {
-    Critical: 'bg-red/10 text-red', High: 'bg-orange/10 text-orange',
-    Medium: 'bg-amber/10 text-amber', Low: 'bg-blue/10 text-blue',
+export interface QueueIncident {
+    id: string;
+    name: string;
+    asset: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    status: 'Open' | 'Investigating' | 'Contained' | 'Resolved';
+    slaTime: string;
+    ruleId?: string;
+}
+
+const SEVERITY_CONFIG: Record<string, { bg: string; text: string; border: string }> = {
+    critical: { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/30' },
+    high: { bg: 'bg-orange/10', text: 'text-orange', border: 'border-orange/30' },
+    medium: { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/30' },
+    low: { bg: 'bg-blue/10', text: 'text-blue', border: 'border-blue/30' },
 };
 
-function IncidentQueueWidget({ incidents, loading }: { incidents: QueueIncident[] | null; loading: boolean }) {
+const STATUS_CONFIG: Record<string, { bg: string; text: string }> = {
+    Open: { bg: 'bg-red-500/10 text-red-500', text: 'Open' },
+    Investigating: { bg: 'bg-amber-500/10 text-amber-500', text: 'Investigating' },
+    Contained: { bg: 'bg-blue/10 text-blue', text: 'Contained' },
+    Resolved: { bg: 'bg-emerald-500/10 text-emerald-500', text: 'Resolved' },
+};
+
+export function IncidentQueueWidget({ incidents, loading }: { incidents: QueueIncident[] | null; loading: boolean }) {
     const rows = (incidents ?? []).slice(0, 6);
+
     return (
-        <WidgetCard title="Incident Queue" linkHref="/admin/secops/incidents">
-            {loading ? (
-                <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-8 bg-card-muted rounded animate-pulse" />)}</div>
-            ) : rows.length === 0 ? (
-                <div className="text-center py-6">
-                    <div className="w-8 h-8 rounded-full bg-green/10 flex items-center justify-center mx-auto mb-2">
-                        <CheckCircle size={16} className="text-green" />
+        <div className="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:px-5 sm:py-4 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <h3 className="text-sm font-bold text-foreground tracking-tight">Active Incident Queue</h3>
+                    <span className="text-[11px] font-semibold text-foreground-muted bg-card-muted px-2 py-0.5 rounded-full border border-border">
+                        {rows.length} Active
+                    </span>
+                </div>
+                <Link
+                    href="/admin/secops/incidents"
+                    className="flex items-center gap-1 text-xs font-bold text-orange hover:text-orange-hover transition-colors"
+                >
+                    View all
+                    <ChevronRight size={14} />
+                </Link>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-2 sm:p-3">
+                {loading ? (
+                    <div className="space-y-2 p-2">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="h-10 bg-card-muted/60 rounded-xl animate-pulse" />
+                        ))}
                     </div>
-                    <p className="text-xs text-foreground-muted">No active incidents</p>
-                </div>
-            ) : (
-                <div className="space-y-0.5">
-                    {rows.map((inc) => (
-                        <Link key={inc.id} href="/admin/secops/incidents"
-                            className="grid grid-cols-5 gap-2 items-center py-2 px-1.5 border-b border-border last:border-0 hover:bg-card-muted rounded-lg transition-colors">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full text-center ${SEV_BADGE[inc.severity] ?? 'bg-card-muted text-foreground-muted'}`}>{inc.severity?.toUpperCase()}</span>
-                            <div className="col-span-2 min-w-0">
-                                <div className="text-xs font-medium text-foreground truncate">{inc.name}</div>
-                                <div className="text-[10px] text-foreground-muted truncate">{inc.asset}</div>
-                            </div>
-                            <span className="text-[10px] font-medium text-foreground-muted">{inc.status}</span>
-                            <span className="text-[10px] font-mono text-foreground-muted">{inc.slaTime}</span>
-                        </Link>
-                    ))}
-                </div>
-            )}
-        </WidgetCard>
+                ) : rows.length === 0 ? (
+                    <div className="text-center py-8">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-2.5">
+                            <CheckCircle size={18} className="text-emerald-500" />
+                        </div>
+                        <p className="text-xs font-semibold text-foreground">Zero Active Incidents</p>
+                        <p className="text-[11px] text-foreground-muted mt-0.5">All monitored endpoints are operating within normal baseline.</p>
+                    </div>
+                ) : (
+                    <div>
+                        {/* Table Column Labels */}
+                        <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] font-bold text-foreground-muted uppercase tracking-wider border-b border-border/60">
+                            <span className="col-span-2">Severity</span>
+                            <span className="col-span-6">Incident & Target Host</span>
+                            <span className="col-span-2 text-center">Status</span>
+                            <span className="col-span-2 text-right">SLA Target</span>
+                        </div>
+
+                        {/* List Items */}
+                        <div className="divide-y divide-border/40">
+                            {rows.map((inc) => {
+                                const sev = SEVERITY_CONFIG[inc.severity?.toLowerCase()] || SEVERITY_CONFIG.low;
+                                const stat = STATUS_CONFIG[inc.status] || STATUS_CONFIG.Open;
+
+                                return (
+                                    <Link
+                                        key={inc.id}
+                                        href={`/admin/secops/incidents`}
+                                        className="grid grid-cols-12 gap-3 items-center px-3 py-3 rounded-xl hover:bg-card-muted/50 transition-colors group"
+                                    >
+                                        {/* Severity Tag */}
+                                        <div className="col-span-2 flex items-center">
+                                            <span className={`inline-flex items-center justify-center text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md border ${sev.bg} ${sev.text} ${sev.border}`}>
+                                                {inc.severity}
+                                            </span>
+                                        </div>
+
+                                        {/* Incident Name & Asset */}
+                                        <div className="col-span-6 min-w-0">
+                                            <p className="text-xs font-semibold text-foreground truncate group-hover:text-orange transition-colors">
+                                                {inc.name}
+                                            </p>
+                                            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-foreground-muted truncate">
+                                                {inc.asset.includes('DESKTOP') ? (
+                                                    <Laptop size={11} className="flex-shrink-0" />
+                                                ) : (
+                                                    <Server size={11} className="flex-shrink-0" />
+                                                )}
+                                                <span className="font-mono text-[10px]">{inc.asset}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="col-span-2 flex justify-center">
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${stat.bg}`}>
+                                                {inc.status}
+                                            </span>
+                                        </div>
+
+                                        {/* SLA Remaining */}
+                                        <div className="col-span-2 flex items-center justify-end gap-1 font-mono text-[11px] text-foreground-muted">
+                                            <Clock size={11} className="text-foreground-muted/80" />
+                                            <span>{inc.slaTime || '02:00:00'}</span>
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }
 
@@ -501,10 +592,6 @@ export const GeneralDashboard = () => {
         { label: 'Critical Alerts', value: criticalAlertsCount !== null ? String(criticalAlertsCount) : '0', trend: '', type: 'red', icon: ShieldAlert, subValue: 'last 24 hours' },
         { label: 'Open Incidents', value: openIncidentsCount !== null ? String(openIncidentsCount) : '0', trend: '', type: 'orange', icon: Shield, subValue: 'last 24 hours' },
         { label: 'Clients Protected', value: customerCount !== null ? String(customerCount) : '0', trend: '', type: 'blue', icon: Building2, subValue: 'organisations' },
-        // MTTD/MTTR: no incident open->ack->close timestamp trail exists anywhere in this
-        // backend yet (incidents are demo data — routes/incidentResponse.ts) — showing a
-        // fabricated "4.2m" here would be exactly the kind of dishonest number this codebase
-        // has deliberately avoided everywhere else. Honest "—" until that data exists.
         { label: 'Mean Time to Detect', value: '—', trend: '', type: 'purple', icon: Timer, subValue: 'no data yet' },
         { label: 'Mean Time to Respond', value: '—', trend: '', type: 'blue', icon: Zap, subValue: 'no data yet' },
         { label: 'Platform Health', value: platformHealthPct, trend: '', type: platformHealthType, icon: Activity, subValue: `${servicesUp}/${servicesTotal} services up` },
@@ -515,7 +602,6 @@ export const GeneralDashboard = () => {
             {/* Header bar */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h2 className="text-lg font-black text-foreground">Security Operations Center</h2>
                     <p className="text-xs text-foreground-muted">{new Date().toLocaleString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' })} WAT</p>
                 </div>
                 <Link href="/admin/secops/threats" className="flex items-center gap-2 border border-border rounded-lg px-3 py-2 text-xs font-bold text-foreground-muted hover:text-foreground hover:border-grey-300 transition-colors">
@@ -530,8 +616,11 @@ export const GeneralDashboard = () => {
 
             {/* Row 2: Nigeria map (60%) + Incident queue (40%) */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
-                <div className="lg:col-span-3"><NigeriaThreatMap advisories={nigeriaAdvisories} /></div>
-                <div className="lg:col-span-2"><IncidentQueueWidget incidents={incidentQueue} loading={incidentsLoading} /></div>
+                <div className="lg:col-span-5"><NigeriaThreatMap advisories={nigeriaAdvisories} /></div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
+                 <div className="lg:col-span-5"><IncidentQueueWidget incidents={incidentQueue} loading={incidentsLoading} /></div>
             </div>
 
             {/* Row 3: MITRE (40%) + Threat Intel (60%) */}
