@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { apiUrl, apiFetch } from '@/lib/api';
 
-// One framework's control list — GET /api/compliance/controls?frameworkId=&orgId= (real
-// route, honest empty array until the external compliance backend is deployed). Shared by all
-// 5 framework sub-pages rather than duplicated per-framework, since the only thing that
-// differs between them is which frameworkId/name is passed in.
+// One framework's control list — GET /api/compliance/controls?frameworkId= (real Supabase
+// query; honest empty array — there's no control catalog table, a framework's control list is
+// exactly whatever rows exist in compliance_assessments for it, which is none until the first
+// one is assessed). Shared by all 5 framework sub-pages rather than duplicated per-framework,
+// since the only thing that differs between them is which frameworkId/name is passed in.
 
 interface Control {
-    id: number;
+    id: string;
     control_id: string;
     title: string;
     description: string;
@@ -29,10 +30,10 @@ const STATUS_STYLE: Record<Control['status'], string> = {
 
 export function ComplianceFramework({ frameworkId, name, shortName }: { frameworkId: number; name: string; shortName: string }) {
     const [controls, setControls] = useState<Control[] | null>(null);
-    const [busyId, setBusyId] = useState<number | null>(null);
+    const [busyId, setBusyId] = useState<string | null>(null);
 
     const load = useCallback(() => {
-        apiFetch(apiUrl(`/api/compliance/controls?frameworkId=${frameworkId}&orgId=1`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/compliance/controls?frameworkId=${frameworkId}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => setControls(Array.isArray(data) ? data : []))
             .catch(() => setControls([]));
@@ -40,13 +41,13 @@ export function ComplianceFramework({ frameworkId, name, shortName }: { framewor
 
     useEffect(() => { load(); }, [load]);
 
-    const assess = async (controlId: number, status: Control['status']) => {
-        setBusyId(controlId);
+    const assess = async (control: Control, status: Control['status']) => {
+        setBusyId(control.id);
         try {
             await apiFetch(apiUrl('/api/compliance'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orgId: 1, controlId, status, assessedBy: 'admin' }),
+                body: JSON.stringify({ frameworkId, controlId: control.control_id, controlName: control.title, status }),
             });
             load();
         } finally {
@@ -94,7 +95,7 @@ export function ComplianceFramework({ frameworkId, name, shortName }: { framewor
                                 <p className="text-xs text-foreground-muted mb-3">{c.description}</p>
                                 <div className="flex gap-2">
                                     {(['compliant', 'partial', 'non_compliant'] as const).map((s) => (
-                                        <button key={s} disabled={busyId === c.id} onClick={() => assess(c.id, s)}
+                                        <button key={s} disabled={busyId === c.id} onClick={() => assess(c, s)}
                                             className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border disabled:opacity-50 transition-colors ${c.status === s ? STATUS_STYLE[s] : 'border-border text-foreground-muted hover:bg-card-muted'}`}>
                                             Mark {STATUS_LABEL[s]}
                                         </button>
