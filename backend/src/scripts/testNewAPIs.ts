@@ -22,7 +22,7 @@ async function run() {
     try {
         const geo = await enrichIP('102.89.45.13'); // Nigerian MTN IP
         if (geo && geo.country_code) {
-            console.log(`   ✅ IPregistry: ${geo.country_name} | ${geo.city} | ISP: ${geo.isp}`);
+            console.log(`   ✅ IPregistry: ${geo.country_code} | ${geo.city} | Org: ${geo.org}`);
             console.log(`   Nigerian: ${geo.is_nigerian} | ASN: ${geo.asn}`);
         } else {
             console.log('   ⚠️  IPregistry: returned empty result (check key)');

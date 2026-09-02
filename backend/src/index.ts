@@ -16,7 +16,6 @@ import scanRouter from './routes/scan';
 import dnsRouter from './routes/dns';
 import domainsRouter from './routes/domains';
 import reportsRouter from './routes/reports';
-import novrAiRouter from './routes/novr-ai';
 import ctipRouter from './routes/ctip';
 import threatIntelRouter from './routes/threat-intel';
 import wazuhRouter from './routes/wazuh';
@@ -44,6 +43,7 @@ import orgCTIRouter from './routes/orgCTI';
 import { runCTIWatcher } from './jobs/ctiWatcher';
 import platformRouter from './routes/platform';
 import organisationsRouter from './routes/organisations';
+import novrAiRouter from './routes/novr-ai';
 
 const app = express();
 
@@ -59,7 +59,7 @@ const app = express();
 // of whatever a malicious client claims via its own X-Forwarded-For.
 app.set('trust proxy', 1);
 
-const PORT = Number(process.env.PORT || 8080);
+const PORT = Number(process.env.PORT || 8000);
 
 // Health check routes — registered before every other app.use() on purpose, not just
 // commented as such (a prior version of this file had that comment on a /health route that
@@ -119,11 +119,12 @@ app.use(helmet({
             objectSrc: ["'none'"],
         },
     },
-    hsts: {
-        maxAge: 31536000, // 1 year
+    // Only send HSTS in real production when not on localhost
+    hsts: process.env.NODE_ENV === 'production' ? {
+        maxAge: 31536000,
         includeSubDomains: true,
         preload: true,
-    },
+    } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     xssFilter: true,
     noSniff: true,
@@ -137,9 +138,13 @@ app.use((req, res, next) => {
 
 // Redirect HTTP to HTTPS in production (Railway terminates TLS in front of this process and
 // forwards x-forwarded-proto, so this is the only place that can see the original scheme).
+// Redirect HTTP to HTTPS in production (Railway terminates TLS in front of this process)
 if (process.env.NODE_ENV === 'production') {
     app.use((req, res, next) => {
-        if (req.headers['x-forwarded-proto'] !== 'https') {
+        const host = req.headers.host || '';
+        const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+
+        if (!isLocal && req.headers['x-forwarded-proto'] !== 'https') {
             return res.redirect(301, `https://${req.headers.host}${req.url}`);
         }
         next();

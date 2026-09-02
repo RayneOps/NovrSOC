@@ -1,136 +1,126 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import { search } from '../lib/wazuh-indexer';
 
 const router = Router();
-const client = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] });
 
-const NOVRSOC_KNOWLEDGE_BASE = `
-PLATFORM FEATURES:
+const MODEL = 'claude-sonnet-4-6';
 
-BRAND PROTECTION:
-- Domain Suite: Monitor domains for typosquatting, DNS changes, SSL cert
-  anomalies. Add domains, run scans, view CT logs and lookalike alerts.
-- Social Suite: Monitor X, Facebook, Instagram, LinkedIn for brand impersonation.
-  Add official handles, view monitoring reports, see impersonation alerts.
-- Brand Suite: Scan web for counterfeit sites and unauthorized brand use.
-  Add brand assets (domain, name, keywords, logo). Run web scans for violations.
-- Executive Monitoring: Monitor executive emails for data breaches and auth anomalies.
-  Add executives with their details and social handles. Run breach scans.
-- Mobile App Suite: Monitor App Store and Play Store for rogue apps using your brand.
-  Add official apps, scan both stores, review rogue app alerts.
-- Intelli CODE copyID: Scan GitHub and GitLab for leaked source code, API keys,
-  and credentials. Add custom patterns, run manual scans, review alerts.
+function isKeyConfigured(): boolean {
+    const key = process.env.ANTHROPIC_API_KEY;
+    return !!key && key !== 'your-key-here' && !key.startsWith('[');
+}
 
-THREAT INTELLIGENCE:
-- CTI Platform: Search any IP, domain, hash, or URL against 5 threat intel sources.
-  Paste an IOC in the search bar and get an instant verdict with risk score 0-100.
-- Threat Advisory: Browse recent CVEs from public vulnerability databases and the
-  Known Exploited Vulnerabilities catalog. Filter by severity, click any CVE for
-  details and remediation guidance.
-- URL Scan Suite: Submit suspicious URLs for threat analysis against multiple
-  threat intelligence sources simultaneously.
-- Website Scanning: Scan any domain for SSL grade, DNS health, SPF/DMARC records.
-  Requires authorisation checkbox — only scan domains you own or have permission for.
-- Vendor Assessments: View security scores for 6 Nigerian partner companies.
-  Each vendor has a NovrSOC score, risk level, and detailed issue breakdown.
+const SYSTEM_INSTRUCTION = `
+You are NovrAI, an expert AI Security Operations Center (SOC) Copilot and Cyber Threat Intelligence (CTI) analyst for NovrSOC (by Cybernovr).
+Your mission is to provide accurate, actionable cybersecurity analysis, incident triage, and remediation advice.
 
-INFRASTRUCTURE:
-- Digital Assets: View all enrolled monitoring agents. Shows OS, IP, last heartbeat.
-  Add agents by installing the endpoint agent and pointing it to this server.
-- DNS Suite: Real-time DNS lookup for any domain across multiple record types.
-  Run DNS health check to detect missing SPF/DMARC/DKIM records.
-- WebLogic Appliances: Monitor Java middleware clusters. Shows heap usage,
-  thread pool, JDBC connections. Force GC on overloaded servers.
+Core Areas of Expertise:
+- Wazuh SIEM log analysis, rule evaluation, and alert correlation.
+- MITRE ATT&CK framework mapping (Techniques, Tactics, Procedures).
+- Nigerian threat landscape, Telecom/ISP telemetry (MTN, Glo, Airtel, Spectranet, MainOne, IPNX), and regional threat actors.
+- Cloud security, vulnerability remediation (CVEs), and compliance frameworks (NDPR, ISO 27001, SOC 2, NIST CSF).
 
-EMAIL SECURITY:
-- DMARC SaaS: Monitor DMARC aggregate reports for your domains. Shows compliance
-  rate, unauthorized senders, policy enforcement. Add domains to monitor.
-- Messaging Suite: Monitor email gateway health and inspect suspicious emails.
-  Run RBL checks on any IP to detect spam blacklist listings.
-- PHISHID: AI-powered phishing page detection for browser extensions.
-  Shows classification events, endpoint status, and blocked threats.
-
-SECOPS & RESPONSE:
-- Threat Management: Real-time security alert queue. Filter by severity. Click
-  alert for MITRE mapping, threat intel scores, raw log.
-  Actions: Investigate, Acknowledge, Create Incident, Lookup IP in CTI.
-- Incident Response: Manage security incidents through full lifecycle.
-  View timeline, containment actions, assign analysts, escalate or resolve.
-- Alert Communication: Configure and test notification channels (Slack, email, SMS).
-  Send manual alerts, view dispatch history.
-
-DATA CONTINUITY:
-- Data Loss Recovery: Monitor backup job completion across all servers.
-  Shows job status, hash verification, retention calendar. Retry failed jobs.
-- Recovery Credit (SLA): Track uptime against SLA targets. Calculates credits
-  owed when SLA is breached. Verified against independent uptime monitoring.
-
-HOW TO USE:
-- Search any IP/domain/URL: go to Threat Intelligence -> CTI Platform
-- Check if executive was breached: go to Brand Protection -> Executive Monitoring -> Run Scan
-- See what's on your network: go to Infrastructure -> Digital Assets
-- View real-time threats: go to SecOps -> Threat Management
-- Test an alert: go to SecOps -> Alert Communication -> Send Test
+Response Formatting Guidelines:
+- Be concise, technical, and direct.
+- Structure incident analyses with clear headings (## Summary, ### Threat Assessment, ### Containment & Remediation).
+- Use bullet points for steps or indicators of compromise (IoCs).
+- Always reference relevant MITRE technique IDs (e.g., T1059, T1078) and CVE identifiers where applicable.
 `;
 
-const SYSTEM_PROMPT = `You are NovrAI, a senior SOC analyst assistant embedded in the NovrSOC platform — an AI-Powered MSSP and SOC-as-a-Service platform for Africa. You specialize in:
-- Nigerian cybersecurity threats (NCC-CSIRT advisories, NGCERT alerts, CBN-regulated institution threats)
-- African regulatory compliance (NDPA, CBN Cybersecurity Framework, NCC Framework)
-- MITRE ATT&CK analysis and threat hunting
-- Incident investigation and triage
-- Vulnerability prioritization using SecuBreach exposure scoring
-- SOAR playbook recommendations
+interface IncomingMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
 
-When responding:
-1. Start with a brief summary
-2. List key findings as bullet points
-3. Map to MITRE ATT&CK techniques where relevant (use technique IDs like T1566)
-4. Provide suggested next actions
-5. Include a severity assessment
-6. Reference Nigerian/African context where relevant
+// GET /api/novr-ai/status
+router.get('/status', (_req: Request, res: Response) => {
+    res.json({ configured: isKeyConfigured(), provider: 'claude', model: MODEL });
+});
 
-Keep responses concise, actionable, and professional. You are talking to SOC analysts and security managers.
+// POST /api/novr-ai
+router.post('/', async (req: Request, res: Response) => {
+    const { messages } = req.body as {
+        messages?: IncomingMessage[];
+        model?: string;
+    };
 
-You also act as the platform's own help assistant: when a user asks what a feature does, how to use a
-page, or clicks a help/chatbot icon from a specific page, answer from the platform knowledge base below
-— concisely and practically, pointing them to the exact page/section. Never name the underlying
-third-party APIs/services a feature is built on (e.g. say "our threat intelligence sources", not the
-vendor name) — that's internal implementation detail, not something to expose to the user.
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json({ error: 'Messages array is required.' });
+        return;
+    }
 
-${NOVRSOC_KNOWLEDGE_BASE}`;
+    if (!isKeyConfigured()) {
+        res.status(503).json({
+            error: 'NovrAI unavailable',
+            reply: undefined,
+            message: 'ANTHROPIC_API_KEY not configured. Add your key to Railway environment variables.',
+            configured: false,
+        });
+        return;
+    }
 
-router.post('/', async (req, res) => {
+    // Wazuh telemetry context — same live-alert summary the previous Gemini-backed
+    // implementation folded into its system prompt, kept so NovrAI still grounds answers in
+    // what's actually happening on the indexer rather than answering from training data alone.
+    let liveAlertSummary = 'No recent critical indexer alerts.';
     try {
-        const { messages, page } = req.body as { messages: Anthropic.MessageParam[]; page?: string };
-
-        if (!messages || !Array.isArray(messages)) {
-            res.status(400).json({ error: 'Invalid request: messages array required' });
-            return;
+        const indexerResult = await search<any>('wazuh-alerts-4.x-*', {
+            size: 5,
+            query: { range: { 'rule.level': { gte: 7 } } },
+            _source: ['timestamp', 'rule.description', 'rule.level', 'agent.name', 'data.srcip'],
+        });
+        const hits = indexerResult?.hits?.hits ?? [];
+        if (hits.length > 0) {
+            liveAlertSummary = hits.map((h: any) => {
+                const level = h._source?.rule?.level ?? 'N/A';
+                const desc = h._source?.rule?.description ?? 'Unknown alert';
+                const agent = h._source?.agent?.name ?? 'Unknown Agent';
+                const srcip = h._source?.data?.srcip ?? 'internal';
+                return `- [Level ${level}] ${desc} (Agent: ${agent}, Src IP: ${srcip})`;
+            }).join('\n');
         }
+    } catch {
+        // Non-blocking fallback — an indexer outage must not take NovrAI down with it.
+    }
 
-        // When the chat was opened from a specific page, tell the model which one so it
-        // leads with that feature's guidance rather than asking the user to clarify.
-        const system = page
-            ? `${SYSTEM_PROMPT}\n\nThe user just opened this chat from: ${page} — lead with guidance for that specific feature if their question is general or unclear, but still answer whatever they actually ask.`
-            : SYSTEM_PROMPT;
+    try {
+        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
         const response = await client.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
-            system,
-            messages,
+            model: MODEL,
+            max_tokens: 4096,
+            system: `${SYSTEM_INSTRUCTION}\n\nCurrent Live NovrSOC Telemetry Context:\n${liveAlertSummary}`,
+            messages: messages.map((m) => ({
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                content: m.content,
+            })),
         });
 
-        const content = response.content[0];
-        if (content.type !== 'text') {
-            res.status(500).json({ error: 'Unexpected response type' });
-            return;
+        const reply = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map((block) => block.text)
+            .join('');
+
+        if (!reply) {
+            throw new Error(`Claude returned no text content (stop_reason: ${response.stop_reason})`);
         }
 
-        res.json({ reply: content.text });
+        res.json({
+            reply,
+            model: MODEL,
+            provider: 'claude',
+            configured: true,
+            timestamp: new Date().toISOString(),
+        });
     } catch (err) {
-        console.error('NovrAI API error:', err);
-        res.status(500).json({ error: 'AI service unavailable' });
+        console.error('NovrAI Claude error:', err);
+        let message = 'Error processing request with Claude';
+        if (err instanceof Anthropic.AuthenticationError) message = 'Invalid ANTHROPIC_API_KEY';
+        else if (err instanceof Anthropic.RateLimitError) message = 'Claude API rate limit exceeded — try again shortly';
+        else if (err instanceof Anthropic.APIError) message = `Claude API error (${err.status}): ${err.message}`;
+        else if (err instanceof Error) message = err.message;
+        res.status(500).json({ error: message, configured: true });
     }
 });
 

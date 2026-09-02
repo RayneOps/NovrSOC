@@ -81,3 +81,89 @@ export async function testConnection(): Promise<{ ok: boolean; status: number; e
         return { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
     }
 }
+
+// ─── Minimal case read/create (added for routes/incidentResponse.ts) ──────────────────────
+//
+// Scope is deliberately narrow: list + create only, nothing for tasks/observables/stats — those
+// aren't called from anywhere in this codebase yet, and building them speculatively against an
+// instance this dev environment can't reach (see the file header) would be untested surface
+// area. Shapes below follow TheHive 5's documented REST API (github.com/TheHive-Project/api-docs):
+// reads go through the /api/v1/query DSL (same endpoint testConnection() above already uses),
+// writes go through the plain /api/v1/case resource endpoint. Not verified against a live
+// instance — if VPS 6 rejects a field name here, that's the first thing to check.
+
+export interface TheHiveCase {
+    _id: string;
+    title: string;
+    description?: string;
+    severity: 1 | 2 | 3 | 4; // TheHive encodes severity as 1=low..4=critical, not a string
+    status?: string;
+    tags?: string[];
+    _createdAt?: number;
+    _updatedAt?: number;
+}
+
+/**
+ * Lists the most recent cases via the query DSL: listCase, newest first, capped at `limit`.
+ */
+export async function getCases(limit = 50): Promise<TheHiveCase[]> {
+    const { status, json } = await request<TheHiveCase[]>('/api/v1/query', 'POST', {
+        query: [
+            { _name: 'listCase' },
+            { _name: 'sort', _fields: [{ _createdAt: 'desc' }] },
+            { _name: 'page', from: 0, to: limit },
+        ],
+    });
+    if (status < 200 || status >= 300 || !Array.isArray(json)) {
+        throw new Error(`TheHive listCase failed (status ${status}): ${JSON.stringify(json)}`);
+    }
+    return json;
+}
+
+const SEVERITY_TO_THEHIVE: Record<string, 1 | 2 | 3 | 4> = { low: 1, medium: 2, high: 3, critical: 4 };
+
+/**
+ * Creates a new case. `severity` accepts NovrSOC's own low/medium/high/critical strings and maps
+ * them to TheHive's 1-4 scale. Returns null (rather than throwing) on failure so callers can
+ * decide whether to fall back to the in-memory/Wazuh-derived path instead of hard-failing the
+ * request.
+ */
+export async function createCase(params: {
+    title: string;
+    description?: string;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    tags?: string[];
+}): Promise<TheHiveCase | null> {
+    try {
+        const { status, json } = await request<TheHiveCase>('/api/v1/case', 'POST', {
+            title: params.title,
+            description: params.description || 'Created via NovrSOC',
+            severity: SEVERITY_TO_THEHIVE[params.severity ?? 'high'],
+            tags: params.tags ?? ['novrsoc'],
+        });
+        if (status < 200 || status >= 300 || !json) {
+            console.error(`TheHive createCase failed (status ${status}):`, json);
+            return null;
+        }
+        return json;
+    } catch (err) {
+        console.error('TheHive createCase error:', err);
+        return null;
+    }
+}
+
+/** Maps a TheHive case onto the shape routes/incidentResponse.ts's GET / already returns. */
+export function formatCaseForNovrSOC(c: TheHiveCase) {
+    const severityMap: Record<number, 'low' | 'medium' | 'high' | 'critical'> = { 1: 'low', 2: 'medium', 3: 'high', 4: 'critical' };
+    return {
+        id: c._id,
+        title: c.title,
+        severity: severityMap[c.severity] ?? 'medium',
+        status: (c.status ?? 'new').toLowerCase(),
+        summary: c.description ?? '',
+        opened_at: c._createdAt ? new Date(c._createdAt).toLocaleString() : new Date().toLocaleString(),
+        updated_at: c._updatedAt ? new Date(c._updatedAt).toLocaleString() : new Date().toLocaleString(),
+        source: 'thehive' as const,
+        tags: c.tags ?? [],
+    };
+}
