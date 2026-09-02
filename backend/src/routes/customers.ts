@@ -15,7 +15,7 @@ router.get('/', async (req: AuthRequest, res) => {
         if (req.user?.role !== 'super_admin' && req.user?.org_id) {
             url.searchParams.set('org_id', req.user.org_id);
         }
-        const response = await fetch(url, { cache: 'no-store' });
+        const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {
@@ -32,6 +32,7 @@ router.post('/', async (req: AuthRequest, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);

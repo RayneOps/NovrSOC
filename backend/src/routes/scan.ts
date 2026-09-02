@@ -24,6 +24,7 @@ router.post('/', async (req, res) => {
                 value: result.value, type: result.type, verdict: result.verdict, confidence: result.confidence,
                 scanned_by: orgId ? 'Portal User' : 'Admin User', result_json: result, org_id: orgId,
             }),
+            signal: AbortSignal.timeout(5000),
         }).catch(() => {});
 
         res.json(result);
@@ -36,7 +37,7 @@ router.post('/', async (req, res) => {
 router.get('/history', async (req, res) => {
     try {
         const search = req.originalUrl.includes('?') ? `?${req.originalUrl.split('?')[1]}` : '';
-        const response = await fetch(`${BACKEND_URL}/api/scan-history${search}`, { cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/scan-history${search}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {

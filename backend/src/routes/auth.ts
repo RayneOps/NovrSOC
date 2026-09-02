@@ -80,6 +80,7 @@ router.post('/signin', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);
@@ -97,6 +98,7 @@ router.post('/google', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);
@@ -113,6 +115,7 @@ router.post('/signup', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);

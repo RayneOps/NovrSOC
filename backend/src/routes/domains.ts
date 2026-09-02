@@ -12,6 +12,7 @@ function saveScanHistory(domain: string, resultJson: unknown, orgId: number | nu
             value: domain, type: 'domain', verdict: null, confidence: null,
             scanned_by: orgId ? 'Portal User' : 'Admin User', result_json: resultJson, org_id: orgId,
         }),
+        signal: AbortSignal.timeout(5000),
     }).catch(() => {});
 }
 

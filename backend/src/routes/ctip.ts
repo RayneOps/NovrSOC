@@ -31,7 +31,7 @@ router.get('/countries', async (_req, res) => {
         // unfiltered/most-recent IOC stream is ~100% null-country (dominated by a
         // URL-based malware feed with no geolocation). Filtering to type=ip yields
         // real, populated country data instead.
-        const response = await fetch(`${CTIP_URL}/api/ctip/iocs?type=ip&limit=500`, { cache: 'no-store' });
+        const response = await fetch(`${CTIP_URL}/api/ctip/iocs?type=ip&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         const items: IOCItem[] = Array.isArray(data?.items) ? data.items : [];
 
@@ -57,7 +57,7 @@ router.get('/countries', async (_req, res) => {
 // GET /api/ctip/campaigns
 router.get('/campaigns', async (_req, res) => {
     try {
-        const response = await fetch(`${CTIP_URL}/api/ctip/iocs?limit=500`, { cache: 'no-store' });
+        const response = await fetch(`${CTIP_URL}/api/ctip/iocs?limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         const items: IOCItem[] = Array.isArray(data?.items) ? data.items : [];
 
@@ -98,7 +98,7 @@ router.get('/campaigns', async (_req, res) => {
 // GET /api/ctip/actors
 router.get('/actors', async (_req, res) => {
     try {
-        const response = await fetch(`${CTIP_URL}/api/ctip/threat-actors`, { cache: 'no-store' });
+        const response = await fetch(`${CTIP_URL}/api/ctip/threat-actors`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.json(Array.isArray(data) ? data : []);
     } catch {
@@ -109,7 +109,7 @@ router.get('/actors', async (_req, res) => {
 // GET /api/ctip/feed-status
 router.get('/feed-status', async (_req, res) => {
     try {
-        const response = await fetch(`${BACKEND_URL}/api/ctip/feed-status`, { cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/ctip/feed-status`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {

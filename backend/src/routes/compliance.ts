@@ -48,7 +48,7 @@ router.get('/', async (req: AuthRequest, res) => {
     // moment GET /api/compliance?orgId= exists on the backend.
     let liveScores: BackendFrameworkScore[] = [];
     try {
-        const response = await fetch(`${BACKEND_URL}/api/compliance?orgId=${encodeURIComponent(orgId)}`, { cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/compliance?orgId=${encodeURIComponent(orgId)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data)) liveScores = data;
@@ -101,6 +101,7 @@ router.post('/', async (req: AuthRequest, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...body, orgId }),
+            signal: AbortSignal.timeout(5000),
         });
         if (!response.ok) throw new Error('backend rejected assessment');
         const data = await response.json();
@@ -123,7 +124,7 @@ router.get('/controls', async (req: AuthRequest, res) => {
     try {
         const params = new URLSearchParams({ frameworkId });
         if (orgId) params.set('orgId', orgId);
-        const response = await fetch(`${BACKEND_URL}/api/compliance/controls?${params.toString()}`, { cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/compliance/controls?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         if (!response.ok) throw new Error('not available');
         const data = await response.json();
         res.json(Array.isArray(data) ? data : []);
