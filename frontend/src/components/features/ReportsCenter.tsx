@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Download, Mail, Plus, X, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { exportDataAsPDF } from '@/lib/exportPDF';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Mock data only, except "Generate + Email" on Weekly Security Digest — that one calls the
 // real backend/src/services/email.ts's sendWeeklyReportEmail via POST /api/email/weekly-report.
@@ -73,7 +73,7 @@ export function ReportsCenter() {
             const today = new Date();
             const weekStart = new Date(today.getTime() - 6 * 86400000);
             try {
-                const res = await fetch(apiUrl('/api/email/weekly-report'), {
+                const res = await apiFetch(apiUrl('/api/email/weekly-report'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

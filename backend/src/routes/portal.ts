@@ -24,6 +24,7 @@ router.post('/auth/signin', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);
@@ -36,7 +37,7 @@ router.post('/auth/signin', async (req, res) => {
 router.get('/dashboard', async (req, res) => {
     try {
         const auth = req.headers.authorization ?? '';
-        const response = await fetch(`${BACKEND_URL}/api/portal/dashboard`, { headers: { Authorization: auth }, cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/portal/dashboard`, { headers: { Authorization: auth }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {
@@ -49,7 +50,7 @@ router.get('/incidents', async (req, res) => {
     try {
         const auth = req.headers.authorization ?? '';
         const search = req.originalUrl.includes('?') ? `?${req.originalUrl.split('?')[1]}` : '';
-        const response = await fetch(`${BACKEND_URL}/api/portal/incidents${search}`, { headers: { Authorization: auth }, cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/portal/incidents${search}`, { headers: { Authorization: auth }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {
@@ -61,7 +62,7 @@ router.get('/incidents', async (req, res) => {
 router.get('/assets', async (req, res) => {
     try {
         const auth = req.headers.authorization ?? '';
-        const response = await fetch(`${BACKEND_URL}/api/portal/assets`, { headers: { Authorization: auth }, cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/portal/assets`, { headers: { Authorization: auth }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {
@@ -73,7 +74,7 @@ router.get('/assets', async (req, res) => {
 router.get('/advisories', async (req, res) => {
     try {
         const auth = req.headers.authorization ?? '';
-        const response = await fetch(`${BACKEND_URL}/api/portal/advisories`, { headers: { Authorization: auth }, cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/portal/advisories`, { headers: { Authorization: auth }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {
@@ -100,6 +101,7 @@ router.post('/scan', async (req, res) => {
                 value: result.value, type: result.type, verdict: result.verdict, confidence: result.confidence,
                 scanned_by: 'Portal User', result_json: result, org_id: orgId,
             }),
+            signal: AbortSignal.timeout(5000),
         }).catch(() => {});
 
         res.json(result);
@@ -113,7 +115,7 @@ router.get('/scan/history', async (req, res) => {
     try {
         const orgId = unverifiedOrgId(req.headers.authorization);
         const qs = orgId ? `?org_id=${orgId}` : '';
-        const response = await fetch(`${BACKEND_URL}/api/scan-history${qs}`, { cache: 'no-store' });
+        const response = await fetch(`${BACKEND_URL}/api/scan-history${qs}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
         const data = await response.json();
         res.status(response.status).json(data);
     } catch {

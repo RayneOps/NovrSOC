@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { CheckCircle2, AlertTriangle } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Wazuh Manager, Database, and Claude AI are real — fetched from GET /api/platform/health
 // (routes/platform.ts). Everything else here is still mock: no health-check job exists yet
@@ -67,7 +67,7 @@ export function PlatformHealth() {
     const [checkedAt, setCheckedAt] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/platform/health'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/platform/health'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data: PlatformHealthResponse) => {
                 if (!Array.isArray(data?.services)) return;

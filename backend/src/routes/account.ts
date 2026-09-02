@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
         const response = await fetch(`${BACKEND_URL}/api/account`, {
             headers: auth ? { Authorization: auth } : {},
             cache: 'no-store',
+            signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
         res.status(response.status).json(data);

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, AlertCircle, RefreshCw } from 'lucide-react';
 import { NigeriaMap2, type NigeriaStateData } from './NigeriaMap2';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 const Card = ({ children }: { children: React.ReactNode }) => (
     <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
@@ -88,7 +88,7 @@ export const NigeriaThreatMap = ({ advisories }: { advisories?: FeedAdvisory[] |
     const loadData = () => {
         setIsLoading(true);
         setFetchError(null);
-        fetch(apiUrl(`/api/dashboard/nigeria-threats?range=${timeRange}`), { cache: 'no-store' })
+        apiFetch(apiUrl(`/api/dashboard/nigeria-threats?range=${timeRange}`), { cache: 'no-store' })
             .then(async (r) => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.json();

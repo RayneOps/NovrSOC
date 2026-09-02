@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { getAdminUser } from '@/lib/admin-auth';
 import { exportDataAsPDF } from '@/lib/exportPDF';
 import {
@@ -119,7 +119,7 @@ export function IncidentResponse() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/incidents'))
+        apiFetch(apiUrl('/api/incidents'))
             .then((r) => r.json())
             .then((data) => {
                 setIncidents(Array.isArray(data?.incidents) ? data.incidents : []);
@@ -137,7 +137,7 @@ export function IncidentResponse() {
     async function updateStatus(id: string, status: IncidentStatus) {
         setBusy(true);
         try {
-            await fetch(apiUrl(`/api/incidents/${id}`), {
+            await apiFetch(apiUrl(`/api/incidents/${id}`), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status }),
@@ -153,7 +153,7 @@ export function IncidentResponse() {
         setBusy(true);
         try {
             const author = getAdminUser()?.name || 'RayneOps';
-            const res = await fetch(apiUrl(`/api/incidents/${id}/notes`), {
+            const res = await apiFetch(apiUrl(`/api/incidents/${id}/notes`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ author, type: noteType, text: noteText.trim() }),

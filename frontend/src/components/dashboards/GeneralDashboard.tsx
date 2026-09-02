@@ -11,7 +11,7 @@ import { ChartWrapper } from '../shared/ChartWrapper';
 import { getPortalContext } from '@/lib/portal-context';
 import { WorldGlobe } from '../geo/WorldGlobe';
 import { NigeriaThreatMap, type FeedAdvisory } from '../geo/NigeriaThreatMap';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
     <div className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm ${className}`}>
@@ -376,8 +376,8 @@ const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient
         if (!clients || clients.length === 0) return;
         const fetchGroup = async (group: string | null) => {
             const [agentsRes, incidentsRes] = await Promise.all([
-                fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
-                fetch(apiUrl(`/api/wazuh/incidents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
+                apiFetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
+                apiFetch(apiUrl(`/api/wazuh/incidents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) }).then(r => r.json()).catch(() => null),
             ]);
             return {
                 endpoints: typeof agentsRes?.total === 'number' ? agentsRes.total : 0,
@@ -466,14 +466,14 @@ export const GeneralDashboard = () => {
     const [customerCount, setCustomerCount] = useState<number | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/wazuh/status'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/status'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setWazuhStatus({ connected: !!data?.connected, agent_count: data?.agent_count ?? 0, active_agents: data?.active_agents ?? 0 }))
             .catch(() => setWazuhStatus({ connected: false, agent_count: 0, active_agents: 0 }));
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/platform/health'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/platform/health'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setPlatformHealth({ overall: data?.overall ?? 'unknown', services: Array.isArray(data?.services) ? data.services : [] }))
             .catch(() => setPlatformHealth({ overall: 'unknown', services: [] }));
@@ -483,7 +483,7 @@ export const GeneralDashboard = () => {
         const group = getPortalContext().wazuhGroup;
         const params = new URLSearchParams({ minLevel: '7', range: '24h' });
         if (group) params.set('group', group);
-        fetch(apiUrl(`/api/wazuh/alerts-indexer?${params.toString()}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/wazuh/alerts-indexer?${params.toString()}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 setCriticalAlertsCount(typeof data?.criticalCount === 'number' ? data.criticalCount : 0);
@@ -493,7 +493,7 @@ export const GeneralDashboard = () => {
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/wazuh/incidents'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/incidents'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 setIncidentKpis({ total: data?.kpis?.total ?? 0, critical: data?.kpis?.critical ?? 0 });
@@ -504,21 +504,21 @@ export const GeneralDashboard = () => {
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/wazuh/mitre-stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/mitre-stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => { setMitreTactics(data?.tactics ?? {}); setMitreSource(data?.source ?? 'unavailable'); })
             .catch(() => { setMitreTactics({}); setMitreSource('unavailable'); });
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/threat-intel/stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/threat-intel/stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setCtiStats(data))
             .catch(() => {});
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/org-cti/stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/org-cti/stats'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setOrgCti({ malicious: data?.malicious ?? 0, suspicious: data?.suspicious ?? 0, total: data?.total_iocs ?? 0 }))
             .catch(() => {});
@@ -527,7 +527,7 @@ export const GeneralDashboard = () => {
     useEffect(() => {
         // Cybernovr is the single pre-launch tenant everywhere else in this codebase defaults
         // to (see lib/orgCtiStore.ts, routes/orgCTI.ts) — orgId=1 here for the same reason.
-        fetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setFrameworks(Array.isArray(data) ? data : []))
             .catch(() => setFrameworks([]))
@@ -535,7 +535,7 @@ export const GeneralDashboard = () => {
     }, []);
 
     useEffect(() => {
-        fetch(apiUrl('/api/threats/alerts?limit=10'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/threats/alerts?limit=10'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => {
                 setFeedAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
@@ -547,7 +547,7 @@ export const GeneralDashboard = () => {
 
     const [nigeriaAdvisories, setNigeriaAdvisories] = useState<FeedAdvisory[] | null>(null);
     useEffect(() => {
-        fetch(apiUrl('/api/advisories'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/advisories'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setNigeriaAdvisories(Array.isArray(data?.advisories) ? data.advisories : []))
             .catch(() => setNigeriaAdvisories([]));
@@ -556,7 +556,7 @@ export const GeneralDashboard = () => {
     const [clients, setClients] = useState<OnboardedClient[] | null>(null);
     const [clientsLoading, setClientsLoading] = useState(true);
     useEffect(() => {
-        fetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => { setClients(Array.isArray(data?.customers) ? data.customers : []); setCustomerCount(Array.isArray(data?.customers) ? data.customers.length : 0); })
             .catch(() => { setClients([]); setCustomerCount(0); })
@@ -567,7 +567,7 @@ export const GeneralDashboard = () => {
     const [trendLoading, setTrendLoading] = useState(true);
     const [trendRange, setTrendRange] = useState<'24h' | '7d' | '30d'>('7d');
     useEffect(() => {
-        fetch(apiUrl(`/api/wazuh/trend?range=${trendRange}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/wazuh/trend?range=${trendRange}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => r.json())
             .then(data => setTrendData(Array.isArray(data) && data.length > 0 ? data : null))
             .catch(() => setTrendData(null))

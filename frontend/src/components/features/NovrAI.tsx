@@ -17,7 +17,7 @@ import {
     ChevronRight,
     Loader2
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
@@ -192,7 +192,7 @@ export function NovrAI() {
         setLoading(true);
 
         try {
-           const res = await fetch(apiUrl('/api/novr-ai'), {
+           const res = await apiFetch(apiUrl('/api/novr-ai'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

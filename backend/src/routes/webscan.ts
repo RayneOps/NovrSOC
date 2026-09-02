@@ -2,9 +2,14 @@ import { Router } from 'express';
 import { analyzeSSL, type SSLReport } from '../services/sslLabs';
 import { getSupabase } from '../services/geoEnrichment';
 import { lookupDomain, type ParsedWhois } from '../services/rdap';
+import type { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Placeholder single-tenant org id — this route is shared with the client portal
+// (WebsiteScanning.tsx is rendered by both /admin and /client), so it isn't behind
+// requireAuth yet (see index.ts's block comment on why). req.user is therefore always
+// undefined here today; the `req.user?.org_id ||` fallback below is forward-prep only.
 const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -43,7 +48,7 @@ interface CloudflareDnsResponse {
 
 // POST /api/webscan/start
 // Body: { domain: "cybernovr.com", scan_type: "quick" | "full", authorised: true }
-router.post('/start', async (req, res) => {
+router.post('/start', async (req: AuthRequest, res) => {
     const { domain, scan_type = 'quick', authorised } = req.body ?? {};
 
     if (!domain) {
@@ -177,7 +182,7 @@ router.post('/start', async (req, res) => {
             const supabase = getSupabase();
             if (supabase) {
                 await supabase.from('website_scans').insert({
-                    org_id: DEFAULT_ORG_ID,
+                    org_id: req.user?.org_id || DEFAULT_ORG_ID,
                     target_domain: cleanDomain,
                     scan_type,
                     ssl_grade: results.ssl?.grade || null,

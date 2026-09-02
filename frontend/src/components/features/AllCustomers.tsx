@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Building2 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // GET /api/customers — same real endpoint the dashboard's Onboarded Clients widget already
 // uses, just as its own dedicated page rather than a 5-row preview.
@@ -22,7 +22,7 @@ export function AllCustomers() {
     const [search, setSearch] = useState('');
 
     useEffect(() => {
-        fetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => setCustomers(Array.isArray(data?.customers) ? data.customers : []))
             .catch(() => setCustomers([]));

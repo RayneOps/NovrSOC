@@ -267,7 +267,7 @@ router.get('/network-connections', async (req, res) => {
 
     const lookupIoc = async (ip: string): Promise<{ verdict: 'Malicious' | 'Suspicious' | 'Unknown'; country: string | null }> => {
         try {
-            const r = await fetch(`${CTIP_URL}/api/ctip/iocs/${encodeURIComponent(ip)}`, { cache: 'no-store' });
+            const r = await fetch(`${CTIP_URL}/api/ctip/iocs/${encodeURIComponent(ip)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
             const data = await r.json();
             const match: CtipMatch | undefined = Array.isArray(data?.matches) ? data.matches[0] : undefined;
             if (!data?.found || !match) return { verdict: 'Unknown', country: null };

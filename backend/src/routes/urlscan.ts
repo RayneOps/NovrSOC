@@ -4,10 +4,15 @@ import { threatfoxSearchIOC, type ThreatFoxIOC } from '../services/threatfox';
 import { getSupabase } from '../services/geoEnrichment';
 import { searchURL, searchDomain, isConfigured as urlscanConfigured, type URLScanSearchResult } from '../services/urlscanio';
 import { checkURLSafety } from '../services/google';
+import type { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// Placeholder single-tenant org id until real multi-tenant auth exists on this backend.
+// Placeholder single-tenant org id — this route is one of the ones shared with the client
+// portal (UrlScanSuite.tsx is rendered by both /admin and /client), so it isn't behind
+// requireAuth yet (see index.ts's block comment on why). req.user is therefore always
+// undefined here today and this fallback is what actually runs; the `req.user?.org_id ||`
+// below is forward-prep for once shared-route auth exists, not a live behavior change.
 const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 interface UrlScanResult {
@@ -30,7 +35,7 @@ interface UrlScanResult {
 
 // POST /api/urlscan/submit
 // Body: { url: "https://suspicious.com/path" }
-router.post('/submit', async (req, res) => {
+router.post('/submit', async (req: AuthRequest, res) => {
     const { url } = req.body ?? {};
     if (!url || typeof url !== 'string') {
         res.status(400).json({ error: 'url required' });
@@ -119,7 +124,7 @@ router.post('/submit', async (req, res) => {
             const supabase = getSupabase();
             if (supabase) {
                 await supabase.from('url_scans').insert({
-                    org_id: DEFAULT_ORG_ID,
+                    org_id: req.user?.org_id || DEFAULT_ORG_ID,
                     submitted_url: url,
                     final_url: url,
                     risk_score: results.risk_score,

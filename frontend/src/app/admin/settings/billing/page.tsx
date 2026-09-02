@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Mock client roster — same shape/data as the Organisations page (no persisted org table
 // exists yet). Kept as a separate literal here rather than importing it, since a real
@@ -45,7 +45,7 @@ export default function BillingPage() {
     const [slaError, setSlaError] = useState(false);
 
     useEffect(() => {
-        fetch(apiUrl('/api/sla/overview'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/sla/overview'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((d) => setSlaSummary(d?.summary ?? null))
             .catch(() => setSlaError(true));

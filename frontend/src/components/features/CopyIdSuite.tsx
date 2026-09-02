@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Code, Plus, AlertTriangle, ChevronDown, ExternalLink, RefreshCw, GitBranch, Lock } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
 
@@ -88,7 +88,7 @@ export function CopyIdSuite() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/brand/signatures'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/brand/signatures'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setSignatures(Array.isArray(data?.signatures) ? data.signatures : []))
             .catch(() => setSignatures([]))
@@ -105,7 +105,7 @@ export function CopyIdSuite() {
         if (!pattern.trim()) return;
         setSaving(true);
         try {
-            await fetch(apiUrl('/api/brand/signatures'), {
+            await apiFetch(apiUrl('/api/brand/signatures'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: sigType, pattern: pattern.trim(), description: description.trim() || undefined }),
@@ -121,7 +121,7 @@ export function CopyIdSuite() {
     const runScan = async () => {
         setScanning(true);
         try {
-            const res = await fetch(apiUrl('/api/brand/leaks/scan'), {
+            const res = await apiFetch(apiUrl('/api/brand/leaks/scan'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ org_name: 'cybernovr' }),

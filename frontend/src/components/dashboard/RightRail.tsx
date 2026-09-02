@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Zap, Settings, User, Bell, Key, Users, CreditCard, Building2, ChevronRight, X } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { getAdminUser } from '@/lib/admin-auth';
 import { getPortalUser } from '@/lib/portal-auth';
 import { exportDataAsPDF } from '@/lib/exportPDF';
@@ -37,7 +37,7 @@ function useAccountSummary(portal: 'admin' | 'client'): AccountSummary {
 function useAgentCount(): number | null {
     const [count, setCount] = useState<number | null>(null);
     useEffect(() => {
-        fetch(apiUrl('/api/wazuh/status'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/wazuh/status'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((d) => { if (typeof d?.agent_count === 'number') setCount(d.agent_count); })
             .catch(() => {});

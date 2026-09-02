@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { exportPageAsPDF } from '@/lib/exportPDF';
 
 // Board/CISO-facing summary — real data only, composed from endpoints already built
@@ -21,13 +21,13 @@ export function ExecutiveReport() {
     const [customerCount, setCustomerCount] = useState<number | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json()).then((d) => setFrameworks(Array.isArray(d) ? d : [])).catch(() => setFrameworks([]));
-        fetch(apiUrl('/api/wazuh/incidents'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/incidents'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json()).then((d) => setIncidentKpis(d?.kpis ?? null)).catch(() => setIncidentKpis(null));
-        fetch(apiUrl('/api/wazuh/alerts-indexer?minLevel=7&range=24h'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/wazuh/alerts-indexer?minLevel=7&range=24h'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json()).then((d) => setCriticalAlerts(typeof d?.criticalCount === 'number' ? d.criticalCount : 0)).catch(() => setCriticalAlerts(0));
-        fetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/customers'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json()).then((d) => setCustomerCount(Array.isArray(d?.customers) ? d.customers.length : 0)).catch(() => setCustomerCount(0));
     }, []);
 

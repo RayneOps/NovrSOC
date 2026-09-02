@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Search, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Paperclip } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface MailGateway {
     name: string;
@@ -72,8 +72,8 @@ export function MessagingSuite() {
     useEffect(() => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/email/messaging/gateways'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ gateways: [] })),
-            fetch(apiUrl('/api/email/messaging/suspicious'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ emails: [] })),
+            apiFetch(apiUrl('/api/email/messaging/gateways'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ gateways: [] })),
+            apiFetch(apiUrl('/api/email/messaging/suspicious'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ emails: [] })),
         ]).then(([gwRes, emRes]) => {
             setGateways(Array.isArray(gwRes?.gateways) ? gwRes.gateways : []);
             setEmails(Array.isArray(emRes?.emails) ? emRes.emails : []);
@@ -86,7 +86,7 @@ export function MessagingSuite() {
         setRblChecking(true);
         setRblResults(null);
         try {
-            const res = await fetch(apiUrl('/api/email/messaging/rbl-check'), {
+            const res = await apiFetch(apiUrl('/api/email/messaging/rbl-check'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ip: rblIp.trim() }),

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Real data from GET /api/compliance?orgId= (routes/compliance.ts) — framework metadata
 // (name/description/control counts) is static reference data seeded from the
@@ -33,7 +33,7 @@ export function ComplianceDashboard() {
     const [frameworks, setFrameworks] = useState<Framework[] | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => setFrameworks(Array.isArray(data) ? data : []))
             .catch(() => setFrameworks([]));

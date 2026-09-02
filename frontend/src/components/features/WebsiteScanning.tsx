@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
     Search, RefreshCw, AlertTriangle, ShieldCheck, ShieldAlert, Clock, Zap, ExternalLink,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 type ScanType = 'quick' | 'full';
 type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -90,7 +90,7 @@ export function WebsiteScanning() {
     const [activeTab, setActiveTab] = useState<Tab>('scan');
 
     const loadHistory = () => {
-        fetch(apiUrl('/api/webscan/history'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/webscan/history'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setHistory(Array.isArray(data?.scans) ? data.scans : []))
             .catch(() => setHistory([]));
@@ -107,7 +107,7 @@ export function WebsiteScanning() {
         setResult(null);
 
         try {
-            const res = await fetch(apiUrl('/api/webscan/start'), {
+            const res = await apiFetch(apiUrl('/api/webscan/start'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ domain: cleanDomain, scan_type: scanType, authorised: true }),

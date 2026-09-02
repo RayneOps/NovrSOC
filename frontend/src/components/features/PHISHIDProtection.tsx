@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Ban, Copy, Download, ShieldCheck } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface ExtensionStats {
     endpoints_protected: number;
@@ -78,8 +78,8 @@ export function PHISHIDProtection() {
     useEffect(() => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/email/phishid/stats'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
-            fetch(apiUrl('/api/email/phishid/events'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ events: [] })),
+            apiFetch(apiUrl('/api/email/phishid/stats'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+            apiFetch(apiUrl('/api/email/phishid/events'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ events: [] })),
         ]).then(([statsRes, eventsRes]) => {
             setStats(statsRes);
             setEvents(Array.isArray(eventsRes?.events) ? eventsRes.events : []);

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getPortalContext } from '@/lib/portal-context';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface IncidentKpis {
     total: number;
@@ -142,11 +142,11 @@ export const PortalDashboard = () => {
         const group = portal.wazuhGroup;
         const groupParam = group ? `?group=${encodeURIComponent(group)}` : '';
         Promise.allSettled([
-            fetch(apiUrl(`/api/wazuh/agents${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
-            fetch(apiUrl(`/api/wazuh/incidents${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
-            fetch(apiUrl(`/api/wazuh/threats-blocked${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
-            fetch(apiUrl(`/api/advisories${portal.orgIndustry ? `?industry=${encodeURIComponent(portal.orgIndustry)}` : ''}`), { cache: 'no-store' }).then(r => r.json()),
-            fetch(apiUrl(`/api/wazuh/network-connections${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
+            apiFetch(apiUrl(`/api/wazuh/agents${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
+            apiFetch(apiUrl(`/api/wazuh/incidents${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
+            apiFetch(apiUrl(`/api/wazuh/threats-blocked${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
+            apiFetch(apiUrl(`/api/advisories${portal.orgIndustry ? `?industry=${encodeURIComponent(portal.orgIndustry)}` : ''}`), { cache: 'no-store' }).then(r => r.json()),
+            apiFetch(apiUrl(`/api/wazuh/network-connections${groupParam}`), { cache: 'no-store' }).then(r => r.json()),
         ]).then(([agentsRes, incidentsRes, threatsRes, advisoriesRes, networkRes]) => {
             if (agentsRes.status === 'fulfilled') {
                 const conn = agentsRes.value?.data?.connection;

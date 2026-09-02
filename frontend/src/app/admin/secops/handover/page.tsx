@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { FileDown, Send, RefreshCw, AlertTriangle, Clock } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { getAdminUser } from '@/lib/admin-auth';
 import { exportDataAsPDF } from '@/lib/exportPDF';
 import { ASSIGNABLE_ANALYSTS } from '@/lib/mockTeam';
@@ -56,8 +56,8 @@ export default function HandoverPage() {
     const load = () => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/incidents'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
-            fetch(apiUrl('/api/handover'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+            apiFetch(apiUrl('/api/incidents'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+            apiFetch(apiUrl('/api/handover'), { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
         ]).then(([incData, logData]) => {
             setIncidents(Array.isArray(incData?.incidents) ? incData.incidents : []);
             setPastLogs(Array.isArray(logData?.logs) ? logData.logs : []);
@@ -125,7 +125,7 @@ export default function HandoverPage() {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            const res = await fetch(apiUrl('/api/handover'), {
+            const res = await apiFetch(apiUrl('/api/handover'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

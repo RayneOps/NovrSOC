@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AtSign, Plus, BadgeCheck, FileText, X } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
 
@@ -139,8 +139,8 @@ export function SocialSuite() {
     const load = () => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/brand/socials'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ socials: [] })),
-            fetch(apiUrl('/api/brand/socials/alerts'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ impersonations: [], mentions: [] })),
+            apiFetch(apiUrl('/api/brand/socials'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ socials: [] })),
+            apiFetch(apiUrl('/api/brand/socials/alerts'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ impersonations: [], mentions: [] })),
         ]).then(([socialsRes, alertsRes]) => {
             setAccounts(Array.isArray(socialsRes?.socials) ? socialsRes.socials : []);
             setImpersonations(Array.isArray(alertsRes?.impersonations) ? alertsRes.impersonations : []);
@@ -163,7 +163,7 @@ export function SocialSuite() {
         if (!platform || !handle.trim()) return;
         setSaving(true);
         try {
-            await fetch(apiUrl('/api/brand/socials'), {
+            await apiFetch(apiUrl('/api/brand/socials'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

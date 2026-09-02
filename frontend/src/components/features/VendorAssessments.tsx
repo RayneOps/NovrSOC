@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, XCircle, RefreshCw, Download, Mail, Calendar, ArrowUpRight } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from 'recharts';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface VendorIssue {
     severity: 'critical' | 'high' | 'medium' | 'low';
@@ -88,7 +88,7 @@ export function VendorAssessments() {
     const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
 
     useEffect(() => {
-        fetch(apiUrl('/api/vendors'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/vendors'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => setVendors(Array.isArray(data?.vendors) ? data.vendors : []))
             .catch(() => setVendors([]))

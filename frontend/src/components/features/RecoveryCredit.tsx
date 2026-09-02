@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
     AlertTriangle, CheckCircle, DollarSign, RefreshCw, ExternalLink, ChevronDown, ChevronUp, Activity, Wifi,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface Incident {
     id: string;
@@ -77,7 +77,7 @@ export function RecoveryCredit() {
     const load = async () => {
         setLoading(true);
         try {
-            const res = await fetch(apiUrl('/api/sla/overview'), { cache: 'no-store' });
+            const res = await apiFetch(apiUrl('/api/sla/overview'), { cache: 'no-store' });
             const data = await res.json();
             setEndpoints(Array.isArray(data.endpoints) ? data.endpoints : []);
             setSummary(data.summary ?? null);

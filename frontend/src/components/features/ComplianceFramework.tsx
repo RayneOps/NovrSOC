@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // One framework's control list — GET /api/compliance/controls?frameworkId=&orgId= (real
 // route, honest empty array until the external compliance backend is deployed). Shared by all
@@ -32,7 +32,7 @@ export function ComplianceFramework({ frameworkId, name, shortName }: { framewor
     const [busyId, setBusyId] = useState<number | null>(null);
 
     const load = useCallback(() => {
-        fetch(apiUrl(`/api/compliance/controls?frameworkId=${frameworkId}&orgId=1`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/compliance/controls?frameworkId=${frameworkId}&orgId=1`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => setControls(Array.isArray(data) ? data : []))
             .catch(() => setControls([]));
@@ -43,7 +43,7 @@ export function ComplianceFramework({ frameworkId, name, shortName }: { framewor
     const assess = async (controlId: number, status: Control['status']) => {
         setBusyId(controlId);
         try {
-            await fetch(apiUrl('/api/compliance'), {
+            await apiFetch(apiUrl('/api/compliance'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orgId: 1, controlId, status, assessedBy: 'admin' }),

@@ -77,10 +77,10 @@ router.post('/generate', async (req, res) => {
             _source: ['vulnerability.id', 'vulnerability.severity', 'vulnerability.score.base', 'vulnerability.under_evaluation', 'package.name', 'package.version'],
             query: vulnQuery,
         }),
-        fetch(`${CTIP_URL}/api/ctip/stats`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
-        fetch(`${BACKEND_URL}/api/vendor-assessments?org_id=${orgId}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
-        fetch(`${BACKEND_URL}/api/scan-history?org_id=${orgId}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
-        fetch(`${BACKEND_URL}/api/advisories`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch(`${CTIP_URL}/api/ctip/stats`, { cache: 'no-store', signal: AbortSignal.timeout(5000) }).then((r) => r.json()).catch(() => null),
+        fetch(`${BACKEND_URL}/api/vendor-assessments?org_id=${orgId}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) }).then((r) => r.json()).catch(() => null),
+        fetch(`${BACKEND_URL}/api/scan-history?org_id=${orgId}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) }).then((r) => r.json()).catch(() => null),
+        fetch(`${BACKEND_URL}/api/advisories`, { cache: 'no-store', signal: AbortSignal.timeout(5000) }).then((r) => r.json()).catch(() => null),
     ]).then((results) => results.map((r) => (r.status === 'fulfilled' ? r.value : null))) as [
         Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null,
         Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null,
@@ -168,6 +168,7 @@ router.post('/generate', async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ org_id: orgId, period: month, generated_by: 'portal', data_json: report }),
+        signal: AbortSignal.timeout(5000),
     }).catch(() => {});
 
     res.json(report);

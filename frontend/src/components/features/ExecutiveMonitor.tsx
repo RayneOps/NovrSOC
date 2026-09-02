@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { UserCheck, Plus, AlertTriangle, ShieldQuestion, Lock, RefreshCw, CheckCircle, Info, X } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
 
@@ -96,7 +96,7 @@ export function ExecutiveMonitor() {
 
     const load = () => {
         setLoading(true);
-        fetch(apiUrl('/api/brand/executives'), { cache: 'no-store' })
+        apiFetch(apiUrl('/api/brand/executives'), { cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => {
                 setExecutives(Array.isArray(data?.executives) ? data.executives : []);
@@ -112,7 +112,7 @@ export function ExecutiveMonitor() {
         if (!name.trim() || !email.trim()) return;
         setSaving(true);
         try {
-            await fetch(apiUrl('/api/brand/executives'), {
+            await apiFetch(apiUrl('/api/brand/executives'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -141,7 +141,7 @@ export function ExecutiveMonitor() {
         if (!socialExecId || !socialPlatform || !socialHandle.trim()) return;
         setSavingSocial(true);
         try {
-            await fetch(apiUrl(`/api/brand/executives/${socialExecId}/socials`), {
+            await apiFetch(apiUrl(`/api/brand/executives/${socialExecId}/socials`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ platform: socialPlatform, handle: socialHandle.trim() }),
@@ -156,7 +156,7 @@ export function ExecutiveMonitor() {
     const runScan = async (id: string) => {
         setScanningId(id);
         try {
-            await fetch(apiUrl(`/api/brand/executives/${id}/scan`), { method: 'POST' });
+            await apiFetch(apiUrl(`/api/brand/executives/${id}/scan`), { method: 'POST' });
             load();
         } finally {
             setScanningId(null);
@@ -166,8 +166,8 @@ export function ExecutiveMonitor() {
     const scanAll = async () => {
         setScanningAll(true);
         try {
-            await fetch(apiUrl('/api/brand/executives/scan-all'), { method: 'POST' });
-            await Promise.all(executives.map((e) => fetch(apiUrl(`/api/brand/executives/${e.id}/scan`), { method: 'POST' })));
+            await apiFetch(apiUrl('/api/brand/executives/scan-all'), { method: 'POST' });
+            await Promise.all(executives.map((e) => apiFetch(apiUrl(`/api/brand/executives/${e.id}/scan`), { method: 'POST' })));
             load();
         } finally {
             setScanningAll(false);

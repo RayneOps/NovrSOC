@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { MessageCircle, X, ChevronRight } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 const QUICK_QUESTIONS = [
     'What does this page do?',
@@ -29,7 +29,7 @@ export function HelpAssistant() {
         setInput('');
         setLoading(true);
         try {
-            const res = await fetch(apiUrl('/api/novr-ai'), {
+            const res = await apiFetch(apiUrl('/api/novr-ai'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messages: updated, page: pathname }),

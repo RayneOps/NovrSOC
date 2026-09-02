@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Monitor, WifiOff } from 'lucide-react';
 import { getPortalContext } from '@/lib/portal-context';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 interface Agent {
     id: string;
@@ -68,7 +68,7 @@ export function DigitalAssets() {
         // today. Removing the filter unconditionally would instead break tenant isolation for
         // every client-portal user, who'd start seeing every other client's agents too.
         const group = getPortalContext().wazuhGroup;
-        fetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl(`/api/wazuh/agents${group ? `?group=${encodeURIComponent(group)}` : ''}`), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then(r => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.json();

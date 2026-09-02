@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Smartphone, Plus, Apple, CheckCircle, ExternalLink, Search, Info, Trash2 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, apiFetch } from '@/lib/api';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ExportButton } from '@/components/shared/ExportButton';
 
@@ -84,8 +84,8 @@ export function MobileAppSuite() {
     const load = () => {
         setLoading(true);
         Promise.all([
-            fetch(apiUrl('/api/brand/apps'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ apps: [] })),
-            fetch(apiUrl('/api/brand/apps/alerts'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ rogueApps: [] })),
+            apiFetch(apiUrl('/api/brand/apps'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ apps: [] })),
+            apiFetch(apiUrl('/api/brand/apps/alerts'), { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ rogueApps: [] })),
         ]).then(([appsRes, alertRes]) => {
             setApps(Array.isArray(appsRes?.apps) ? appsRes.apps : []);
             setRogueApps(Array.isArray(alertRes?.rogueApps) ? alertRes.rogueApps : []);
@@ -100,7 +100,7 @@ export function MobileAppSuite() {
         setSaving(true);
         try {
             const platforms: Array<'iOS' | 'Android'> = platform === 'Both' ? ['iOS', 'Android'] : [platform];
-            await Promise.all(platforms.map((p) => fetch(apiUrl('/api/brand/apps'), {
+            await Promise.all(platforms.map((p) => apiFetch(apiUrl('/api/brand/apps'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -124,7 +124,7 @@ export function MobileAppSuite() {
         setScanning(true);
         try {
             const brandName = apps[0]?.name ?? 'cybernovr';
-            const res = await fetch(apiUrl('/api/brand/apps/scan'), {
+            const res = await apiFetch(apiUrl('/api/brand/apps/scan'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ brand_name: brandName }),
