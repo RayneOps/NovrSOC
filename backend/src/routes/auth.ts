@@ -5,14 +5,24 @@ import { logAudit } from '../lib/audit';
 const router = Router();
 const BACKEND_URL = process.env.APP_API_BASE_URL || 'http://138.197.188.132:4000';
 
-// Hand-rolled JWT-shaped token (header.payload.signature, HMAC-SHA256) — dev-only, no
-// external verification ever happens against it. Avoids pulling in a jsonwebtoken
-// dependency for what's purely a local-dev convenience.
+// Hand-rolled JWT-shaped token (header.payload.signature, HMAC-SHA256) — dev-only convenience,
+// avoids pulling in a jsonwebtoken dependency just to sign these. IS verified now: requireAuth
+// (middleware/auth.ts) checks this signature on every request to a protected route — see the
+// secret-selection note below for why that verification used to always fail.
 function issueDevToken(payload: Record<string, unknown>): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    // Must match requireAuth's exact secret-selection order (middleware/auth.ts) — a hotfix
+    // for a live production bug found during the requireAuth rollout: this used to sign with
+    // DEV_TOKEN_SECRET alone, but requireAuth verifies with JWT_SECRET first, falling back to
+    // DEV_TOKEN_SECRET. When both are set (as they are here) to different values — the normal
+    // case, they're separate secrets on purpose — every dev-issued token was signed with one
+    // secret and verified against the other, so it always failed verification. Confirmed live:
+    // a freshly-issued dev-admin token 401'd as "invalid or expired" against every route this
+    // rollout just protected. Signing with the same priority order requireAuth verifies with
+    // fixes it regardless of which of the two vars is actually set.
     const signature = crypto
-        .createHmac('sha256', process.env.DEV_TOKEN_SECRET || 'novrsoc-dev-secret')
+        .createHmac('sha256', process.env.JWT_SECRET || process.env.DEV_TOKEN_SECRET || 'novrsoc-dev-secret')
         .update(`${header}.${body}`)
         .digest('base64url');
     return `${header}.${body}.${signature}`;
