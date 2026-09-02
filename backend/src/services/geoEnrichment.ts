@@ -17,20 +17,10 @@ export interface EnrichedGeoData {
 // 1. Supabase Client Initializer
 let supabase: SupabaseClient | null = null;
 
-// SUPABASE_SERVICE_KEY is the name actually set in this project's .env/Railway config
-// (confirmed live: platform.ts's health check reads exactly this name, and a direct REST
-// call against Supabase with it succeeds). SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY were
-// the only names this function checked before — neither is set anywhere in this codebase's
-// env, so getSupabase() was silently returning null in every environment, and every caller
-// (cti.ts, geo.ts, urlscan.ts, webscan.ts, domainSuite.ts, dashboard.ts's Supabase lookups)
-// has been running its "Supabase not configured" fallback path even though Supabase itself
-// was reachable and working the whole time. Kept the old names as a fallback in case
-// something else ever sets them, but SUPABASE_SERVICE_KEY now takes priority since it's
-// what's actually configured.
 export function getSupabase(): SupabaseClient | null {
   if (supabase) return supabase;
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
   if (!url || !key) return null;
   supabase = createClient(url, key);
   return supabase;

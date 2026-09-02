@@ -8,7 +8,7 @@ import { apiUrl, apiFetch } from '@/lib/api';
 // uses, just as its own dedicated page rather than a 5-row preview.
 
 interface Customer {
-    id: string;
+    id: number;
     name: string;
     industry: string | null;
     status: string;

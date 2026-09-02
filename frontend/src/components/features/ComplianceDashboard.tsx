@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiUrl, apiFetch } from '@/lib/api';
 
-// Real data from GET /api/compliance (routes/compliance.ts) — framework metadata
-// (name/description/control counts) is static reference data; assessed/compliant/score come
-// from a live Supabase query, honest zero for any framework with no assessments yet or no
-// matching Supabase row. Org is resolved server-side from the caller's token — no orgId param
-// needed here.
+// Real data from GET /api/compliance?orgId= (routes/compliance.ts) — framework metadata
+// (name/description/control counts) is static reference data seeded from the
+// compliance_frameworks migration; assessed/compliant/score are honest zeros until the
+// external compliance backend (APP_API_BASE_URL) is actually deployed, per that route's own
+// comment. orgId=1 (Cybernovr) — the single pre-launch tenant this whole codebase defaults to.
 
 interface Framework {
     id: number;
@@ -33,7 +33,7 @@ export function ComplianceDashboard() {
     const [frameworks, setFrameworks] = useState<Framework[] | null>(null);
 
     useEffect(() => {
-        apiFetch(apiUrl('/api/compliance'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+        apiFetch(apiUrl('/api/compliance?orgId=1'), { cache: 'no-store', signal: AbortSignal.timeout(10000) })
             .then((r) => r.json())
             .then((data) => setFrameworks(Array.isArray(data) ? data : []))
             .catch(() => setFrameworks([]));
