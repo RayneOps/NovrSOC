@@ -59,7 +59,7 @@ interface Executive {
 }
 
 interface Capabilities {
-    hibp: boolean;
+    breach_check: boolean;
     wazuh: boolean;
     darkweb: boolean;
 }
@@ -76,7 +76,7 @@ function initials(name: string): string {
 
 export function ExecutiveMonitor() {
     const [executives, setExecutives] = useState<Executive[]>([]);
-    const [capabilities, setCapabilities] = useState<Capabilities>({ hibp: false, wazuh: false, darkweb: false });
+    const [capabilities, setCapabilities] = useState<Capabilities>({ breach_check: false, wazuh: false, darkweb: false });
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [name, setName] = useState('');
@@ -100,7 +100,7 @@ export function ExecutiveMonitor() {
             .then((r) => r.json())
             .then((data) => {
                 setExecutives(Array.isArray(data?.executives) ? data.executives : []);
-                setCapabilities(data?.capabilities ?? { hibp: false, wazuh: false, darkweb: false });
+                setCapabilities(data?.capabilities ?? { breach_check: false, wazuh: false, darkweb: false });
             })
             .catch(() => setExecutives([]))
             .finally(() => setLoading(false));
@@ -283,10 +283,10 @@ export function ExecutiveMonitor() {
                                                 </div>
                                             )
                                         )}
-                                        {exec.scan_status === 'pending' && !capabilities.hibp && (
+                                        {exec.scan_status === 'pending' && !capabilities.breach_check && (
                                             <div className="flex items-start gap-1.5 text-foreground-muted mt-1 bg-blue/5 border border-blue/20 rounded-lg p-2">
                                                 <Info size={12} className="text-blue flex-shrink-0 mt-0.5" />
-                                                <span>Breach database check requires activation ($3.50/month)</span>
+                                                <span>Breach database check unavailable right now</span>
                                             </div>
                                         )}
                                         <button
@@ -320,8 +320,8 @@ export function ExecutiveMonitor() {
                 <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-3">Monitoring Capabilities</p>
                 <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between border-b border-border pb-2">
-                        <span className="flex items-center gap-2 text-foreground">{capabilities.hibp ? <CheckCircle size={14} className="text-blue" /> : <span className="text-red-500 font-bold">✗</span>} Breach Database</span>
-                        <span className="text-foreground-muted">{capabilities.hibp ? 'Active · 847 databases checked' : 'Not configured'}</span>
+                        <span className="flex items-center gap-2 text-foreground">{capabilities.breach_check ? <CheckCircle size={14} className="text-blue" /> : <span className="text-red-500 font-bold">✗</span>} Breach Database</span>
+                        <span className="text-foreground-muted">{capabilities.breach_check ? 'Active · via XposedOrNot' : 'Not configured'}</span>
                     </div>
                     <div className="flex items-center justify-between border-b border-border pb-2">
                         <span className="flex items-center gap-2 text-foreground">{capabilities.wazuh ? <CheckCircle size={14} className="text-blue" /> : <span className="text-red-500 font-bold">✗</span>} Auth Anomaly Detection</span>

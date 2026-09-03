@@ -4,7 +4,8 @@ import { validate } from '../middleware/validate';
 import { searchCode as githubSearch, isConfigured as githubConfigured, type GitHubCodeMatch } from '../services/github';
 import { searchCode as gitlabSearch, isConfigured as gitlabConfigured, type GitLabCodeMatch } from '../services/gitlab';
 import { searchBrandMentions, searchCounterfeitSites, isConfigured as googleConfigured } from '../services/google';
-import { checkEmail as hibpCheckEmail, isConfigured as hibpConfigured } from '../services/hibp';
+import { checkEmailBreach } from '../services/breachCheck';
+import { searchSocialMentions } from '../services/socialMonitor';
 import { logAudit } from '../lib/audit';
 import gplay from 'google-play-scraper';
 
@@ -144,6 +145,19 @@ router.get('/socials/alerts', (_req, res) => {
     res.json({ impersonations: MOCK_IMPERSONATION, mentions: MOCK_MENTIONS });
 });
 
+// GET /api/brand/socials/search?brand=X — real web/social mention search (services/
+// socialMonitor.ts: rsshub X search + Google Custom Search), separate from the mock
+// /socials/alerts feed above.
+router.get('/socials/search', async (req, res) => {
+    const brand = typeof req.query.brand === 'string' ? req.query.brand.trim() : '';
+    if (!brand) {
+        res.status(400).json({ error: 'brand query param required' });
+        return;
+    }
+    const result = await searchSocialMentions(brand);
+    res.json(result);
+});
+
 // ── EXECUTIVES ──────────────────────────────────────────────────────
 
 interface ExecBreach {
@@ -246,7 +260,11 @@ router.get('/executives', (_req, res) => {
             email_masked: maskEmail(e.email),
         })),
         capabilities: {
-            hibp: hibpConfigured(),
+            // Always true — XposedOrNot and BreachDirectory (services/breachCheck.ts) replaced
+            // the paid HIBP dependency; XposedOrNot never needs a key at all. BreachDirectory's
+            // public API is Cloudflare-blocked in practice (see that file's header) so it
+            // contributes nothing today, but breach checking as a whole no longer depends on it.
+            breach_check: true,
             wazuh: false, // true once Wazuh is reachable from this backend
             darkweb: false, // true once Flare.io is configured (Phase 2)
         },
@@ -318,12 +336,15 @@ router.get('/executives/alerts', (_req, res) => {
 interface ExecScanResult {
     executive_id: string;
     scanned_at: string;
-    hibp_checked: boolean;
+    checked: boolean;
+    sources: string[];
     breaches: ExecBreach[];
     note?: string;
 }
 
-// POST /api/brand/executives/:id/scan — real HIBP breach check when HIBP_API_KEY is configured
+// POST /api/brand/executives/:id/scan — free breach check via XposedOrNot + BreachDirectory
+// (services/breachCheck.ts), replacing the paid HIBP dependency. Always runs — XposedOrNot
+// needs no key at all, so there's no "not configured" branch left the way HIBP had one.
 router.post('/executives/:id/scan', async (req, res) => {
     const exec = executives.find((e) => e.id === req.params.id);
     if (!exec) {
@@ -335,34 +356,35 @@ router.post('/executives/:id/scan', async (req, res) => {
     const scanResult: ExecScanResult = {
         executive_id: exec.id,
         scanned_at: new Date().toISOString(),
-        hibp_checked: false,
+        checked: false,
+        sources: [],
         breaches: [],
     };
 
-    if (hibpConfigured()) {
-        try {
-            const found = await hibpCheckEmail(exec.email);
-            scanResult.hibp_checked = true;
-            scanResult.breaches = found.map((b) => ({
-                source: b.Name,
-                title: b.Title,
-                breach_date: b.BreachDate,
-                data_classes: b.DataClasses,
-                is_sensitive: b.IsSensitive,
-                is_verified: b.IsVerified,
-            }));
-            exec.breach_count = scanResult.breaches.length;
-            exec.breaches = scanResult.breaches;
-            exec.last_scanned = scanResult.scanned_at;
-            exec.scan_status = 'complete';
-            exec.status = exec.breach_count > 0 ? 'at_risk' : 'clear';
-            exec.risk_level = exec.breaches.some((b) => b.is_sensitive) ? 'HIGH' : exec.breach_count > 0 ? 'MEDIUM' : 'LOW';
-        } catch {
-            exec.scan_status = 'error';
-        }
-    } else {
-        exec.scan_status = 'pending';
-        scanResult.note = 'HIBP API key not configured — add HIBP_API_KEY ($3.50/month, haveibeenpwned.com/API/Key) to enable breach checking';
+    try {
+        const result = await checkEmailBreach(exec.email);
+        scanResult.checked = true;
+        scanResult.sources = result.details.filter((d) => !d.error).map((d) => d.source);
+        // Neither free source exposes a breach date, data classes, or a sensitivity flag the
+        // way HIBP's paid API did — XposedOrNot returns breach *names* only. is_sensitive stays
+        // false (unknown, not "confirmed not sensitive") rather than guessed.
+        scanResult.breaches = result.sources.map((name) => ({
+            source: name,
+            title: name,
+            breach_date: 'Unknown',
+            data_classes: [],
+            is_sensitive: false,
+            is_verified: true,
+        }));
+        exec.breach_count = scanResult.breaches.length;
+        exec.breaches = scanResult.breaches;
+        exec.last_scanned = scanResult.scanned_at;
+        exec.scan_status = 'complete';
+        exec.status = exec.breach_count > 0 ? 'at_risk' : 'clear';
+        exec.risk_level = exec.breach_count > 5 ? 'HIGH' : exec.breach_count > 0 ? 'MEDIUM' : 'LOW';
+        if (result.details.every((d) => d.error)) scanResult.note = 'Both breach-check sources were unreachable — result may be incomplete.';
+    } catch {
+        exec.scan_status = 'error';
     }
 
     res.json(scanResult);

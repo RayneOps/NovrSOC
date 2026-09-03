@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { enrichIOC, type IOCType } from '../services/iocEnrichment';
 import { otxGetPulses } from '../services/otx';
 import { getSupabase } from '../services/geoEnrichment';
+import { searchCensys, isConfigured as censysConfigured } from '../services/censys';
 
 const router = Router();
 
@@ -135,6 +136,25 @@ router.get('/stats', async (_req, res) => {
     } catch {
         res.status(500).json({ error: 'Stats failed' });
     }
+});
+
+// GET /api/cti/censys?q=... — network exposure search (services/censys.ts), surfaced on the
+// Network Topology page. No credentials configured in this environment (CENSYS_API_ID/
+// CENSYS_API_SECRET), so this reports `configured: false` honestly rather than a fake result —
+// isConfigured() is exposed separately so the frontend can show that state without needing to
+// fire a query first.
+router.get('/censys', async (req, res) => {
+    if (!censysConfigured()) {
+        res.json({ configured: false, results: [], total: 0 });
+        return;
+    }
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+        res.status(400).json({ error: 'q query param required' });
+        return;
+    }
+    const result = await searchCensys(q);
+    res.json({ configured: true, ...result });
 });
 
 export default router;

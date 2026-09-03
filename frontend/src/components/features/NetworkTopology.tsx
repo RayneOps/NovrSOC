@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Share2, Table2, Clock, Server, Wifi, X } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Share2, Table2, Clock, Server, Wifi, X, Search, Globe2 } from 'lucide-react';
+import { apiUrl, apiFetch } from '@/lib/api';
 
 // Mock data only — real data is meant to come from Zeek conn.log via Wazuh once the EC2-3
 // sensor is deployed, plus Wazuh process-monitoring for agent → external-IP connections in
@@ -64,6 +65,35 @@ export function NetworkTopology() {
     const [countryFilter, setCountryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
 
+    // Censys network-exposure search — real, unlike the rest of this page (see the file header
+    // comment: everything above is mock data pending a Zeek sensor). No credentials configured
+    // in this environment, so `censysConfigured` will read false until CENSYS_API_ID/
+    // CENSYS_API_SECRET are added — GET /api/cti/censys reports that honestly rather than
+    // faking a result.
+    const [censysConfigured, setCensysConfigured] = useState<boolean | null>(null);
+    const [censysQuery, setCensysQuery] = useState('');
+    const [censysResults, setCensysResults] = useState<{ results: unknown[]; total: number } | null>(null);
+    const [censysSearching, setCensysSearching] = useState(false);
+
+    useEffect(() => {
+        apiFetch(apiUrl('/api/cti/censys'), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => setCensysConfigured(!!data?.configured))
+            .catch(() => setCensysConfigured(false));
+    }, []);
+
+    const runCensysSearch = async () => {
+        if (!censysQuery.trim()) return;
+        setCensysSearching(true);
+        try {
+            const res = await apiFetch(apiUrl(`/api/cti/censys?q=${encodeURIComponent(censysQuery.trim())}`), { cache: 'no-store' });
+            const data = await res.json();
+            setCensysResults({ results: data.results ?? [], total: data.total ?? 0 });
+        } finally {
+            setCensysSearching(false);
+        }
+    };
+
     const filtered = MOCK_TOPOLOGY.connections.filter((c) =>
         (deviceFilter === 'all' || c.source === deviceFilter) &&
         (countryFilter === 'all' || c.dest_country === countryFilter) &&
@@ -115,6 +145,43 @@ export function NetworkTopology() {
                         );
                     })}
                 </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <Globe2 size={14} className="text-purple" />
+                    <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Network Exposure Search</h2>
+                    <span className="text-[9px] text-foreground-muted">via Censys</span>
+                </div>
+                {censysConfigured === false ? (
+                    <p className="text-xs text-foreground-muted">
+                        Not configured — add CENSYS_API_ID and CENSYS_API_SECRET (free at censys.io/register) to Railway to enable.
+                    </p>
+                ) : (
+                    <>
+                        <div className="flex gap-2">
+                            <input
+                                value={censysQuery}
+                                onChange={(e) => setCensysQuery(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') runCensysSearch(); }}
+                                placeholder='e.g. ip:1.2.3.4 or services.port:22'
+                                className="flex-1 border border-border bg-card-muted rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-purple"
+                            />
+                            <button
+                                onClick={runCensysSearch}
+                                disabled={censysSearching || !censysQuery.trim()}
+                                className="flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
+                            >
+                                <Search size={13} /> {censysSearching ? 'Searching…' : 'Search'}
+                            </button>
+                        </div>
+                        {censysResults && (
+                            <p className="text-[11px] text-foreground-muted mt-2">
+                                {censysResults.total.toLocaleString()} total match{censysResults.total === 1 ? '' : 'es'} · showing {censysResults.results.length}
+                            </p>
+                        )}
+                    </>
+                )}
             </div>
 
             {view === 'graph' && (

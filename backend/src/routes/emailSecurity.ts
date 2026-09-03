@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { lookupIP, isConfigured as maxmindConfigured } from '../services/maxmind';
+import { checkPhishSources } from '../services/phishCheck';
 
 // Email Security domain — DMARC SaaS, Messaging Suite, Intelli CODE PHISHID.
 // DMARC/Messaging/PHISHID feed and stats endpoints below return demo data (real DMARC-report
@@ -344,28 +345,51 @@ function heuristicClassify(body: ClassifyBody): ClassifyResult {
     };
 }
 
+// A PhishTank or OpenPhish hit is a real match against a confirmed phishing feed — real signal,
+// not a guess — so it forces risk to at least 85/block, overriding whatever the base classifier
+// (Claude or the heuristic) said, rather than nudging the score.
+function applyPhishFeedBoost(base: ClassifyResult, hits: string[]): ClassifyResult {
+    if (hits.length === 0) return base;
+    return {
+        risk: Math.max(base.risk, 85),
+        verdict: 'block',
+        reason: `${base.reason} Also flagged by ${hits.join(' and ')} as a known phishing URL.`,
+        classified_by: `${base.classified_by}+${hits.join('+')}`,
+    };
+}
+
 // POST /api/email/phishid/classify — genuinely live (falls back to heuristics if no/failed Claude call)
 router.post('/phishid/classify', async (req, res) => {
     const body: ClassifyBody = req.body ?? {};
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
+    // PhishTank/OpenPhish run alongside whichever base classifier runs below — never gates on
+    // them, just boosts the final verdict if either has a real hit. No URL at all (the frontend
+    // can call this with just page metadata) skips straight to a non-hit rather than erroring.
+    const phishFeedCheck = body.url ? checkPhishSources(body.url) : Promise.resolve({ is_phishing: false, hits: [] as string[], details: [] });
+
     // Anything that isn't a real-looking key (unset, or the repo's own placeholder value) skips
     // straight to the heuristic — no point spending a request on a key we know will 401.
     if (!apiKey || apiKey === 'your-key-here' || apiKey === 'REPLACE_WHEN_OBTAINED') {
-        res.json(heuristicClassify(body));
+        const [base, phish] = await Promise.all([Promise.resolve(heuristicClassify(body)), phishFeedCheck]);
+        res.json(applyPhishFeedBoost(base, phish.hits));
         return;
     }
 
     try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
-                max_tokens: 200,
-                messages: [{
-                    role: 'user',
-                    content: `You are a phishing detection classifier. Analyze this web page metadata and respond ONLY with valid JSON.
+        const [response, phish] = await Promise.all([
+            fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    // Was 'claude-sonnet-4-6' — not a real Anthropic model id, so this call always
+                    // 400'd and silently fell through to the heuristic below. See routes/novr-ai.ts
+                    // for the same fix and fuller explanation.
+                    model: 'claude-sonnet-5',
+                    max_tokens: 200,
+                    messages: [{
+                        role: 'user',
+                        content: `You are a phishing detection classifier. Analyze this web page metadata and respond ONLY with valid JSON.
 
 Page URL: ${body.url}
 Domain: ${body.domain}
@@ -381,20 +405,23 @@ Rules:
 - risk 40-69 = warn (suspicious)
 - risk < 40 = allow (legitimate)
 - Consider: domain mismatch, suspicious form actions, URL patterns, page title vs domain`,
-                }],
+                    }],
+                }),
+                signal: AbortSignal.timeout(8000),
             }),
-            signal: AbortSignal.timeout(8000),
-        });
+            phishFeedCheck,
+        ]);
 
         if (!response.ok) throw new Error(`Anthropic API ${response.status}`);
 
         const data = await response.json();
         const text: string = data.content?.[0]?.text || '{}';
         const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-        res.json({ ...parsed, classified_by: 'claude-ai' });
+        res.json(applyPhishFeedBoost({ ...parsed, classified_by: 'claude-ai' }, phish.hits));
     } catch {
         // Real API unavailable/misconfigured — fall back to the heuristic rather than a dead 50/warn.
-        res.json(heuristicClassify(body));
+        const [base, phish] = await Promise.all([Promise.resolve(heuristicClassify(body)), phishFeedCheck]);
+        res.json(applyPhishFeedBoost(base, phish.hits));
     }
 });
 

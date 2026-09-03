@@ -6,6 +6,8 @@ import { checkIP, type AbuseIPDBResult } from './abuseipdb';
 import { urlhausLookupURL, urlhausLookupHost, type URLHausResult, type URLHausHostResult } from './urlhaus';
 import { threatfoxSearchIOC, type ThreatFoxIOC } from './threatfox';
 import { vtCheckIP, vtCheckDomain, vtCheckHash, vtCheckURL, vtToRiskScore, type VTResult } from './virustotal';
+import { checkGreyNoise, type GreyNoiseResult } from './greynoise';
+import { getCensysHost } from './censys';
 
 export type IOCType = 'ip' | 'domain' | 'hash' | 'url';
 
@@ -20,6 +22,8 @@ export interface EnrichedIOC {
         urlhaus: { status: string; threat: string; tags: string[] } | null;
         threatfox: { malware: string; confidence: number; threat_type: string } | null;
         virustotal: { malicious: number; suspicious: number; total_engines: number; verdict: string; as_owner: string | undefined; tags: string[] } | null;
+        greynoise: { noise: boolean; riot: boolean; classification: string; name?: string } | null;
+        censys: unknown | null; // raw host record — no fixed shape assumed since it's exploratory (open ports/services), not a verdict this composite score can weigh
     };
     tags: string[];
     enriched_at: string;
@@ -59,8 +63,15 @@ export async function enrichIOC(value: string, type: IOCType): Promise<EnrichedI
         : type === 'hash' ? vtCheckHash(value)
         : vtCheckURL(value);
 
-    const [otxResult, abuseResult, urlhausResult, threatfoxResult, vtResult] = await Promise.allSettled([
-        otxLookup, abuseLookup, urlhausLookup, threatfoxLookup, vtLookup,
+    // GreyNoise only makes sense for IPs (it's internet-scan telemetry) — a no-key call for
+    // every other type would just waste a request on a value it was never going to answer for.
+    const greynoiseLookup: Promise<GreyNoiseResult | null> = type === 'ip' ? checkGreyNoise(value) : Promise.resolve(null);
+    // Network exposure (open ports/services), not a threat verdict — informational only, so it
+    // doesn't feed the composite risk score below the way GreyNoise's classification does.
+    const censysLookup: Promise<unknown | null> = type === 'ip' ? getCensysHost(value) : Promise.resolve(null);
+
+    const [otxResult, abuseResult, urlhausResult, threatfoxResult, vtResult, greynoiseResult, censysResult] = await Promise.allSettled([
+        otxLookup, abuseLookup, urlhausLookup, threatfoxLookup, vtLookup, greynoiseLookup, censysLookup,
     ]);
 
     const otx = otxResult.status === 'fulfilled' ? otxResult.value : null;
@@ -68,6 +79,8 @@ export async function enrichIOC(value: string, type: IOCType): Promise<EnrichedI
     const urlhaus = urlhausSummary(urlhausResult.status === 'fulfilled' ? urlhausResult.value : null);
     const threatfox = threatfoxResult.status === 'fulfilled' ? threatfoxResult.value : [];
     const vt = vtResult.status === 'fulfilled' ? vtResult.value : null;
+    const greynoise = greynoiseResult.status === 'fulfilled' && !greynoiseResult.value?.error ? greynoiseResult.value : null;
+    const censys = censysResult.status === 'fulfilled' ? censysResult.value : null;
 
     // Composite risk score
     let score = 0;
@@ -79,6 +92,11 @@ export async function enrichIOC(value: string, type: IOCType): Promise<EnrichedI
         score += Math.floor(maxConf * 0.2); // up to 20 from ThreatFox
     }
     score += vtToRiskScore(vt); // up to 35 from VirusTotal
+    // GreyNoise adjusts rather than adds to the base score — it's context (is this address
+    // mass-scanning, or a known-benign business service?), not an independent detection engine
+    // the way OTX/AbuseIPDB/VirusTotal are.
+    if (greynoise?.classification === 'malicious') score = Math.min(100, score + 20);
+    if (greynoise?.riot) score = Math.max(0, score - 10);
     score = Math.min(100, score);
 
     const verdict: EnrichedIOC['verdict'] = score >= 70 ? 'malicious' : score >= 30 ? 'suspicious' : 'clean';
@@ -91,6 +109,9 @@ export async function enrichIOC(value: string, type: IOCType): Promise<EnrichedI
     urlhaus?.tags.forEach((t) => tags.add(t));
     threatfox.forEach((t) => t.tags?.forEach((tag) => tags.add(tag)));
     vt?.tags?.forEach((tag) => tags.add(tag));
+    if (greynoise?.noise) tags.add('internet-scanner');
+    if (greynoise?.riot) tags.add('known-benign-service');
+    greynoise?.tags?.forEach((tag) => tags.add(tag));
 
     return {
         value,
@@ -124,6 +145,13 @@ export async function enrichIOC(value: string, type: IOCType): Promise<EnrichedI
                 as_owner: vt.as_owner,
                 tags: vt.tags || [],
             } : null,
+            greynoise: greynoise ? {
+                noise: greynoise.noise,
+                riot: greynoise.riot,
+                classification: greynoise.classification,
+                name: greynoise.name,
+            } : null,
+            censys,
         },
         tags: [...tags],
         enriched_at: new Date().toISOString(),
