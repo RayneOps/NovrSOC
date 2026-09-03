@@ -3,7 +3,7 @@ import type { AuthRequest } from '../middleware/auth';
 import { search } from '../lib/wazuh-indexer';
 import {
     getCases, createCase, getCase, updateCase, getCaseTasks, createTask, getCaseComments, addComment,
-    formatCaseForNovrSOC, isTheHiveConfigured, mapNovrSOCStatusToTheHive,
+    formatCaseForNovrSOC, isTheHiveConfigured, mapNovrSOCStatusToTheHive, isTheHiveStatusTerminal,
 } from '../services/thehive';
 import { sendSlackAlert, sendSlackMessage } from '../services/slack';
 
@@ -83,6 +83,13 @@ interface AnalystNote {
 
 export interface Incident {
     id: string;
+    // Analyst-facing display identifier — INC-{year}-{n}, same shape regardless of source.
+    // `id` itself stays the real routing identifier (a raw TheHive `~1234567` for TheHive-backed
+    // incidents, e.g.) used for every /api/incidents/:id call; incident_number exists so the UI
+    // never has to show that raw value, which would otherwise be the one visible giveaway that
+    // TheHive is involved at all. Optional because the Wazuh-derived path's `id` is already in
+    // this exact format — no separate field needed there, the UI falls back to `id`.
+    incident_number?: string;
     title: string;
     severity: 'critical' | 'high' | 'medium' | 'low';
     status: 'new' | 'investigating' | 'contained' | 'resolved' | 'escalated';
@@ -121,8 +128,19 @@ function toWorkbenchIncident(
     c: ReturnType<typeof formatCaseForNovrSOC>,
     extra?: { tasks?: Incident['tasks']; notes?: AnalystNote[] },
 ): Incident {
+    // A NovrSOC-shaped display id — the real routing id (c.id, a raw TheHive `~1234567`) never
+    // gets shown in the UI; see the incident_number field comment on the Incident interface for
+    // why. Year comes from the case's own creation date when it parses, else falls back to now.
+    const createdYear = (() => {
+        const y = new Date(c.opened_at).getFullYear();
+        return Number.isFinite(y) ? y : new Date().getFullYear();
+    })();
+    const idDigits = (c.id.match(/\d+/g)?.join('') || '0').slice(-4).padStart(4, '0');
+    const incidentNumber = `INC-${createdYear}-${idDigits}`;
+
     return {
         id: c.id,
+        incident_number: incidentNumber,
         title: c.title,
         severity: c.severity,
         // formatCaseForNovrSOC's 'open'/'investigating'/'resolved' collapses onto the frontend's
@@ -138,7 +156,7 @@ function toWorkbenchIncident(
         summary: c.summary,
         source_alert_id: c.id,
         timeline: [
-            { id: 't-1', timestamp: c.opened_at, actor: 'TheHive', action: 'Case Created', detail: `Case ${c.id} opened in TheHive.` },
+            { id: 't-1', timestamp: c.opened_at, actor: 'NovrSOC', action: 'Case Created', detail: `${incidentNumber} opened.` },
         ],
         containment_actions: [],
         notes: extra?.notes ?? [],
@@ -312,6 +330,63 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(501).json({
         error: 'No incident store configured for creation — TheHive is not configured (THEHIVE_URL/THEHIVE_USER/THEHIVE_PASSWORD), and the Wazuh-derived queue above is read-only (incidents there are generated from alerts, not created directly).',
     });
+});
+
+// GET /api/incidents/automation-status — real numbers for the SOAR Automation page's status
+// panel. Registered before GET /:id below on purpose: Express matches routes in registration
+// order, and /:id would otherwise swallow this path as if "automation-status" were an id.
+router.get('/automation-status', async (_req: Request, res: Response) => {
+    if (!isTheHiveConfigured()) {
+        res.json({ active: false, cases_created_today: 0, auto_resolved_today: 0, avg_response_minutes: null });
+        return;
+    }
+
+    try {
+        // Capped, not exhaustive — confirmed live this instance alone can create 200+ cases in
+        // a single day (a noisy low-severity Wazuh rule), so on a high-volume day these counts
+        // can undercount rather than reflect every case created today. Paginating getCases()
+        // to be exhaustive would need it to accept a `from` cursor, which it doesn't today.
+        const cases = await getCases(500);
+
+        // Africa/Lagos (WAT) is a fixed UTC+1 offset year-round — no DST to account for — so
+        // "start of today" can be computed with plain epoch math instead of a timezone library,
+        // matching the WAT convention already used elsewhere in this file (e.g. Slack/summary
+        // timestamps).
+        const WAT_OFFSET_MS = 60 * 60 * 1000;
+        const shifted = new Date(Date.now() + WAT_OFFSET_MS);
+        const startOfTodayWAT = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - WAT_OFFSET_MS;
+
+        const createdToday = cases.filter((c) => (c._createdAt ?? 0) >= startOfTodayWAT);
+
+        // Best-effort, not a guaranteed count: a case the autoClose job (jobs/autoClose.ts)
+        // resolved is always low/medium severity + terminal status + updated today, but a
+        // manual resolve of a low/medium case updated today looks identical from this endpoint
+        // — TheHive's case object carries no separate "resolved by automation" marker, and
+        // checking each case's comments for the job's own note would mean an extra API call per
+        // case, which this endpoint doesn't make.
+        const autoResolvedToday = cases.filter(
+            (c) => c.severity <= 2 && isTheHiveStatusTerminal(c.status) && (c._updatedAt ?? 0) >= startOfTodayWAT,
+        ).length;
+
+        // Best-effort proxy for "response time": time between a case's creation and its most
+        // recent update, for today's cases that have moved past New — i.e. "time to first
+        // touch" by an analyst or the auto-close job, not a true first-response timestamp
+        // (TheHive's case object has no status-change history available here).
+        const responded = createdToday.filter((c) => c.status && c.status !== 'New' && c._createdAt && c._updatedAt);
+        const avgResponseMinutes = responded.length > 0
+            ? Math.round(responded.reduce((sum, c) => sum + (c._updatedAt! - c._createdAt!), 0) / responded.length / 60000)
+            : null;
+
+        res.json({
+            active: true,
+            cases_created_today: createdToday.length,
+            auto_resolved_today: autoResolvedToday,
+            avg_response_minutes: avgResponseMinutes,
+        });
+    } catch (err) {
+        console.error('[incidents] automation-status failed:', err instanceof Error ? err.message : err);
+        res.status(502).json({ active: true, cases_created_today: 0, auto_resolved_today: 0, avg_response_minutes: null });
+    }
 });
 
 // GET /api/incidents/:id — full detail for the incident workbench (case info + tasks + notes).

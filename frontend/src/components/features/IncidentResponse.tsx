@@ -58,6 +58,12 @@ interface AnalystNote {
 
 interface Incident {
     id: string;
+    // Display identifier (INC-{year}-{n}) — shown instead of `id`, which for a TheHive-backed
+    // incident is a raw TheHive `~1234567` value. `id` itself is still what every API call
+    // below (updateStatus/addNote/addTask/the detail fetch) uses; only the two rendered badges
+    // switch to this. Optional because Wazuh-derived incidents already have an `id` in this
+    // exact shape and don't need a separate field.
+    incident_number?: string;
     title: string;
     severity: IncidentSeverity;
     status: IncidentStatus;
@@ -231,7 +237,7 @@ export function IncidentResponse() {
             {
                 heading: 'Incident Overview',
                 rows: [
-                    { label: 'Incident ID', value: incident.id },
+                    { label: 'Incident ID', value: incident.incident_number ?? incident.id },
                     { label: 'Severity', value: incident.severity.toUpperCase() },
                     { label: 'Status', value: incident.status.toUpperCase() },
                     { label: 'MITRE ATT&CK', value: `${incident.mitre_tactic} · ${incident.mitre_technique}` },
@@ -273,7 +279,7 @@ export function IncidentResponse() {
                             <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase ${sev.bg} ${sev.text} ${sev.border}`}>
                                 {selected.severity}
                             </span>
-                            <span className="font-mono text-xs text-foreground-muted font-bold">{selected.id}</span>
+                            <span className="font-mono text-xs text-foreground-muted font-bold">{selected.incident_number ?? selected.id}</span>
                             <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border capitalize ${stat.bg} ${stat.text} ${stat.border}`}>
                                 {selected.status}
                             </span>
@@ -590,7 +596,7 @@ export function IncidentResponse() {
                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase ${sev.bg} ${sev.text} ${sev.border}`}>
                                             {inc.severity}
                                         </span>
-                                        <span className="font-mono text-[10px] text-foreground-muted font-bold">{inc.id}</span>
+                                        <span className="font-mono text-[10px] text-foreground-muted font-bold">{inc.incident_number ?? inc.id}</span>
                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border capitalize ${stat.bg} ${stat.text} ${stat.border}`}>
                                             {inc.status}
                                         </span>

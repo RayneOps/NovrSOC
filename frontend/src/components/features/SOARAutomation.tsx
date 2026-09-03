@@ -1,41 +1,61 @@
 'use client';
 
-import { ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2, XCircle } from 'lucide-react';
+import { apiUrl, apiFetch } from '@/lib/api';
 
-// SOAR (Shuffle) isn't wired up yet — no Shuffle API integration exists in this backend, and
-// VPS 6 infrastructure is explicitly out of scope to touch here. 169.58.242.194 is VPS 6's
-// address per the user's own VPS6_TheHive_Shuffle_Guide.md (confirmed the same IP across
-// multiple mentions this session) — used as the default here, overridable via
-// NEXT_PUBLIC_SHUFFLE_URL / NEXT_PUBLIC_THEHIVE_URL once actually verified reachable.
-
-const SHUFFLE_URL = process.env.NEXT_PUBLIC_SHUFFLE_URL || 'http://169.58.242.194:3001';
-const THEHIVE_URL = process.env.NEXT_PUBLIC_THEHIVE_URL || 'http://169.58.242.194:9000';
+interface AutomationStatus {
+    active: boolean;
+    cases_created_today: number;
+    auto_resolved_today: number;
+    avg_response_minutes: number | null;
+}
 
 export function SOARAutomation() {
+    const [status, setStatus] = useState<AutomationStatus | null>(null);
+
+    useEffect(() => {
+        apiFetch(apiUrl('/api/incidents/automation-status'), { cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => setStatus(data))
+            .catch(() => setStatus({ active: false, cases_created_today: 0, auto_resolved_today: 0, avg_response_minutes: null }));
+    }, []);
+
     return (
         <div className="space-y-4">
             <div>
                 <h1 className="text-lg font-black text-foreground">SOAR Automation</h1>
-                <p className="text-xs text-foreground-muted">Shuffle workflow status and execution history.</p>
+                <p className="text-xs text-foreground-muted">Automated case creation, status sync, and auto-resolution pipeline status.</p>
             </div>
 
-            {/* "Configured" — a URL is known — not "connected"/verified reachable. VPS 6 isn't
-                reachable from wherever this was last verified, so this can't honestly claim
-                more than that. */}
-            <div className="rounded-xl p-4 flex items-center gap-3 border bg-blue/10 border-blue/30">
-                <div className="w-3 h-3 rounded-full flex-shrink-0 bg-blue" />
+            <div className={`rounded-xl p-4 flex items-center gap-3 border ${status?.active ? 'bg-green/10 border-green/30' : 'bg-red/10 border-red/30'}`}>
+                {status?.active ? <CheckCircle2 size={20} className="text-green flex-shrink-0" /> : <XCircle size={20} className="text-red flex-shrink-0" />}
                 <div>
-                    <div className="font-bold text-sm text-blue">Shuffle SOAR configured</div>
-                    <div className="text-xs text-foreground-muted">Wazuh Critical Alert Response workflow — reachability not verified from here</div>
+                    <div className={`font-bold text-sm ${status?.active ? 'text-green' : 'text-red'}`}>
+                        Automation pipeline: {status === null ? 'Checking…' : status.active ? 'Active' : 'Inactive'}
+                    </div>
+                    <div className="text-xs text-foreground-muted">
+                        Wazuh-triggered case creation, status sync, and the 30-minute auto-resolve job for low/medium severity cases.
+                    </div>
                 </div>
-                <a href={SHUFFLE_URL} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1.5 text-xs bg-blue text-white px-3 py-1.5 rounded-lg font-bold hover:opacity-90 transition-opacity flex-shrink-0">
-                    Open Shuffle <ExternalLink size={12} />
-                </a>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                    { label: 'Cases Created Today', value: status?.cases_created_today ?? '—' },
+                    { label: 'Auto-Resolved Today', value: status?.auto_resolved_today ?? '—' },
+                    { label: 'Average Response Time', value: status?.avg_response_minutes != null ? `${status.avg_response_minutes}m` : '—' },
+                ].map((s) => (
+                    <div key={s.label} className="bg-card border border-border rounded-xl p-5">
+                        <div className="text-3xl font-black text-foreground">{s.value}</div>
+                        <div className="text-xs text-foreground-muted mt-1">{s.label}</div>
+                    </div>
+                ))}
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
                 <h2 className="font-bold text-sm text-foreground mb-4">Active Workflows</h2>
-                {[{ name: 'Wazuh Critical Alert Response', trigger: 'Wazuh webhook (level 9+)', action: 'Create TheHive case', status: 'configured', executions: 0 }].map((wf) => (
+                {[{ name: 'Wazuh Critical Alert Response', trigger: 'Wazuh webhook (level 9+)', action: 'Create case', status: 'configured', executions: 0 }].map((wf) => (
                     <div key={wf.name} className="flex items-center justify-between p-4 bg-card-muted rounded-xl border border-border flex-wrap gap-2">
                         <div>
                             <div className="font-semibold text-sm text-foreground">{wf.name}</div>
@@ -49,31 +69,6 @@ export function SOARAutomation() {
                         </div>
                     </div>
                 ))}
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Playbooks Available', value: 6, color: 'text-purple' },
-                    { label: 'Cases Auto-Created', value: 0, color: 'text-blue' },
-                    { label: 'Automation Rate', value: '0%', color: 'text-green' },
-                    { label: 'Avg Response Time', value: '—', color: 'text-orange' },
-                ].map((s) => (
-                    <div key={s.label} className="bg-card border border-border rounded-xl p-5">
-                        <div className={`text-3xl font-black ${s.color}`}>{s.value}</div>
-                        <div className="text-xs text-foreground-muted mt-1">{s.label}</div>
-                    </div>
-                ))}
-            </div>
-
-            <div className="bg-purple/5 border border-purple/20 rounded-xl p-5">
-                <h2 className="font-bold text-sm text-purple mb-2">Case Management — TheHive</h2>
-                <p className="text-xs text-foreground-muted mb-4">
-                    Security incidents are managed in TheHive once VPS 6&apos;s SOAR stack is deployed. See{' '}
-                    <span className="font-mono">backend/src/services/thehive.ts</span> — Basic Auth client is built, not yet wired into the incident store.
-                </p>
-                <a href={THEHIVE_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 bg-purple text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-purple-hover transition-colors">
-                    Open TheHive Case Manager <ExternalLink size={12} />
-                </a>
             </div>
         </div>
     );
