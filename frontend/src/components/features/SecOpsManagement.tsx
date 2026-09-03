@@ -1,22 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, Crosshair, ClipboardList, MessageSquare } from 'lucide-react';
+import { FileText, Crosshair, ClipboardList, MessageSquare, BookOpen } from 'lucide-react';
 import { ReportsCenter } from './ReportsCenter';
 import { ThreatHunting } from './ThreatHunting';
 import { ShiftHandover } from './ShiftHandover';
 import { TeamCommunication } from './TeamCommunication';
+import { PlaybookManagement } from './PlaybookManagement';
 
-// Security Ops Management — a single page hosting four previously-separate sidebar entries as
-// tabs (Reports Center, Threat Hunting, Shift Handover) plus a new Team Communication tab. Each
-// tab's component is unchanged from its own standalone page (still reachable directly at
-// /admin/secops/reports, /hunting, /handover) — this is purely a second, tabbed home for them,
-// same pattern as DomainDnsSuite.tsx and UrlWebScanner.tsx elsewhere in this app.
+// Security Ops Management — a single page hosting previously-separate sidebar entries as tabs
+// (Reports Center, Threat Hunting, Shift Handover) plus Team Communication and Playbooks
+// (CISO/soc_manager playbook CRUD — PlaybookManagement.tsx self-gates by role internally, so
+// the tab itself stays visible to everyone the way this whole page already is). Each tab's
+// component is unchanged from its own standalone page where one exists (still reachable
+// directly at /admin/secops/reports, /hunting, /handover) — this is purely a second, tabbed
+// home for them, same pattern as DomainDnsSuite.tsx and UrlWebScanner.tsx elsewhere in this app.
 const TABS = [
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'hunting', label: 'Threat Hunting', icon: Crosshair },
     { id: 'handover', label: 'Shift Handover', icon: ClipboardList },
     { id: 'broadcast', label: 'Team Communication', icon: MessageSquare },
+    { id: 'playbooks', label: 'Playbooks', icon: BookOpen },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -52,6 +56,7 @@ export function SecOpsManagement() {
             {activeTab === 'hunting' && <ThreatHunting />}
             {activeTab === 'handover' && <ShiftHandover />}
             {activeTab === 'broadcast' && <TeamCommunication />}
+            {activeTab === 'playbooks' && <PlaybookManagement />}
         </div>
     );
 }

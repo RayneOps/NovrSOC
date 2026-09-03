@@ -29,7 +29,13 @@ import {
     UserPlus,
     BookOpen
 } from 'lucide-react';
-import { PLAYBOOKS, type Playbook } from './Playbooks';
+interface PlaybookSummary {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+    steps: { order: number; title: string; phase: string; est_mins: number; description: string }[];
+}
 
 type IncidentSeverity = 'critical' | 'high' | 'medium' | 'low';
 type IncidentStatus = 'new' | 'investigating' | 'contained' | 'resolved' | 'escalated';
@@ -144,6 +150,7 @@ export function IncidentResponse() {
     const [assigning, setAssigning] = useState(false);
     const [showPlaybookModal, setShowPlaybookModal] = useState(false);
     const [attachingPlaybook, setAttachingPlaybook] = useState<string | null>(null);
+    const [playbooks, setPlaybooks] = useState<PlaybookSummary[] | null>(null);
 
     const load = () => {
         setLoading(true);
@@ -219,26 +226,32 @@ export function IncidentResponse() {
         }
     }
 
-    // Creates each playbook step as a Response Task on the case (POST /api/incidents/:id/tasks,
-    // the same endpoint the Response Tasks panel's manual "+" button already uses) — sequential,
-    // not Promise.all, so tasks land in the playbook's own step order rather than whatever order
-    // concurrent requests happen to resolve in.
-    async function attachPlaybook(id: string, playbook: Playbook) {
+    function openPlaybookModal() {
+        setShowPlaybookModal(true);
+        if (playbooks === null) {
+            apiFetch(apiUrl('/api/playbooks'))
+                .then((r) => r.json())
+                .then((data) => setPlaybooks(Array.isArray(data?.playbooks) ? data.playbooks : []))
+                .catch(() => setPlaybooks([]));
+        }
+    }
+
+    // POST /api/playbooks/:id/run — the backend creates one TheHive task per step (same
+    // primitive the Response Tasks panel's own "+" button uses), so this just needs to refetch
+    // the incident's tasks afterward rather than build the task list itself.
+    async function attachPlaybook(incidentId: string, playbook: PlaybookSummary) {
         setAttachingPlaybook(playbook.id);
         try {
-            const steps = playbook.steps ?? [{ order: 1, title: `Follow the ${playbook.name} playbook`, phase: 'General', est_mins: 0, description: playbook.description }];
-            for (const step of steps) {
-                const res = await apiFetch(apiUrl(`/api/incidents/${id}/tasks`), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: `[${playbook.name}] ${step.title}`, description: step.description }),
-                });
-                const data = await res.json();
-                if (data?.task) {
-                    setIncidents((prev) => prev.map((i) => (
-                        i.id === id ? { ...i, tasks: [...(i.tasks ?? []), data.task] } : i
-                    )));
-                }
+            const res = await apiFetch(apiUrl(`/api/playbooks/${playbook.id}/run`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ incident_id: incidentId }),
+            });
+            const data = await res.json();
+            if (data?.tasks) {
+                setIncidents((prev) => prev.map((i) => (
+                    i.id === incidentId ? { ...i, tasks: [...(i.tasks ?? []), ...data.tasks] } : i
+                )));
             }
             setShowPlaybookModal(false);
         } finally {
@@ -493,7 +506,7 @@ export function IncidentResponse() {
                                         <TrendingUp size={14} /> Escalate
                                     </button>
                                     <div className="ml-auto flex items-center gap-2">
-                                        <button onClick={() => setShowPlaybookModal(true)} className="flex items-center gap-1.5 text-xs font-bold text-purple border border-purple/30 bg-purple/5 hover:bg-purple/10 px-3.5 py-2 rounded-lg transition-colors">
+                                        <button onClick={openPlaybookModal} className="flex items-center gap-1.5 text-xs font-bold text-purple border border-purple/30 bg-purple/5 hover:bg-purple/10 px-3.5 py-2 rounded-lg transition-colors">
                                             <BookOpen size={14} /> Attach Playbook
                                         </button>
                                         <button onClick={() => exportIncidentPDF(selected)} className="flex items-center gap-1.5 text-xs font-bold text-foreground-muted hover:text-foreground border border-border bg-card px-3 py-2 rounded-lg transition-colors">
@@ -729,22 +742,28 @@ export function IncidentResponse() {
                             <button onClick={() => setShowPlaybookModal(false)} className="text-foreground-muted hover:text-foreground"><X size={16} /></button>
                         </div>
                         <div className="space-y-2">
-                            {PLAYBOOKS.map((pb) => (
-                                <button
-                                    key={pb.id}
-                                    onClick={() => attachPlaybook(selected.id, pb)}
-                                    disabled={attachingPlaybook !== null}
-                                    className="w-full text-left flex items-center justify-between gap-3 bg-card-muted/40 hover:bg-card-muted border border-border rounded-xl px-4 py-3 transition-colors disabled:opacity-50"
-                                >
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-bold text-foreground truncate">{pb.name}</p>
-                                        <p className="text-[11px] text-foreground-muted truncate">{pb.description}</p>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-purple shrink-0">
-                                        {attachingPlaybook === pb.id ? 'Adding…' : `${pb.steps?.length ?? pb.steps_count} steps`}
-                                    </span>
-                                </button>
-                            ))}
+                            {playbooks === null ? (
+                                <p className="text-xs text-foreground-muted py-4 text-center">Loading playbooks…</p>
+                            ) : playbooks.length === 0 ? (
+                                <p className="text-xs text-foreground-muted py-4 text-center">No playbooks available.</p>
+                            ) : (
+                                playbooks.map((pb) => (
+                                    <button
+                                        key={pb.id}
+                                        onClick={() => attachPlaybook(selected.id, pb)}
+                                        disabled={attachingPlaybook !== null}
+                                        className="w-full text-left flex items-center justify-between gap-3 bg-card-muted/40 hover:bg-card-muted border border-border rounded-xl px-4 py-3 transition-colors disabled:opacity-50"
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-bold text-foreground truncate">{pb.icon} {pb.name}</p>
+                                            <p className="text-[11px] text-foreground-muted truncate">{pb.description}</p>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-purple shrink-0">
+                                            {attachingPlaybook === pb.id ? 'Adding…' : `${pb.steps.length} steps`}
+                                        </span>
+                                    </button>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>

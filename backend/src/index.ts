@@ -47,6 +47,7 @@ import platformRouter from './routes/platform';
 import organisationsRouter from './routes/organisations';
 import secopsRouter from './routes/secops';
 import notificationsRouter from './routes/notifications';
+import playbooksRouter from './routes/playbooks';
 import novrAiRouter from './routes/novr-ai';
 
 const app = express();
@@ -311,6 +312,10 @@ app.use('/api/secops', requireAuth, secopsRouter);
 // Not gated — shared by the admin app and the client portal (Header.tsx's notification bell
 // polls this from both). See routes/notifications.ts's own header comment.
 app.use('/api/notifications', notificationsRouter);
+// Not gated at the router level — GET and /:id/run are reachable from IncidentResponse.tsx's
+// Attach Playbook picker, which the client portal also renders. The mutating CRUD routes are
+// individually gated to super_admin/soc_manager inside routes/playbooks.ts.
+app.use('/api/playbooks', playbooksRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
