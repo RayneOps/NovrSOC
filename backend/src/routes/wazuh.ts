@@ -40,90 +40,63 @@ router.get('/status', async (_req, res) => {
     }
 });
 
-import https from 'https';
+// GET /api/wazuh/alerts — was previously its own hand-rolled https.request call with a
+// hardcoded fallback password (`|| '.CS+z3I7d?TOTWf88bcuBmdMq0xzuo7+'`) duplicated from
+// lib/wazuh-indexer.ts's already-correct, auth-required search() helper (the one every other
+// route in this file uses) — a real credential sitting in source, and exactly the kind of
+// duplicated indexer client search()'s own header comment says it was written to eliminate.
+// Consolidated onto search(): same https + Basic-auth request, no fallback credential, and it
+// now fails loudly (WAZUH_INDEXER_HOST/PASS unset -> a rejected promise) instead of silently
+// falling back to a stale default host/password.
+interface AlertHit {
+    _id?: string;
+    _source?: {
+        id?: string;
+        timestamp?: string;
+        '@timestamp'?: string;
+        rule?: { id?: string; level?: number; description?: string; groups?: string[]; mitre_tactics?: string | string[]; mitre_techniques?: string | string[] };
+        agent?: { id?: string; name?: string };
+        data?: { srcip?: string };
+        location?: string;
+    };
+}
+interface AlertsSearchResponse { hits?: { hits?: AlertHit[] } }
 
-// GET /api/wazuh/alerts
 router.get('/alerts', async (req, res) => {
     try {
         const limit = Number(req.query.limit) || 50;
-
-        const host = process.env.WAZUH_INDEXER_HOST || '10.0.0.1';
-        const port = Number(process.env.WAZUH_INDEXER_PORT || 9200);
-        const user = process.env.WAZUH_INDEXER_USER || 'admin';
-        const pass = process.env.WAZUH_INDEXER_PASSWORD || process.env.WAZUH_INDEXER_PASS || '.CS+z3I7d?TOTWf88bcuBmdMq0xzuo7+';
-
-        const authHeader = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
-        const postData = JSON.stringify({
+        const result = await search<AlertsSearchResponse>('wazuh-alerts-*', {
             size: limit,
             sort: [{ '@timestamp': { order: 'desc' } }],
         });
 
-        const reqIndexer = https.request(
-            {
-                hostname: host,
-                port: port,
-                path: '/wazuh-alerts-*/_search',
-                method: 'POST',
-                headers: {
-                    'Authorization': authHeader,
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData),
-                },
-                rejectUnauthorized: false,
-            },
-            (indexerRes) => {
-                let body = '';
-                indexerRes.on('data', (chunk) => (body += chunk));
-                indexerRes.on('end', () => {
-                    try {
-                        const parsed = JSON.parse(body);
-                        const hits = parsed.hits?.hits || [];
+        const hits = result?.hits?.hits ?? [];
+        const alerts = hits.map((h) => {
+            const src = h._source ?? {};
+            const rule = src.rule ?? {};
+            const agent = src.agent ?? {};
+            const data = src.data ?? {};
 
-                        const alerts = hits.map((h: any) => {
-                            const src = h._source || {};
-                            const rule = src.rule || {};
-                            const agent = src.agent || {};
-                            const data = src.data || {};
-
-                            return {
-                                id: String(h._id || src.id || ''),
-                                timestamp: src.timestamp || src['@timestamp'] || null,
-                                rule_id: String(rule.id || ''),
-                                rule_level: Number(rule.level || 0),
-                                rule_description: String(rule.description || 'Wazuh alert'),
-                                rule_groups: Array.isArray(rule.groups) ? rule.groups : [],
-                                mitre_tactic: Array.isArray(rule.mitre_tactics)
-                                    ? rule.mitre_tactics[0]
-                                    : rule.mitre_tactics || null,
-                                mitre_technique: Array.isArray(rule.mitre_techniques)
-                                    ? rule.mitre_techniques[0]
-                                    : rule.mitre_techniques || null,
-                                agent_id: String(agent.id || ''),
-                                agent_name: String(agent.name || 'Unknown'),
-                                source_ip: data.srcip || null,
-                                location: src.location || null,
-                            };
-                        });
-
-                        res.status(200).json(alerts);
-                    } catch (parseErr) {
-                        console.error('[routes/wazuh/alerts] Parse error:', parseErr);
-                        res.status(500).json({ error: 'Failed to parse indexer response', raw: body });
-                    }
-                });
-            }
-        );
-
-        reqIndexer.on('error', (err) => {
-            console.error('[routes/wazuh/alerts] Socket error:', err);
-            res.status(502).json({ error: 'Indexer connection failed', message: err.message });
+            return {
+                id: String(h._id || src.id || ''),
+                timestamp: src.timestamp || src['@timestamp'] || null,
+                rule_id: String(rule.id || ''),
+                rule_level: Number(rule.level || 0),
+                rule_description: String(rule.description || 'Wazuh alert'),
+                rule_groups: Array.isArray(rule.groups) ? rule.groups : [],
+                mitre_tactic: Array.isArray(rule.mitre_tactics) ? rule.mitre_tactics[0] : rule.mitre_tactics || null,
+                mitre_technique: Array.isArray(rule.mitre_techniques) ? rule.mitre_techniques[0] : rule.mitre_techniques || null,
+                agent_id: String(agent.id || ''),
+                agent_name: String(agent.name || 'Unknown'),
+                source_ip: data.srcip || null,
+                location: src.location || null,
+            };
         });
 
-        reqIndexer.write(postData);
-        reqIndexer.end();
+        res.status(200).json(alerts);
     } catch (err) {
-        console.error('[routes/wazuh/alerts] Handler error:', err);
-        res.status(500).json({ error: 'Internal server error', details: err instanceof Error ? err.message : String(err) });
+        console.error('[routes/wazuh/alerts] Indexer request failed:', err instanceof Error ? err.message : err);
+        res.status(502).json({ error: 'Indexer connection failed', message: err instanceof Error ? err.message : String(err) });
     }
 });
 
@@ -149,7 +122,12 @@ router.get('/agents', async (req, res) => {
             group: a.group.join(', ') || 'default',
         }));
         res.json({ active, total, agents: agentDetails, data: { connection: { active, total } } });
-    } catch {
+    } catch (err) {
+        // Was silently swallowed before — confirmed live this can fail with zero visible cause
+        // in the logs (e.g. the Wazuh Indexer, port 9200, being unreachable while the Manager
+        // API on 55000 responds fine — a real network-level split this route's failure used to
+        // hide completely).
+        console.error('[routes/wazuh/agents] Failed:', err instanceof Error ? err.message : err);
         res.status(502).json(null);
     }
 });
