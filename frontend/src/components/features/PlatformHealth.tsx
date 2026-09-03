@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Send } from 'lucide-react';
 import { apiUrl, apiFetch } from '@/lib/api';
 
 // Wazuh Manager, Database, and Claude AI are real — fetched from GET /api/platform/health
@@ -65,6 +65,26 @@ export function PlatformHealth() {
     const [services, setServices] = useState(SERVICES);
     const [apiStatus, setApiStatus] = useState(API_STATUS);
     const [checkedAt, setCheckedAt] = useState<string | null>(null);
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState<Record<string, string> | null>(null);
+
+    const runAlertTest = async () => {
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const r = await apiFetch(apiUrl('/api/alerts/test'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: 'rayne@cybernovr.com' }),
+            });
+            const data = await r.json();
+            setTestResult(data.results ?? { error: data.error || 'Unknown response' });
+        } catch {
+            setTestResult({ error: 'Test failed — check console' });
+        } finally {
+            setTesting(false);
+        }
+    };
 
     useEffect(() => {
         apiFetch(apiUrl('/api/platform/health'), { cache: 'no-store' })
@@ -107,6 +127,35 @@ export function PlatformHealth() {
                 <span className={`text-sm font-black ${allOperational ? 'text-green' : 'text-red'}`}>
                     {allOperational ? 'ALL SYSTEMS OPERATIONAL' : 'DEGRADED PERFORMANCE DETECTED'}
                 </span>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                        <p className="text-sm font-bold text-foreground">Alert Communications</p>
+                        <p className="text-[11px] text-foreground-muted">Send a live test alert through Slack and email to confirm both channels are working.</p>
+                    </div>
+                    <button
+                        onClick={runAlertTest}
+                        disabled={testing}
+                        className="flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
+                    >
+                        <Send size={13} /> {testing ? 'Sending...' : 'Test Alert Communications'}
+                    </button>
+                </div>
+
+                {testResult && (
+                    <div className="mt-4 bg-card-muted/60 rounded-xl p-4">
+                        <div className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Results</div>
+                        {Object.entries(testResult).map(([channel, result]) => (
+                            <div key={channel} className="flex items-center gap-2 text-xs py-1">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${result === 'sent' ? 'bg-green' : 'bg-red'}`} />
+                                <span className="font-bold capitalize text-foreground">{channel}:</span>
+                                <span className={result === 'sent' ? 'text-green' : 'text-red'}>{result}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div>

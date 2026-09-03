@@ -82,15 +82,14 @@ export async function testConnection(): Promise<{ ok: boolean; status: number; e
     }
 }
 
-// ─── Minimal case read/create (added for routes/incidentResponse.ts) ──────────────────────
+// ─── Case + task + comment read/write (added for routes/incidentResponse.ts) ──────────────
 //
-// Scope is deliberately narrow: list + create only, nothing for tasks/observables/stats — those
-// aren't called from anywhere in this codebase yet, and building them speculatively against an
-// instance this dev environment can't reach (see the file header) would be untested surface
-// area. Shapes below follow TheHive 5's documented REST API (github.com/TheHive-Project/api-docs):
-// reads go through the /api/v1/query DSL (same endpoint testConnection() above already uses),
-// writes go through the plain /api/v1/case resource endpoint. Not verified against a live
-// instance — if VPS 6 rejects a field name here, that's the first thing to check.
+// Covers list/get/create/update on cases, plus tasks and comments (the two primitives the
+// NovrSOC incident workbench needs — "Response Tasks" and "Investigation Notes"). Observables
+// and stats still aren't called from anywhere in this codebase. Shapes below follow TheHive 5's
+// documented REST API (github.com/TheHive-Project/api-docs): reads go through the /api/v1/query
+// DSL (same endpoint testConnection() above already uses), writes go through the plain
+// /api/v1/case (and /task, /comment) resource endpoints.
 
 export interface TheHiveCase {
     _id: string;
@@ -98,9 +97,59 @@ export interface TheHiveCase {
     description?: string;
     severity: 1 | 2 | 3 | 4; // TheHive encodes severity as 1=low..4=critical, not a string
     status?: string;
+    stage?: string;
+    summary?: string;
+    assignee?: string;
     tags?: string[];
     _createdAt?: number;
     _updatedAt?: number;
+}
+
+// TheHive's real `status` enum, confirmed live against this org's instance (VPS 6) via
+// /api/v1/describe/case — NOT the free-text guess an earlier draft of this file made.
+// `status` is the only writable lifecycle field; `stage` (New/InProgress/Closed) is
+// server-computed FROM status, not independently settable — confirmed by PATCHing `stage`
+// directly (204 success, value silently didn't change) vs. PATCHing `status` to a terminal
+// value (stage flipped to Closed as a side effect). There is no "Resolved" status — TheHive's
+// terminal values are a real triage classification (true/false positive, duplicate, etc.), not
+// a generic "done" flag; PATCHing status:"Resolved" 404s with "CaseStatus Resolved not found".
+export type TheHiveStatus = 'New' | 'InProgress' | 'TruePositive' | 'FalsePositive' | 'Indeterminate' | 'Duplicated' | 'Other';
+
+// NovrSOC's simpler 4-state UI (open/investigating/contained/resolved) collapses onto TheHive's
+// real fields as follows. "contained" has no TheHive equivalent (it has no concept between
+// "being worked" and "closed with a classification") — mapped to InProgress, same as
+// investigating; the distinction only lives in NovrSOC's own UI/tags, not in TheHive. Resolving
+// defaults to the neutral "Other" classification since the generic "Resolve" action in this UI
+// doesn't ask the analyst to pick true/false positive — a future refinement could expose that
+// choice properly instead of defaulting it.
+// 'escalated' collapses onto InProgress too, same as investigating/contained — it must NOT fall
+// through to the ?? 'New' default below, which would silently downgrade an already-open case
+// back to New the moment an analyst hits "Escalate" in the workbench UI.
+const NOVRSOC_STATUS_TO_THEHIVE: Record<string, TheHiveStatus> = {
+    open: 'New', new: 'New',
+    investigating: 'InProgress',
+    contained: 'InProgress',
+    escalated: 'InProgress',
+    resolved: 'Other',
+};
+
+export function mapNovrSOCStatusToTheHive(status: string): TheHiveStatus {
+    return NOVRSOC_STATUS_TO_THEHIVE[status.toLowerCase()] ?? 'New';
+}
+
+// Reverse direction: any of TheHive's 5 terminal classifications all read as "resolved" in
+// NovrSOC's simpler UI — it doesn't have (and doesn't need) TheHive's finer-grained taxonomy.
+const THEHIVE_TERMINAL_STATUSES = new Set(['TruePositive', 'FalsePositive', 'Indeterminate', 'Duplicated', 'Other']);
+
+export function mapTheHiveStatusToNovrSOC(status: string | undefined): 'open' | 'investigating' | 'resolved' {
+    if (status === 'InProgress') return 'investigating';
+    if (status && THEHIVE_TERMINAL_STATUSES.has(status)) return 'resolved';
+    return 'open';
+}
+
+/** Exposed for jobs/autoClose.ts — true for any of TheHive's terminal triage classifications. */
+export function isTheHiveStatusTerminal(status: string | undefined): boolean {
+    return !!status && THEHIVE_TERMINAL_STATUSES.has(status);
 }
 
 /**
@@ -159,11 +208,126 @@ export function formatCaseForNovrSOC(c: TheHiveCase) {
         id: c._id,
         title: c.title,
         severity: severityMap[c.severity] ?? 'medium',
-        status: (c.status ?? 'new').toLowerCase(),
-        summary: c.description ?? '',
+        status: mapTheHiveStatusToNovrSOC(c.status),
+        thehive_status: c.status ?? 'New', // the real classification, for anyone who wants it verbatim
+        summary: c.description ?? c.summary ?? '',
+        assignee: c.assignee ?? null,
         opened_at: c._createdAt ? new Date(c._createdAt).toLocaleString() : new Date().toLocaleString(),
         updated_at: c._updatedAt ? new Date(c._updatedAt).toLocaleString() : new Date().toLocaleString(),
         source: 'thehive' as const,
         tags: c.tags ?? [],
     };
+}
+
+/** Fetches one case by its TheHive `_id` (the `~1234567` form). Returns null on any failure. */
+export async function getCase(id: string): Promise<TheHiveCase | null> {
+    try {
+        const { status, json } = await request<TheHiveCase>(`/api/v1/case/${encodeURIComponent(id)}`, 'GET');
+        if (status < 200 || status >= 300 || !json) return null;
+        return json;
+    } catch (err) {
+        console.error('TheHive getCase error:', err);
+        return null;
+    }
+}
+
+/**
+ * Updates a case's status/summary/assignee. Only `status` (the real TheHive enum — see
+ * mapNovrSOCStatusToTheHive above) actually changes the case's lifecycle; `stage` is NOT sent
+ * here because it isn't independently writable — confirmed live, PATCHing it directly is
+ * silently ignored. Returns null on failure rather than throwing, matching createCase's
+ * fall-back-friendly convention.
+ */
+export async function updateCase(id: string, params: { status?: TheHiveStatus; summary?: string; assignee?: string }): Promise<TheHiveCase | null> {
+    try {
+        const body: Record<string, unknown> = {};
+        if (params.status) body.status = params.status;
+        if (params.summary !== undefined) body.summary = params.summary;
+        if (params.assignee) body.assignee = params.assignee;
+
+        const { status, json } = await request<TheHiveCase>(`/api/v1/case/${encodeURIComponent(id)}`, 'PATCH', body);
+        // TheHive's PATCH returns 204 No Content on success, not the updated object — fetch it
+        // separately so callers get a real, current case back either way.
+        if (status < 200 || status >= 300) {
+            console.error(`TheHive updateCase failed (status ${status}):`, json);
+            return null;
+        }
+        return json ?? getCase(id);
+    } catch (err) {
+        console.error('TheHive updateCase error:', err);
+        return null;
+    }
+}
+
+export interface TheHiveTask {
+    _id: string;
+    title: string;
+    description?: string;
+    status: 'Waiting' | 'InProgress' | 'Completed' | 'Cancel';
+    _createdAt?: number;
+}
+
+/** Lists a case's tasks via the query DSL — there's no plain GET list endpoint for these. */
+export async function getCaseTasks(caseId: string): Promise<TheHiveTask[]> {
+    try {
+        const { status, json } = await request<TheHiveTask[]>('/api/v1/query', 'POST', {
+            query: [{ _name: 'getCase', idOrName: caseId }, { _name: 'tasks' }],
+        });
+        if (status < 200 || status >= 300 || !Array.isArray(json)) return [];
+        return json;
+    } catch (err) {
+        console.error('TheHive getCaseTasks error:', err);
+        return [];
+    }
+}
+
+export async function createTask(caseId: string, params: { title: string; description?: string }): Promise<TheHiveTask | null> {
+    try {
+        const { status, json } = await request<TheHiveTask>(`/api/v1/case/${encodeURIComponent(caseId)}/task`, 'POST', {
+            title: params.title,
+            description: params.description,
+        });
+        if (status < 200 || status >= 300 || !json) return null;
+        return json;
+    } catch (err) {
+        console.error('TheHive createTask error:', err);
+        return null;
+    }
+}
+
+export interface TheHiveComment {
+    _id: string;
+    message: string;
+    createdBy?: string;
+    createdAt?: number;
+}
+
+/**
+ * Lists a case's comments — the real primitive for "investigation notes." An earlier draft of
+ * the incident-notes feature stuffed notes into fake tasks (`addTask(id, { note: content })`);
+ * TheHive has a dedicated comment resource, confirmed live (POST /case/{id}/comment,
+ * listed via the same tasks-style query-DSL pivot), so notes use that instead.
+ */
+export async function getCaseComments(caseId: string): Promise<TheHiveComment[]> {
+    try {
+        const { status, json } = await request<TheHiveComment[]>('/api/v1/query', 'POST', {
+            query: [{ _name: 'getCase', idOrName: caseId }, { _name: 'comments' }],
+        });
+        if (status < 200 || status >= 300 || !Array.isArray(json)) return [];
+        return json;
+    } catch (err) {
+        console.error('TheHive getCaseComments error:', err);
+        return [];
+    }
+}
+
+export async function addComment(caseId: string, message: string): Promise<TheHiveComment | null> {
+    try {
+        const { status, json } = await request<TheHiveComment>(`/api/v1/case/${encodeURIComponent(caseId)}/comment`, 'POST', { message });
+        if (status < 200 || status >= 300 || !json) return null;
+        return json;
+    } catch (err) {
+        console.error('TheHive addComment error:', err);
+        return null;
+    }
 }

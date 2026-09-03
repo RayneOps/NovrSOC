@@ -23,7 +23,9 @@ import {
     Radio,
     Terminal,
     UserCheck,
-    Lock
+    Lock,
+    ListChecks,
+    Plus
 } from 'lucide-react';
 
 type IncidentSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -73,6 +75,16 @@ interface Incident {
     source?: 'wazuh' | 'thehive' | 'internal';
     rule_id?: string;
     sla_remaining?: string;
+    // TheHive-backed incidents only — populated by a GET /api/incidents/:id detail fetch, not
+    // present on the list-level data. Wazuh-derived incidents use containment_actions instead.
+    tasks?: TheHiveTask[];
+}
+
+interface TheHiveTask {
+    _id: string;
+    title: string;
+    description: string;
+    status: string;
 }
 
 interface Summary {
@@ -116,6 +128,8 @@ export function IncidentResponse() {
     const [showAddNote, setShowAddNote] = useState(false);
     const [noteType, setNoteType] = useState<NoteType>('Update');
     const [noteText, setNoteText] = useState('');
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [addingTask, setAddingTask] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -133,6 +147,49 @@ export function IncidentResponse() {
 
     const filtered = incidents.filter((i) => statusFilter === 'all' || i.status === statusFilter);
     const selected = incidents.find((i) => i.id === selectedId) ?? null;
+
+    // TheHive-backed incidents carry Response Tasks and real investigation notes that only the
+    // per-id detail endpoint returns (the list endpoint above doesn't fetch each case's tasks/
+    // comments — too expensive to do for every row). Fetch that detail once a TheHive-sourced
+    // incident is opened and merge it into local state; Wazuh-derived incidents already have
+    // everything they need from the list load, so this only fires for source === 'thehive'.
+    useEffect(() => {
+        if (!selectedId) return;
+        const target = incidents.find((i) => i.id === selectedId);
+        if (!target || target.source !== 'thehive' || target.tasks) return; // already fetched
+
+        apiFetch(apiUrl(`/api/incidents/${selectedId}`))
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+                if (!data) return;
+                setIncidents((prev) => prev.map((i) => (
+                    i.id === selectedId ? { ...i, tasks: data.tasks ?? [], notes: data.notes ?? i.notes } : i
+                )));
+            })
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedId]);
+
+    async function addTask(id: string) {
+        if (!newTaskTitle.trim()) return;
+        setAddingTask(true);
+        try {
+            const res = await apiFetch(apiUrl(`/api/incidents/${id}/tasks`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTaskTitle.trim() }),
+            });
+            const data = await res.json();
+            if (data?.task) {
+                setIncidents((prev) => prev.map((i) => (
+                    i.id === id ? { ...i, tasks: [...(i.tasks ?? []), data.task] } : i
+                )));
+            }
+            setNewTaskTitle('');
+        } finally {
+            setAddingTask(false);
+        }
+    }
 
     async function updateStatus(id: string, status: IncidentStatus) {
         setBusy(true);
@@ -378,24 +435,67 @@ export function IncidentResponse() {
                         </div>
                     </div>
 
-                    {/* Containment Checklist Sidebar */}
+                    {/* Containment Checklist (Wazuh-derived) / Response Tasks (TheHive) Sidebar */}
                     <div className="space-y-4">
-                        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
-                            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <Lock size={14} className="text-red-500" /> Containment Checklist
-                            </h3>
-                            <div className="space-y-2.5">
-                                {selected.containment_actions.map((a) => (
-                                    <div key={a.id} className="flex items-start gap-2.5 p-2 rounded-lg bg-card-muted/30 border border-border">
-                                        <CheckCircle className={`w-4 h-4 mt-0.5 shrink-0 ${a.status === 'completed' ? 'text-emerald-500' : 'text-amber-500'}`} />
-                                        <div className="min-w-0">
-                                            <p className={`text-xs font-medium ${a.status === 'completed' ? 'line-through text-foreground-muted' : 'text-foreground'}`}>{a.label}</p>
-                                            {a.completed_at && <p className="text-[10px] text-foreground-muted mt-0.5">{a.completed_at}</p>}
+                        {selected.containment_actions.length > 0 && (
+                            <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
+                                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <Lock size={14} className="text-red-500" /> Containment Checklist
+                                </h3>
+                                <div className="space-y-2.5">
+                                    {selected.containment_actions.map((a) => (
+                                        <div key={a.id} className="flex items-start gap-2.5 p-2 rounded-lg bg-card-muted/30 border border-border">
+                                            <CheckCircle className={`w-4 h-4 mt-0.5 shrink-0 ${a.status === 'completed' ? 'text-emerald-500' : 'text-amber-500'}`} />
+                                            <div className="min-w-0">
+                                                <p className={`text-xs font-medium ${a.status === 'completed' ? 'line-through text-foreground-muted' : 'text-foreground'}`}>{a.label}</p>
+                                                {a.completed_at && <p className="text-[10px] text-foreground-muted mt-0.5">{a.completed_at}</p>}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {selected.source === 'thehive' && (
+                            <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
+                                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <ListChecks size={14} className="text-emerald-500" /> Response Tasks
+                                </h3>
+
+                                {selected.tasks === undefined ? (
+                                    <p className="text-xs text-foreground-muted py-1">Loading tasks…</p>
+                                ) : selected.tasks.length === 0 ? (
+                                    <p className="text-xs text-foreground-muted py-1">No tasks yet</p>
+                                ) : (
+                                    <div className="space-y-2 mb-3">
+                                        {selected.tasks.map((t) => (
+                                            <div key={t._id} className="flex items-center gap-2.5 p-2 rounded-lg bg-card-muted/30 border border-border">
+                                                <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${t.status === 'Completed' ? 'bg-emerald-500 border-emerald-500' : 'border-border'}`} />
+                                                <span className={`text-xs flex-1 min-w-0 truncate ${t.status === 'Completed' ? 'text-foreground-muted line-through' : 'text-foreground'}`}>{t.title}</span>
+                                                <span className="text-[9px] text-foreground-muted shrink-0">{t.status}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        value={newTaskTitle}
+                                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') addTask(selected.id); }}
+                                        placeholder="New task title..."
+                                        className="flex-1 min-w-0 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-emerald-500"
+                                    />
+                                    <button
+                                        disabled={addingTask || !newTaskTitle.trim()}
+                                        onClick={() => addTask(selected.id)}
+                                        className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-2.5 py-1.5 rounded-lg disabled:opacity-50 shrink-0"
+                                    >
+                                        <Plus size={13} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { sendSlackAlert, sendTestAlert, isConfigured as slackConfigured } from '../services/slack';
-import { isConfigured as sendgridConfigured } from '../services/sendgrid';
+// services/email.ts is the fuller email service (SMTP/Zoho first, SendGrid fallback) already
+// used by routes/email.ts's own /api/email/test — reused here rather than sendgrid.ts's plainer
+// sendEmail() so this test actually exercises whichever provider is really configured.
+import { sendTestEmail, isEmailEnabled } from '../services/email';
 
 const router = Router();
 
@@ -14,24 +17,44 @@ router.get('/status', (_req, res) => {
     res.json({
         channels: {
             slack: { configured: slackConfigured(), name: 'Slack', description: '#novrsoc-alerts channel' },
-            email: { configured: sendgridConfigured(), name: 'Email', description: 'SendGrid transactional email' },
+            email: { configured: isEmailEnabled(), name: 'Email', description: 'Zoho SMTP (SendGrid fallback)' },
             sms: { configured: envConfigured('TWILIO_ACCOUNT_SID'), name: 'SMS', description: 'Twilio SMS to on-call engineers' },
             pagerduty: { configured: envConfigured('PAGERDUTY_API_KEY'), name: 'PagerDuty', description: 'On-call schedule escalation' },
         },
     });
 });
 
-// POST /api/alerts/test — send test alert to all configured channels
-router.post('/test', async (_req, res) => {
-    const results: Record<string, boolean> = {};
+// POST /api/alerts/test — send a test alert on both comms channels (Slack + email) and report
+// a per-channel outcome. Kept backward compatible with the existing AlertCommunication.tsx
+// caller (which only reads `message`) while also returning `results` — string statuses, not
+// booleans, so a caller can distinguish "not configured" from "configured but failed" — for
+// PlatformHealth.tsx's dedicated "Test Alert Communications" button.
+router.post('/test', async (req, res) => {
+    const results: Record<string, string> = {};
 
     if (slackConfigured()) {
-        results.slack = await sendTestAlert();
+        results.slack = (await sendTestAlert()) ? 'sent' : 'failed';
+    } else {
+        results.slack = 'not configured';
     }
 
+    if (isEmailEnabled()) {
+        const to = req.body?.email || process.env.ALERT_EMAIL_TO || 'rayne@cybernovr.com';
+        try {
+            await sendTestEmail(to);
+            results.email = 'sent';
+        } catch (err: any) {
+            results.email = `failed: ${err.message}`;
+        }
+    } else {
+        results.email = 'not configured';
+    }
+
+    const sentCount = Object.values(results).filter((r) => r === 'sent').length;
     res.json({
-        sent: results,
-        message: Object.keys(results).length > 0 ? 'Test alerts sent to configured channels' : 'No alert channels configured yet',
+        success: true,
+        results,
+        message: sentCount > 0 ? 'Test alerts sent to configured channels' : 'No alert channels configured yet',
     });
 });
 

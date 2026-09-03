@@ -41,6 +41,7 @@ import handoverRouter from './routes/handover';
 import emailRouter from './routes/email';
 import orgCTIRouter from './routes/orgCTI';
 import { runCTIWatcher } from './jobs/ctiWatcher';
+import { startAutoCloseJob } from './jobs/autoClose';
 import platformRouter from './routes/platform';
 import organisationsRouter from './routes/organisations';
 import novrAiRouter from './routes/novr-ai';
@@ -283,3 +284,7 @@ const startCTIWatcher = () => {
 };
 startCTIWatcher();
 setInterval(startCTIWatcher, 5 * 60 * 1000).unref();
+
+// Auto-close job for low/medium-severity TheHive cases — see jobs/autoClose.ts for the
+// resolve-after-30-minutes-idle logic. No-ops (with a log line) when TheHive isn't configured.
+startAutoCloseJob();
