@@ -1,10 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
-// Built but NOT mounted anywhere yet — see index.ts for why. Ready for whenever the frontend
-// is updated to attach `Authorization: Bearer <token>` to its fetch calls; wiring this in
-// before that happens would 401 every request the app currently makes (verified: zero fetch
-// calls anywhere in frontend/src send an Authorization header today).
+// Now mounted on the routes confirmed to have zero client-portal exposure (see index.ts's own
+// block comment on that check) — routes/auth.ts's dev-login bypass issues a token, and
+// lib/api.ts's apiFetch() attaches it as `Authorization: Bearer <token>` to every apiUrl()
+// call, admin and portal alike. Most feature routes still aren't gated (same reason: no way
+// yet to verify a client-portal token here), but this middleware itself is live, not dormant.
 export interface AuthRequest extends Request {
     user?: {
         sub: string;
@@ -13,6 +14,12 @@ export interface AuthRequest extends Request {
         org_id?: string;
     };
 }
+
+// Not enforced at token-decode time (issueDevToken/JWT payloads aren't validated against this
+// union — requireAuth reads whatever string is in the `role` claim), but this is every role
+// this app's authorization logic actually branches on. Keep it in sync with wherever a new
+// role is introduced.
+export type UserRole = 'super_admin' | 'soc_manager' | 'analyst' | 'portal_user';
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
     const header = req.headers.authorization;
@@ -41,11 +48,15 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     }
 }
 
-export function requireRole(...roles: string[]) {
+export function requireRole(...roles: UserRole[]) {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
         if (!req.user) return res.status(401).json({ error: 'Unauthorised' });
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({ error: 'Forbidden — insufficient role' });
+        if (!roles.includes(req.user.role as UserRole)) {
+            return res.status(403).json({
+                error: 'Insufficient permissions',
+                required: roles,
+                current: req.user.role,
+            });
         }
         next();
     };

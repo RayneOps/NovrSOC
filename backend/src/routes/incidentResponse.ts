@@ -5,7 +5,7 @@ import {
     getCases, createCase, getCase, updateCase, getCaseTasks, createTask, getCaseComments, addComment,
     formatCaseForNovrSOC, isTheHiveConfigured, mapNovrSOCStatusToTheHive,
 } from '../services/thehive';
-import { sendSlackAlert } from '../services/slack';
+import { sendSlackAlert, sendSlackMessage } from '../services/slack';
 
 // A TheHive case id always looks like "~1234567" (confirmed live) — Wazuh-derived incident ids
 // look like "INC-2026-1000" (built below). Used to route a given :id to the right backend
@@ -363,6 +363,13 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
         if (!updated) {
             res.status(502).json({ error: 'TheHive case update failed — see server logs' });
             return;
+        }
+        // Fire-and-forget, only on an actual resolve — never blocks the response, matches the
+        // fire-and-forget notify pattern used on incident creation above.
+        if (status?.toLowerCase?.() === 'resolved') {
+            sendSlackMessage(`✅ Incident resolved: ${updated.title}`).catch((err) => {
+                console.error('[Slack] Resolve notification failed (non-fatal):', err instanceof Error ? err.message : err);
+            });
         }
         res.json({ success: true, id, status, thehive_status: theHiveStatus });
         return;

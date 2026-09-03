@@ -14,6 +14,11 @@ export interface NavItem {
     // Hidden unless user.role === 'super_admin'. Only meaningful in the admin portal today —
     // the client portal's nav has no such role tier.
     adminOnly?: boolean;
+    // Hidden unless user.role is 'super_admin' or 'soc_manager' — for items a manager should
+    // see but a plain analyst shouldn't (e.g. Platform Health). Weaker than adminOnly, and the
+    // two are mutually exclusive in practice (an adminOnly item ignores this either way, since
+    // the adminOnly check below is checked first and is strictly narrower).
+    managerOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -35,11 +40,17 @@ const STORAGE_KEY = 'sidebar_collapsed';
 export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
     const pathname = usePathname();
 
-    // Drop adminOnly items for anyone who isn't a super_admin, then drop any group left with
-    // no items at all (a group whose items were entirely adminOnly would otherwise render as
-    // an empty, uselessly-clickable accordion header).
+    // Drop adminOnly items for anyone who isn't a super_admin, and managerOnly items for anyone
+    // who isn't a super_admin or soc_manager, then drop any group left with no items at all (a
+    // group whose items were entirely filtered out would otherwise render as an empty,
+    // uselessly-clickable accordion header).
+    const isAdmin = user.role === 'super_admin';
+    const isManagerOrAbove = isAdmin || user.role === 'soc_manager';
     const visibleGroups = navGroups
-        .map((group) => ({ ...group, items: group.items.filter((item) => !item.adminOnly || user.role === 'super_admin') }))
+        .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerOrAbove)),
+        }))
         .filter((group) => group.items.length > 0);
 
     // Independently toggleable per section (not a single-open accordion) and persisted, so a

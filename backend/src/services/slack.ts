@@ -80,6 +80,29 @@ export async function sendTestAlert(): Promise<boolean> {
     });
 }
 
+// A plain-text notification, for the handful of events (e.g. an incident being resolved) that
+// don't need sendSlackAlert's full incident-card layout — just a single line. No-ops (with a
+// console.warn) when SLACK_WEBHOOK_URL isn't set, same as sendSlackAlert.
+export async function sendSlackMessage(text: string): Promise<boolean> {
+    const webhookUrl = getWebhookUrl();
+    if (!webhookUrl) {
+        console.warn('[Slack] Webhook not configured — message not sent');
+        return false;
+    }
+
+    try {
+        const res = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+            signal: AbortSignal.timeout(5000),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 export function isConfigured(): boolean {
     return !!getWebhookUrl();
 }

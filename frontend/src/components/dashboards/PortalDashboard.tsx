@@ -185,8 +185,13 @@ export const PortalDashboard = () => {
         },
     ];
 
-    const windowsCmd = `Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.12.0-1.msi -OutFile wazuh-agent.msi; msiexec /i wazuh-agent.msi /q WAZUH_MANAGER="164.92.203.205" WAZUH_AGENT_GROUP="${wazuhGroup}" WAZUH_AGENT_NAME="${orgSlug}-endpoint-01"`;
-    const linuxCmd = `WAZUH_MANAGER="164.92.203.205" WAZUH_AGENT_GROUP="${wazuhGroup}" WAZUH_AGENT_NAME="${orgSlug}-endpoint-01" apt-get install wazuh-agent`;
+    // 169.58.242.174 is the current Wazuh Manager host (was 164.92.203.205 — that box is
+    // retired). This is copy-paste text for the analyst/client running it on their own
+    // endpoint, not a live network call from this app, so there's no process.env.WAZUH_HOST to
+    // read here (that's a backend-only var, never shipped to the browser); the fix is simply
+    // keeping this literal in sync with the real manager.
+    const windowsCmd = `Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-4.12.0-1.msi -OutFile wazuh-agent.msi; msiexec /i wazuh-agent.msi /q WAZUH_MANAGER="169.58.242.174" WAZUH_AGENT_GROUP="${wazuhGroup}" WAZUH_AGENT_NAME="${orgSlug}-endpoint-01"`;
+    const linuxCmd = `WAZUH_MANAGER="169.58.242.174" WAZUH_AGENT_GROUP="${wazuhGroup}" WAZUH_AGENT_NAME="${orgSlug}-endpoint-01" apt-get install wazuh-agent`;
 
     return (
         <div className="space-y-6">

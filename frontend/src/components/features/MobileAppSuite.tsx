@@ -139,10 +139,18 @@ export function MobileAppSuite() {
     const officialDevelopers = new Set(apps.map((a) => a.developer.toLowerCase()).filter(Boolean));
     const isOfficial = (developer: string) => officialDevelopers.size > 0 && officialDevelopers.has(developer.toLowerCase());
 
+    // No `category` field exists on OfficialApp — this data model only tracks name, developer,
+    // bundle ID, and platform (iOS/Android) for a monitored app listing, not a store category.
+    // `platform` is matched here as the closest real equivalent to a "store" filter.
     const filteredApps = apps.filter((app) => {
         const q = appSearch.trim().toLowerCase();
         if (!q) return true;
-        return app.name.toLowerCase().includes(q) || app.developer.toLowerCase().includes(q) || app.bundle_id.toLowerCase().includes(q);
+        return (
+            app.name.toLowerCase().includes(q) ||
+            app.developer.toLowerCase().includes(q) ||
+            app.bundle_id.toLowerCase().includes(q) ||
+            app.platform.toLowerCase().includes(q)
+        );
     });
 
     // No DELETE /api/brand/apps/:id endpoint exists on the backend yet — this removes the
@@ -181,14 +189,19 @@ export function MobileAppSuite() {
                     </button>
                 </div>
                 {apps.length > 0 && (
-                    <div className="relative mb-3">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-                        <input
-                            value={appSearch}
-                            onChange={(e) => setAppSearch(e.target.value)}
-                            placeholder="Search apps by name, developer, or bundle ID…"
-                            className="w-full pl-9 pr-4 py-2.5 bg-card-muted border border-border rounded-xl text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue"
-                        />
+                    <div className="mb-3">
+                        <div className="relative">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
+                            <input
+                                value={appSearch}
+                                onChange={(e) => setAppSearch(e.target.value)}
+                                placeholder="Search apps by name, developer, platform, or bundle ID…"
+                                className="w-full pl-9 pr-4 py-2.5 bg-card-muted border border-border rounded-xl text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:border-blue"
+                            />
+                        </div>
+                        <p className="text-[10px] text-foreground-muted mt-1.5">
+                            Showing {filteredApps.length} of {apps.length} app{apps.length === 1 ? '' : 's'}
+                        </p>
                     </div>
                 )}
                 {loading ? (

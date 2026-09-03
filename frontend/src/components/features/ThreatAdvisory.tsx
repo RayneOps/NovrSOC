@@ -69,6 +69,11 @@ export function ThreatAdvisory() {
     const [severityFilter, setSeverityFilter] = useState<string>('ALL');
     const [kevInfo, setKevInfo] = useState<{ count: number; released: string } | null>(null);
     const [selectedCVE, setSelectedCVE] = useState<CVESummary | null>(null);
+    // A rolling window, not a calendar period ("This Week" is the last 7 days, not
+    // Mon-today) — 90 for "All Time" rather than truly unbounded because the NVD API this
+    // hits (services/nvd.ts's getRecentCVEs) rejects a pubStartDate/pubEndDate range wider
+    // than 120 days; 90 leaves margin. Both this and severityFilter ride the same request
+    // (see loadRecent below), so they already apply as AND, not two separate client-side passes.
     const [days, setDays] = useState(7);
 
     const loadRecent = () => {
@@ -186,14 +191,18 @@ export function ThreatAdvisory() {
 
                         <div className="flex items-center gap-2 md:ml-auto text-xs text-foreground-muted">
                             <Clock size={12} />
-                            Last
-                            {[1, 7, 14, 30].map((d) => (
+                            {[
+                                { label: 'Today', d: 1 },
+                                { label: 'This Week', d: 7 },
+                                { label: 'This Month', d: 30 },
+                                { label: 'All Time', d: 90 },
+                            ].map(({ label, d }) => (
                                 <button
                                     key={d}
                                     onClick={() => setDays(d)}
-                                    className={`px-2 py-1 rounded ${days === d ? 'bg-blue text-white' : 'hover:bg-card-muted text-foreground-muted'}`}
+                                    className={`px-2 py-1 rounded whitespace-nowrap ${days === d ? 'bg-blue text-white' : 'hover:bg-card-muted text-foreground-muted'}`}
                                 >
-                                    {d}d
+                                    {label}
                                 </button>
                             ))}
                         </div>

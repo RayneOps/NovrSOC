@@ -5,7 +5,7 @@ import {
     Crosshair, AlertTriangle, Link as LinkIcon, Building, Building2, Server, Network, Cpu,
     Mail, MessageSquare, ShieldAlert, Activity, Siren, ClipboardList, Briefcase, Zap,
     HardDrive, BarChart, CreditCard, Settings, Database, BookOpen, FileText, ScrollText,
-    ClipboardCheck, Bot, WifiOff,
+    ClipboardCheck, Bot, WifiOff, Map, Landmark, Radio,
 } from 'lucide-react';
 import { Sidebar, type NavGroup } from './Sidebar';
 
@@ -43,17 +43,29 @@ const adminNav: NavGroup[] = [
         ],
     },
     {
-        section: 'Threat Intelligence',
+        section: 'Nigerian Threat Intel',
+        collapsible: true,
+        icon: Globe,
+        groupLabel: 'Nigerian Threat Intel',
+        items: [
+            { label: 'Nigeria Threat Map', href: '/admin/threat/nigeria-map', icon: Map },
+            { label: 'Nigerian Threat Feed', href: '/admin/threat/nigeria', icon: Globe },
+            { label: 'CBN Advisories', href: '/admin/threat/cbn', icon: Landmark },
+            { label: 'NCC Advisories', href: '/admin/threat/ncc', icon: Radio },
+        ],
+    },
+    {
+        section: 'Global Threat Intel',
         collapsible: true,
         icon: Crosshair,
-        groupLabel: 'Threat Intelligence',
+        groupLabel: 'Global Threat Intel',
         items: [
             { label: 'IOC Lookup', href: '/admin/threat/cti', icon: Crosshair },
             { label: 'Threat Feeds', href: '/admin/threat/feeds', icon: Database },
-            { label: 'Nigerian Threat Feed', href: '/admin/threat/nigeria', icon: Globe },
             { label: 'MITRE ATT&CK', href: '/admin/threat/mitre', icon: ShieldAlert },
             { label: 'Threat Advisory', href: '/admin/threat/advisory', icon: AlertTriangle },
-            { label: 'URL & Website Scanner', href: '/admin/threat/scanner', icon: LinkIcon },
+            { label: 'Threat Actors', href: '/admin/threat/actors', icon: Users },
+            { label: 'URL & Web Scanner', href: '/admin/threat/scanner', icon: LinkIcon },
             { label: 'Vendor Assessments', href: '/admin/threat/vendor', icon: Building },
         ],
     },
@@ -63,7 +75,7 @@ const adminNav: NavGroup[] = [
         icon: Shield,
         groupLabel: 'Brand Protection',
         items: [
-            { label: 'Domain Suite', href: '/admin/brand/domain', icon: Globe },
+            { label: 'Domain & DNS Suite', href: '/admin/brand/domain-dns', icon: Globe },
             { label: 'Social Suite', href: '/admin/brand/social', icon: Users },
             { label: 'Brand Suite', href: '/admin/brand/brand', icon: Shield },
             { label: 'Executive Monitoring', href: '/admin/brand/executive', icon: UserCheck },
@@ -81,7 +93,6 @@ const adminNav: NavGroup[] = [
             { label: 'Network Topology', href: '/admin/infra/topology', icon: Network },
             { label: 'Vulnerability Management', href: '/admin/infra/vulnerabilities', icon: ShieldAlert },
             { label: 'WebLogic Appliances', href: '/admin/infra/weblogic', icon: Cpu },
-            { label: 'DNS Suite', href: '/admin/infra/dns', icon: Network },
             { label: 'Shadow IT', href: '/admin/infra/shadow', icon: WifiOff },
         ],
     },
@@ -151,7 +162,7 @@ const adminNav: NavGroup[] = [
             { label: 'Organisations', href: '/admin/settings/organisations', icon: Building2, adminOnly: true },
             { label: 'Billing', href: '/admin/settings/billing', icon: CreditCard, adminOnly: true },
             { label: 'Audit Log', href: '/admin/platform/audit', icon: ScrollText, adminOnly: true },
-            { label: 'Platform Health', href: '/admin/platform/health', icon: Activity, adminOnly: true },
+            { label: 'Platform Health', href: '/admin/platform/health', icon: Activity, managerOnly: true },
         ],
     },
 ];

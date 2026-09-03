@@ -3,7 +3,7 @@
 // (run-then-interval, unref() so it can't block process shutdown, every error swallowed and
 // logged rather than thrown) since that's this codebase's established pattern for background
 // jobs — see index.ts's startCTIWatcher for the same reasoning spelled out.
-import { getCases, updateCase, isTheHiveConfigured, isTheHiveStatusTerminal } from '../services/thehive';
+import { getCases, updateCase, addComment, isTheHiveConfigured, isTheHiveStatusTerminal } from '../services/thehive';
 
 const AUTO_CLOSE_AFTER_MS = 30 * 60 * 1000; // 30 minutes of no update activity
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // run every 5 minutes
@@ -28,6 +28,16 @@ async function runAutoClose(): Promise<void> {
 
         if (result) {
             console.log(`[AutoClose] Resolved case ${c._id}: ${c.title}`);
+            // A visible timeline entry, not just the summary edit above — a comment shows up
+            // in TheHive's case activity feed the way an analyst's own note would, so anyone
+            // reviewing the case later sees exactly when and why it closed itself.
+            const commentAdded = await addComment(
+                c._id,
+                `Auto-resolved by NovrSOC: no new activity detected for 30 minutes. Severity was ${c.severity === 1 ? 'Low' : 'Medium'} — threshold for auto-resolution.`,
+            );
+            if (!commentAdded) {
+                console.error(`[AutoClose] Case ${c._id} resolved, but failed to add the auto-resolve comment`);
+            }
         } else {
             console.error(`[AutoClose] Failed to resolve case ${c._id}: ${c.title}`);
         }

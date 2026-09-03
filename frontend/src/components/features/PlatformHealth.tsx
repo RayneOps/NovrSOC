@@ -13,8 +13,14 @@ import { apiUrl, apiFetch } from '@/lib/api';
 // everything else stays marked MOCK rather than silently blending the two.
 
 interface Service { name: string; url: string; status: 'operational' | 'degraded' | 'outage'; uptime: number; latency: number; live?: boolean }
+// Vercel doesn't auto-expose its VERCEL_URL as a NEXT_PUBLIC_ var (that needs an explicit
+// mapping in next.config.ts, which doesn't exist here), so NEXT_PUBLIC_VERCEL_URL is only ever
+// populated if it's set by hand in the deployment's env vars. novr-soc.vercel.app is the
+// fallback since that's the origin CORS was actually failing for (backend/src/index.ts's
+// ALLOWED_ORIGINS lists it alongside the older socnovr.vercel.app).
+const FRONTEND_URL_LABEL = process.env.NEXT_PUBLIC_VERCEL_URL || 'novr-soc.vercel.app';
 const SERVICES: Service[] = [
-    { name: 'NovrSOC Frontend', url: 'socnovr.vercel.app', status: 'operational', uptime: 99.98, latency: 124 },
+    { name: 'NovrSOC Frontend', url: FRONTEND_URL_LABEL, status: 'operational', uptime: 99.98, latency: 124 },
     { name: 'NovrSOC Backend API', url: 'novrsoc-production.up.railway.app', status: 'operational', uptime: 99.91, latency: 287 },
     { name: 'Supabase Database', url: 'bwtmjukbrtijnwusrrjb.supabase.co', status: 'operational', uptime: 99.99, latency: 45 },
     { name: 'Wazuh Manager', url: '169.58.242.174:55000', status: 'operational', uptime: 99.87, latency: 312 },

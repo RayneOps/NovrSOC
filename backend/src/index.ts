@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { botProtection, requireAuth } from './middleware/auth';
+import { botProtection, requireAuth, requireRole } from './middleware/auth';
 
 import authRouter from './routes/auth';
 import portalRouter from './routes/portal';
@@ -255,9 +255,12 @@ app.use('/api/portal', portalRouter);
 app.use('/api/account', accountRouter);
 // admin-only — no client-portal component calls these, confirmed safe to gate now (see the
 // block comment above for how that was checked and why most other routes aren't gated yet).
-app.use('/api/customers', requireAuth, customersRouter);
+// soc_manager gets access alongside super_admin here (and on /api/compliance below) — per the
+// soc_manager role's spec: "Access compliance data for their org," but analysts and below do
+// not get customer/compliance-admin access.
+app.use('/api/customers', requireAuth, requireRole('super_admin', 'soc_manager'), customersRouter);
 app.use('/api/advisories', advisoriesRouter);
-app.use('/api/compliance', requireAuth, complianceRouter);
+app.use('/api/compliance', requireAuth, requireRole('super_admin', 'soc_manager'), complianceRouter);
 app.use('/api/vendor-assessments', vendorAssessmentsRouter);
 app.use('/api/scan', scanRouter);
 app.use('/api/dns', dnsRouter);
@@ -295,8 +298,10 @@ app.use('/api/assets', assetsRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
 app.use('/api/handover', requireAuth, handoverRouter);
 app.use('/api/org-cti', orgCTIRouter);
-app.use('/api/platform', requireAuth, platformRouter);
-app.use('/api/organisations', requireAuth, organisationsRouter);
+// super_admin only — platform infra health and org onboarding/settings are explicitly out of
+// scope for soc_manager per that role's spec ("Cannot access platform settings").
+app.use('/api/platform', requireAuth, requireRole('super_admin'), platformRouter);
+app.use('/api/organisations', requireAuth, requireRole('super_admin'), organisationsRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
