@@ -133,6 +133,40 @@ const ALLOWED_ORIGINS = [
     .flatMap((o) => (o ? o.split(',').map((s) => s.trim()) : []))
     .filter(Boolean);
 
+// Shared by both the explicit preflight handler and the main CORS mount just below, so the
+// two can't drift out of sync with each other. `!origin` allows non-browser/same-origin
+// requests (curl, server-to-server, Postman) — those don't send an Origin header at all, and
+// CORS is a browser-enforced check anyway, not an access control mechanism for such requests.
+const corsOptions: cors.CorsOptions = {
+    origin: (origin, cb) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) {
+            cb(null, true);
+            return;
+        }
+        cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
+// CORS is registered here — immediately after the two unconditional health-check routes above,
+// and BEFORE helmet/the HTTPS-redirect below — on purpose. It used to sit after both of those,
+// which was fine for real GET/POST requests but broke preflight OPTIONS requests specifically:
+// confirmed live, the HTTPS-redirect middleware 301s any request in production whose
+// x-forwarded-proto isn't exactly "https" (see its own comment for why that header isn't
+// always present), and a 301 response to an OPTIONS preflight is not something a browser will
+// follow — it just reads as "CORS blocked," which is what was actually happening despite the
+// origin-matching logic itself (ALLOWED_ORIGINS + the *.vercel.app wildcard) already being
+// correct. Putting CORS first means preflight requests get answered before they can ever reach
+// that redirect. `app.options('*', cors(corsOptions))` handles preflight explicitly and
+// `app.use(cors(corsOptions))` below covers every other method — cors() already fully
+// short-circuits OPTIONS on its own when mounted via app.use(), so the explicit handler is
+// belt-and-suspenders, not strictly load-bearing once the ordering above is fixed, but it
+// keeps preflight handling self-evidently correct without relying on that behaviour.
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
+
 // This backend only ever serves JSON, never HTML, so most of helmet's CSP directives are
 // inert here in practice (a browser only enforces a response's CSP against the document that
 // response itself renders as — fetch()/XHR responses from other tabs/scripts aren't governed
@@ -172,6 +206,13 @@ app.use((req, res, next) => {
 // Redirect HTTP to HTTPS in production (Railway terminates TLS in front of this process)
 if (process.env.NODE_ENV === 'production') {
     app.use((req, res, next) => {
+        // Belt-and-suspenders on top of CORS now being registered before this middleware
+        // (see the comment on corsOptions above for the actual bug this was causing): a
+        // preflight OPTIONS request should never be redirected regardless of registration
+        // order elsewhere in this file, since a 301 response to one isn't something a browser
+        // will follow.
+        if (req.method === 'OPTIONS') return next();
+
         const host = req.headers.host || '';
         const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1');
 
@@ -182,24 +223,6 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-app.use(cors({
-    // A callback instead of a static array so any *.vercel.app preview deployment is allowed
-    // without needing a code change per branch/PR — Vercel mints a new subdomain for each one,
-    // so ALLOWED_ORIGINS above can only ever cover the known, stable URLs. `!origin` allows
-    // non-browser/same-origin requests (curl, server-to-server, Postman) — those don't send an
-    // Origin header at all, and CORS is a browser-enforced check anyway, not an access control
-    // mechanism for such requests.
-    origin: (origin, cb) => {
-        if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) {
-            cb(null, true);
-            return;
-        }
-        cb(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-}));
 app.use(express.json());
 
 // Rate limiting — auth endpoints get a tight per-IP window (stacks with the general limiter
