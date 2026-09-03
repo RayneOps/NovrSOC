@@ -8,15 +8,10 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 bg-white border-b border-[#EEF0F6]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
-          {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
-            <img src="/novrsoc.jpg" alt="NovrSOC" className="w-8 h-8 rounded-lg object-contain" />
-            <div>
-              <div className="font-black text-[#1C1F2E] text-sm leading-none tracking-tight">NovrSOC</div>
-              <div className="text-[9px] text-[#7A8099] font-medium uppercase tracking-wider leading-none mt-0.5">by Cybernovr</div>
-            </div>
-          </div>
+          {/* Logo — novrsoc.jpg is the full wordmark ("NOVRSOC" + "by CYBERNOVR" baked into
+              the image), so no separate text label next to it */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
+          <img src="/novrsoc.jpg" alt="NovrSOC by Cybernovr" className="h-9 w-auto object-contain" />
 
           {/* Nav links */}
           <div className="hidden md:flex items-center gap-8 text-sm text-[#7A8099]">
@@ -633,11 +628,8 @@ export default function LandingPage() {
 
             {/* Brand */}
             <div>
-              <div className="flex items-center gap-2.5 mb-3">
-                {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
-                <img src="/novrsoc.jpg" alt="NovrSOC" className="w-8 h-8 rounded-lg object-contain" />
-                <span className="font-bold text-[#1C1F2E] text-base">NovrSOC</span>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
+              <img src="/novrsoc.jpg" alt="NovrSOC by Cybernovr" className="h-8 w-auto object-contain mb-3" />
               <p className="text-[#7A8099] text-sm leading-relaxed">
                 Powered by Cybernovr · Lagos, Nigeria
               </p>
