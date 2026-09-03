@@ -41,13 +41,22 @@ export default function AdminLoginPage() {
             const data = await res.json();
             if (!res.ok || !data.token) {
                 setError('Invalid credentials');
+                setSubmitting(false);
                 return;
             }
             localStorage.setItem('admin_token', data.token);
             router.push('/admin/dashboard');
+            // Deliberately NOT resetting `submitting` here (no `finally`) — router.push()
+            // returns as soon as the navigation is *requested*, not once /admin/dashboard has
+            // actually rendered (confirmed live: on a slow/first-compile transition this can
+            // take several seconds). Clearing the disabled/"Signing in…" state immediately
+            // flips the button back to normal while the app is still mid-navigation, which
+            // reads as "nothing happened" / login silently failing even though it succeeded —
+            // this is what was actually being reported as "not redirecting." Leaving the button
+            // disabled through the transition (it unmounts with the page anyway once
+            // /admin/dashboard takes over) fixes that without touching the request/token logic.
         } catch {
             setError('Invalid credentials');
-        } finally {
             setSubmitting(false);
         }
     };
