@@ -1,7 +1,14 @@
 // Transactional email — rich HTML templates for alerts, weekly reports, incident resolutions,
-// and client onboarding. Two providers: SMTP (e.g. Zoho, smtp.zoho.com:587) tried first when
-// configured, falling back to SendGrid — lets a client bring their own mailbox (SMTP_HOST/
-// SMTP_USER/SMTP_PASS) without losing SendGrid as a safety net, or the other way round.
+// and client onboarding. Three providers, tried in this order: Resend (HTTPS API) first, then
+// SMTP (e.g. Zoho, smtp.zoho.com:587), then SendGrid.
+//
+// Resend goes first because Railway (where this backend actually runs) blocks outbound SMTP on
+// port 587 — every send attempted through the SMTP path there fails, silently falls through to
+// SendGrid, and previously left no working path at all if SendGrid also wasn't configured.
+// Resend is a plain HTTPS API call, so it isn't subject to that port block. SMTP is kept as the
+// second option (it's the one that works locally / on hosts that don't block 587, and is a
+// client's own mailbox when they bring one via SMTP_HOST/SMTP_USER/SMTP_PASS), SendGrid stays
+// as the last-resort fallback.
 //
 // This is deliberately separate from services/sendgrid.ts (which stays wired to the
 // existing /api/alerts/incident flow with its plainer template) so that flow keeps working
@@ -13,6 +20,7 @@
 
 import sgMail from '@sendgrid/mail';
 import nodemailer, { type Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 const FROM = {
     email: process.env.SENDGRID_FROM_EMAIL || 'alerts@novrsoc.com',
@@ -35,9 +43,21 @@ function isSendGridConfigured(): boolean {
     const key = process.env.SENDGRID_API_KEY;
     return !!(key && key !== 'REPLACE_WHEN_OBTAINED');
 }
+function isResendConfigured(): boolean {
+    const key = process.env.RESEND_API_KEY;
+    return !!(key && key !== 'REPLACE_WHEN_OBTAINED');
+}
 
 export function isEmailEnabled(): boolean {
-    return process.env.EMAIL_ENABLED === 'true' && (isSMTPConfigured() || isSendGridConfigured());
+    return process.env.EMAIL_ENABLED === 'true' && (isResendConfigured() || isSMTPConfigured() || isSendGridConfigured());
+}
+
+// Built once and reused, same reasoning as the SMTP transporter below.
+let resendClient: Resend | null | undefined;
+function getResendClient(): Resend | null {
+    if (resendClient !== undefined) return resendClient;
+    resendClient = isResendConfigured() ? new Resend(process.env.RESEND_API_KEY) : null;
+    return resendClient;
 }
 
 // Built once and reused — nodemailer transporters pool connections internally, so recreating
@@ -59,11 +79,29 @@ function getSMTPTransporter(): Transporter | null {
     return smtpTransporter;
 }
 
-// Every sendXEmail() function below calls this instead of sgMail.send() directly — SMTP first
-// if configured, SendGrid as fallback (or as the only path, if SMTP was never configured).
-// A hard failure on both throws, same as an sgMail.send() failure always has — callers
+// Every sendXEmail() function below calls this instead of sgMail.send() directly — Resend
+// first if configured (the only one of the three that actually works from Railway, which
+// blocks outbound SMTP on port 587), then SMTP, then SendGrid as the last resort. A hard
+// failure on all three throws, same as an sgMail.send() failure always has — callers
 // (routes/email.ts) already catch and report that.
 async function sendEmail(params: { to: string | string[]; subject: string; html: string }): Promise<void> {
+    const resend = getResendClient();
+    if (resend) {
+        try {
+            const { error } = await resend.emails.send({
+                from: `${FROM.name} <${FROM.email}>`,
+                to: params.to,
+                subject: params.subject,
+                html: params.html,
+            });
+            if (error) throw new Error(error.message);
+            return;
+        } catch (err) {
+            console.error('[email] Resend send failed, falling back to SMTP/SendGrid:', err instanceof Error ? err.message : err);
+            // falls through to SMTP below
+        }
+    }
+
     const transporter = getSMTPTransporter();
     if (transporter) {
         try {
@@ -81,7 +119,7 @@ async function sendEmail(params: { to: string | string[]; subject: string; html:
     }
 
     if (!isSendGridConfigured()) {
-        throw new Error('No email provider configured or reachable (SMTP and SendGrid both unavailable)');
+        throw new Error('No email provider configured or reachable (Resend, SMTP, and SendGrid all unavailable)');
     }
     ensureInitialized();
     await sgMail.send({ to: params.to, from: FROM, subject: params.subject, html: params.html });
@@ -107,8 +145,10 @@ function baseTemplate(title: string, preheader: string, body: string): string {
         <table cellpadding="0" cellspacing="0">
           <tr>
             <td>
-              <div style="width:28px;height:28px;background:#FF5500;border-radius:6px;
-                          display:inline-block;vertical-align:middle;margin-right:10px;"></div>
+              <img src="https://socnovr.vercel.app/novrsoc.jpg" alt="NovrSOC"
+                   width="28" height="28"
+                   style="width:28px;height:28px;border-radius:6px;
+                          display:inline-block;vertical-align:middle;margin-right:10px;" />
               <span style="color:white;font-size:18px;font-weight:900;
                            letter-spacing:-0.5px;vertical-align:middle;">NovrSOC</span>
               <span style="color:rgba(255,255,255,0.5);font-size:11px;

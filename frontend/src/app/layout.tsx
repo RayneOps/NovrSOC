@@ -25,6 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "NovrSOC: AI-Powered SOC Platform by Cybernovr",
   description: "AI-Powered MSSP & SOC-as-a-Service Platform for Africa",
+  icons: { icon: "/novrsoc.jpg" },
 };
 
 export default function RootLayout({

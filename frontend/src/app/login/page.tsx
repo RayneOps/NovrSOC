@@ -14,6 +14,7 @@ const GoogleLogin = dynamic(
 );
 import { AuthField } from '@/components/auth/AuthField';
 import { NigeriaLoginMap } from '@/components/auth/NigeriaLoginMap';
+import { Logo } from '@/components/shared/Logo';
 
 export default function AdminLoginPage() {
     const router = useRouter();
@@ -77,11 +78,7 @@ export default function AdminLoginPage() {
             <div className="w-full lg:w-2/5 flex flex-col justify-between bg-white p-10 lg:p-16 min-h-screen">
 
                 {/* Top — logo */}
-                <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple" />
-                    <span className="font-black text-foreground text-xl tracking-tight">NovrSOC</span>
-                    <span className="text-foreground-muted text-xs ml-1">by Cybernovr</span>
-                </div>
+                <Logo size="md" />
 
                 {/* Middle — form */}
                 <div className="w-full max-w-sm mx-auto">

@@ -17,12 +17,16 @@ const dmarcUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 
 // GET /api/email/status
 router.get('/status', (req, res) => {
+    const hasResend = !!(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'REPLACE_WHEN_OBTAINED');
     const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
     const hasSendGrid = !!(process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY !== 'REPLACE_WHEN_OBTAINED');
     res.json({
         enabled: isEmailEnabled(),
-        provider: hasSmtp ? 'Zoho SMTP' : hasSendGrid ? 'SendGrid' : 'none',
+        // Resend first — see services/email.ts's sendEmail() for why it's tried before SMTP
+        // (Railway blocks outbound SMTP port 587, Resend is a plain HTTPS API call).
+        provider: hasResend ? 'Resend' : hasSmtp ? 'Zoho SMTP' : hasSendGrid ? 'SendGrid' : 'none',
         from: process.env.SMTP_FROM_EMAIL || process.env.SENDGRID_FROM_EMAIL || 'not configured',
+        resend_configured: hasResend,
         smtp_configured: hasSmtp,
         sendgrid_configured: hasSendGrid,
     });

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, X, ChevronRight } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 import { apiUrl, apiFetch } from '@/lib/api';
 
 const QUICK_QUESTIONS = [
@@ -48,9 +48,13 @@ export function HelpAssistant() {
             {open && (
                 <div className="mb-3 w-[320px] bg-white border border-grey-100 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[70vh]">
                     <div className="bg-blue px-4 py-3 flex items-center justify-between flex-shrink-0">
-                        <div>
-                            <div className="text-white font-semibold text-sm">NovrAI Assistant</div>
-                            <div className="text-white/60 text-xs">Ask me anything about this page</div>
+                        <div className="flex items-center gap-2.5">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
+                            <img src="/novrsoc.jpg" alt="NovrAI" className="w-6 h-6 rounded object-contain shrink-0" />
+                            <div>
+                                <div className="text-white font-semibold text-sm">NovrAI Assistant</div>
+                                <div className="text-white/60 text-xs">Ask me anything about this page</div>
+                            </div>
                         </div>
                         <button onClick={() => setOpen(false)} className="text-white/60 hover:text-white" aria-label="Close">
                             <X size={16} />
@@ -110,10 +114,10 @@ export function HelpAssistant() {
 
             <button
                 onClick={() => setOpen(!open)}
-                className="w-12 h-12 bg-blue text-white rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity"
+                className="w-12 h-12 bg-blue text-white rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity overflow-hidden"
                 aria-label="Help assistant"
             >
-                {open ? <X size={20} /> : <MessageCircle size={20} />}
+                {open ? <X size={20} /> : <img src="/novrsoc.jpg" alt="NovrAI" className="w-6 h-6 rounded object-contain" />}
             </button>
         </div>
     );

@@ -77,7 +77,9 @@ export async function sendIncidentAlert(incident: IncidentEmailData, recipientEm
 <body style="font-family: Inter, sans-serif; background: #F8F9FC; padding: 40px;">
   <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #EEF0F6;">
     <div style="background: #1C1F2E; padding: 24px;">
-      <div style="color: white; font-size: 20px; font-weight: bold;">NovrSOC Alert</div>
+      <img src="https://socnovr.vercel.app/novrsoc.jpg" alt="NovrSOC" width="32" height="32"
+           style="width: 32px; height: 32px; border-radius: 8px; vertical-align: middle; margin-right: 10px;" />
+      <span style="color: white; font-size: 20px; font-weight: bold; vertical-align: middle;">NovrSOC Alert</span>
       <div style="color: #7A8099; font-size: 13px; margin-top: 4px;">by Cybernovr</div>
     </div>
     <div style="padding: 32px;">

@@ -4,18 +4,26 @@ const SIZES = {
     lg: 'text-3xl',
 } as const;
 
-// Icon-mark logo (shield + orange dot) for the sidebar and topbar. Distinct from
-// NovrSOCLogo (plain text, still used by the status page and available for anywhere a
-// lighter text-only mark is wanted) — this is the fuller brand mark for primary chrome.
+const IMG_SIZES = {
+    sm: 'w-6 h-6',
+    md: 'w-8 h-8',
+    lg: 'w-12 h-12',
+} as const;
+
+// Brand mark (novrsoc.jpg) for the sidebar and topbar. Distinct from NovrSOCLogo (plain text,
+// still used by the status page and available for anywhere a lighter text-only mark is wanted)
+// — this is the fuller brand mark for primary chrome. Was a CSS shield-and-dot placeholder
+// before the real logo file existed at frontend/public/novrsoc.jpg.
 export function Logo({ size = 'md' }: { size?: keyof typeof SIZES }) {
     return (
         <div className={`flex items-center gap-2 ${SIZES[size]}`}>
-            <div className="relative flex-shrink-0">
-                <div className="w-7 h-7 bg-purple rounded-lg flex items-center justify-center">
-                    <div className="w-3 h-3 border-2 border-white rounded-sm" />
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-orange rounded-full border-2 border-white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark, not
+                a content image; next/image's overhead isn't worth it here. */}
+            <img
+                src="/novrsoc.jpg"
+                alt="NovrSOC"
+                className={`${IMG_SIZES[size]} rounded-lg object-contain flex-shrink-0`}
+            />
             <div>
                 <div className="font-black text-foreground leading-none tracking-tight">
                     NovrSOC

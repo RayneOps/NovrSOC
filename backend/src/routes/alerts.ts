@@ -17,7 +17,7 @@ router.get('/status', (_req, res) => {
     res.json({
         channels: {
             slack: { configured: slackConfigured(), name: 'Slack', description: '#novrsoc-alerts channel' },
-            email: { configured: isEmailEnabled(), name: 'Email', description: 'Zoho SMTP (SendGrid fallback)' },
+            email: { configured: isEmailEnabled(), name: 'Email', description: 'Resend API (Zoho SMTP / SendGrid fallback)' },
             sms: { configured: envConfigured('TWILIO_ACCOUNT_SID'), name: 'SMS', description: 'Twilio SMS to on-call engineers' },
             pagerduty: { configured: envConfigured('PAGERDUTY_API_KEY'), name: 'PagerDuty', description: 'On-call schedule escalation' },
         },

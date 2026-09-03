@@ -9,14 +9,18 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#520385]" />
-            <span className="font-bold text-[#1C1F2E] text-lg tracking-tight">NovrSOC</span>
+          <div className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
+            <img src="/novrsoc.jpg" alt="NovrSOC" className="w-8 h-8 rounded-lg object-contain" />
+            <div>
+              <div className="font-black text-[#1C1F2E] text-sm leading-none tracking-tight">NovrSOC</div>
+              <div className="text-[9px] text-[#7A8099] font-medium uppercase tracking-wider leading-none mt-0.5">by Cybernovr</div>
+            </div>
           </div>
 
           {/* Nav links */}
           <div className="hidden md:flex items-center gap-8 text-sm text-[#7A8099]">
-            {['Features', 'Platform', 'Pricing', 'About'].map(link => (
+            {['Features', 'Compliance', 'Pricing', 'About'].map(link => (
               <a key={link} href={`#${link.toLowerCase()}`}
                 className="hover:text-[#520385] transition-colors">
                 {link}
@@ -200,6 +204,43 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── FREE WEBSITE SECURITY SCANNER ─────────────────────────────── */}
+      <section className="py-16 bg-[#F8F9FC]">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <div className="inline-flex items-center gap-2 bg-[#F5F0FF] border border-[#520385]/20
+                          rounded-full px-4 py-2 mb-6">
+            <span className="text-[#520385] text-xs font-bold uppercase tracking-wider">
+              Free Tool
+            </span>
+          </div>
+          <h2 className="text-3xl font-black text-[#1C1F2E] mb-3">
+            Website Security Scanner
+          </h2>
+          <p className="text-[#7A8099] mb-8">
+            Scan any website, IP address, or domain for threats, malware, and security issues —
+            powered by 9 threat intelligence sources running behind the scenes.
+          </p>
+          <div className="bg-white border border-[#EEF0F6] rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                placeholder="Enter URL, IP, or domain — e.g. example.com"
+                className="flex-1 border border-[#EEF0F6] rounded-xl px-4 py-3
+                           text-sm focus:outline-none focus:border-[#520385]"
+              />
+              <Link href="/login"
+                    className="bg-[#520385] text-white font-bold px-6 py-3
+                               rounded-xl hover:bg-[#420270] whitespace-nowrap text-sm">
+                Scan Now →
+              </Link>
+            </div>
+            <p className="text-[10px] text-[#7A8099] mt-3">
+              Free scan. Sign in for the full threat report, MITRE mapping, and history.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ── SOCIAL PROOF BAR ───────────────────────────────────────── */}
       <section className="bg-white border-b border-[#EEF0F6] py-6">
         <div className="max-w-6xl mx-auto px-6">
@@ -323,6 +364,140 @@ export default function LandingPage() {
                 </div>
                 <h3 className="font-bold text-white text-base mb-3">{item.title}</h3>
                 <p className="text-white/50 text-sm leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── COMPLIANCE ─────────────────────────────────────────────── */}
+      <section id="compliance" className="py-24 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-[#F5F0FF]
+                              border border-[#520385]/20 rounded-full px-4 py-2 mb-6">
+                <span className="text-[#520385] text-xs font-bold">
+                  Nigerian Compliance
+                </span>
+              </div>
+              <h2 className="text-4xl font-black text-[#1C1F2E] mb-4 tracking-tight">
+                Built for Nigerian<br />Regulatory Requirements
+              </h2>
+              <p className="text-[#7A8099] mb-8">
+                NovrSOC tracks compliance across every major framework relevant to Nigerian
+                enterprises. Show your board a live compliance score, not a spreadsheet.
+              </p>
+              <div className="space-y-3">
+                {[
+                  { name: 'NDPA', desc: 'Nigeria Data Protection Act' },
+                  { name: 'CBN', desc: 'CBN Cybersecurity Framework' },
+                  { name: 'NCC', desc: 'NCC Consumer Protection' },
+                  { name: 'ISO 27001', desc: 'Information Security Management' },
+                  { name: 'PCI-DSS', desc: 'Payment Card Industry Standard' },
+                ].map(f => (
+                  <div key={f.name}
+                    className="flex items-center gap-3 bg-[#F8F9FC] border
+                               border-[#EEF0F6] rounded-xl p-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#520385] flex items-center
+                                    justify-center flex-shrink-0">
+                      <span className="text-white text-[9px] font-black">{f.name.slice(0, 3)}</span>
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-[#1C1F2E]">{f.name}</div>
+                      <div className="text-[10px] text-[#7A8099]">{f.desc}</div>
+                    </div>
+                    <div className="ml-auto text-[10px] text-green-600 font-bold">
+                      Supported ✓
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ISO Certificate card */}
+            <div className="space-y-4">
+              <div className="bg-white border-2 border-[#520385]/20 rounded-3xl p-8
+                              text-center shadow-lg">
+                <div className="w-20 h-20 bg-[#520385] rounded-2xl flex items-center
+                                justify-center mx-auto mb-4">
+                  <span className="text-white text-2xl font-black">ISO</span>
+                </div>
+                <h3 className="text-xl font-black text-[#1C1F2E] mb-2">
+                  ISO 27001 Certified
+                </h3>
+                <p className="text-sm text-[#7A8099] mb-4">
+                  NovrSOC is built on ISO 27001 certified infrastructure and follows information
+                  security management best practices.
+                </p>
+                <div className="border-t border-[#EEF0F6] pt-4">
+                  <div className="text-[10px] text-[#7A8099] uppercase tracking-wider mb-2">
+                    Certificate Details
+                  </div>
+                  <div className="text-sm font-bold text-[#1C1F2E]">Cybernovr Limited</div>
+                  <div className="text-xs text-[#7A8099]">
+                    Information Security Management System
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-2 bg-green-50
+                                  border border-green-200 rounded-full px-3 py-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span className="text-[10px] text-green-700 font-bold">
+                      Certificate Valid
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { icon: '🔒', title: 'SOC 2 Type II', desc: 'In progress' },
+                  { icon: '🌍', title: 'GDPR Ready', desc: 'Data residency options' },
+                  { icon: '🏛️', title: 'CBN Compliant', desc: 'Financial sector ready' },
+                  { icon: '📋', title: 'NDPA Aligned', desc: 'Nigerian data law' },
+                ].map(c => (
+                  <div key={c.title}
+                    className="bg-[#F8F9FC] border border-[#EEF0F6] rounded-2xl p-4 text-center">
+                    <div className="text-2xl mb-2">{c.icon}</div>
+                    <div className="text-xs font-bold text-[#1C1F2E]">{c.title}</div>
+                    <div className="text-[10px] text-[#7A8099] mt-1">{c.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SOAR PIPELINE VISUAL ──────────────────────────────────────── */}
+      <section className="py-20 bg-[#F8F9FC]">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <h2 className="text-4xl font-black text-[#1C1F2E] mb-4 tracking-tight">
+            Automated Response in Seconds
+          </h2>
+          <p className="text-[#7A8099] mb-12 max-w-xl mx-auto">
+            From threat detection to case creation — fully automated. Your team focuses on
+            investigation, not alert fatigue.
+          </p>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-3">
+            {[
+              { step: '01', title: 'Threat Detected', icon: '🚨', desc: 'Wazuh SIEM detects anomaly across any endpoint' },
+              { step: '02', title: 'Alert Enriched', icon: '🔍', desc: 'MITRE mapping, source IP geo, CVE correlation' },
+              { step: '03', title: 'Case Auto-Created', icon: '📋', desc: 'TheHive case created with full context instantly' },
+              { step: '04', title: 'Team Notified', icon: '📲', desc: 'Slack alert sent with case link and severity' },
+              { step: '05', title: 'Analyst Responds', icon: '🧑‍💻', desc: 'Full investigation inside the NovrSOC dashboard' },
+            ].map((s, i, arr) => (
+              <div key={s.step} className="flex flex-col md:flex-row items-center">
+                <div className="bg-white border border-[#EEF0F6] rounded-2xl p-5
+                                text-center w-44 hover:border-[#520385]/30 hover:shadow-md
+                                transition-all">
+                  <div className="text-2xl mb-2">{s.icon}</div>
+                  <div className="text-[9px] text-[#520385] font-black mb-1">{s.step}</div>
+                  <div className="text-xs font-bold text-[#1C1F2E] mb-1">{s.title}</div>
+                  <div className="text-[10px] text-[#7A8099]">{s.desc}</div>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="text-[#EEF0F6] text-2xl mx-1 rotate-90 md:rotate-0">→</div>
+                )}
               </div>
             ))}
           </div>
@@ -458,8 +633,9 @@ export default function LandingPage() {
 
             {/* Brand */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-[#520385]" />
+              <div className="flex items-center gap-2.5 mb-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- fixed small brand mark */}
+                <img src="/novrsoc.jpg" alt="NovrSOC" className="w-8 h-8 rounded-lg object-contain" />
                 <span className="font-bold text-[#1C1F2E] text-base">NovrSOC</span>
               </div>
               <p className="text-[#7A8099] text-sm leading-relaxed">

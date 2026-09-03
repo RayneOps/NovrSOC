@@ -30,60 +30,65 @@ function issueDevToken(payload: Record<string, unknown>): string {
 
 // POST /api/auth/signin (admin/staff login proxy)
 router.post('/signin', async (req, res) => {
-    // Admin bypass, gated purely on DEV_ADMIN_EMAIL / DEV_ADMIN_PASSWORD being set — not on
-    // NODE_ENV. Deliberately allowed in production: it's how this platform logs in at all
-    // right now, since no downstream account-backed auth exists yet at APP_API_BASE_URL.
-    // The env vars ARE the "is this enabled" flag — if they're set (anywhere, including
-    // Railway), matching credentials mint a super_admin token. Treat DEV_ADMIN_PASSWORD and
-    // DEV_TOKEN_SECRET (below) as real production secrets, not placeholders, and unset
-    // DEV_ADMIN_EMAIL/DEV_ADMIN_PASSWORD if this bypass should ever stop being reachable.
-    const devEmail = process.env.DEV_ADMIN_EMAIL;
-    const devPassword = process.env.DEV_ADMIN_PASSWORD;
-    if (devEmail && devPassword) {
-        const { email, password } = req.body ?? {};
-        if (email === devEmail && password === devPassword) {
-            const name = process.env.DEV_ADMIN_NAME || 'Dev Admin';
-            const company = process.env.DEV_ADMIN_COMPANY || 'Cybernovr';
-            const role = process.env.DEV_ADMIN_ROLE || 'super_admin';
-            const nowSeconds = Math.floor(Date.now() / 1000);
-            const token = issueDevToken({
-                sub: 'dev-admin',
-                email: devEmail,
-                name,
-                company,
-                role,
-                // Single-tenant placeholder — see routes/orgCTI.ts's header comment for what's
-                // actually needed before this can be a real per-client value (short version:
-                // the client portal already issues its own org-scoped tokens via a separate
-                // external auth backend with its own signing secret, which this backend's
-                // requireAuth can't verify — org-cti's tenancy therefore isn't just "read
-                // org_id off the token," it needs to handle two structurally different token
-                // sources first).
-                org_id: 'cybernovr',
-                dev: true,
-                iat: nowSeconds,
-                exp: nowSeconds + 60 * 60 * 24, // 24h
-            });
-            logAudit({
-                user: devEmail,
-                action: 'LOGIN',
-                resource: 'Admin Portal',
-                ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
-                result: 'success',
-            });
-            res.json({ token, user: { email: devEmail, name, company, role } });
-            return;
-        }
-        // Wrong credentials against the dev bypass — worth a failed-login audit entry too,
-        // same as a genuinely wrong password would be once real account auth exists.
+    // Admin bypass — always reachable now, not gated on the env vars being set. It's how this
+    // platform logs in at all right now, since no downstream account-backed auth exists yet at
+    // APP_API_BASE_URL, and a Railway deploy with DEV_ADMIN_EMAIL/DEV_ADMIN_PASSWORD unset or
+    // wrong (whitespace, a stale value, never redeployed after being changed) used to lock
+    // everyone out with no way to tell why — this hardcoded fallback is the actual login for
+    // rayne@cybernovr.com whether or not Railway's env vars agree with it.
+    //
+    // Security note: because of that fallback, unsetting DEV_ADMIN_EMAIL/DEV_ADMIN_PASSWORD on
+    // Railway no longer disables this bypass — the values below are permanently valid
+    // credentials for a super_admin token as long as this code ships. Treat them, and
+    // DEV_TOKEN_SECRET below, as real production secrets. If this bypass should ever need to
+    // be fully disabled, that requires removing this fallback (and rotating the password), not
+    // just unsetting the env var.
+    const devEmail = process.env.DEV_ADMIN_EMAIL || 'rayne@cybernovr.com';
+    const devPassword = process.env.DEV_ADMIN_PASSWORD || 'N0vrS0C.2026';
+
+    const { email, password } = req.body ?? {};
+    if (email === devEmail && password === devPassword) {
+        const name = process.env.DEV_ADMIN_NAME || 'Dev Admin';
+        const company = process.env.DEV_ADMIN_COMPANY || 'Cybernovr';
+        const role = process.env.DEV_ADMIN_ROLE || 'super_admin';
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        const token = issueDevToken({
+            sub: 'dev-admin',
+            email: devEmail,
+            name,
+            company,
+            role,
+            // Single-tenant placeholder — see routes/orgCTI.ts's header comment for what's
+            // actually needed before this can be a real per-client value (short version:
+            // the client portal already issues its own org-scoped tokens via a separate
+            // external auth backend with its own signing secret, which this backend's
+            // requireAuth can't verify — org-cti's tenancy therefore isn't just "read
+            // org_id off the token," it needs to handle two structurally different token
+            // sources first).
+            org_id: 'cybernovr',
+            dev: true,
+            iat: nowSeconds,
+            exp: nowSeconds + 60 * 60 * 24, // 24h
+        });
         logAudit({
-            user: (req.body?.email as string) || 'unknown',
+            user: devEmail,
             action: 'LOGIN',
             resource: 'Admin Portal',
             ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
-            result: 'failed',
+            result: 'success',
         });
+        res.json({ token, user: { email: devEmail, name, company, role } });
+        return;
     }
+    // Wrong credentials against the dev bypass — worth a failed-login audit entry too, same as
+    // a genuinely wrong password would be once real account auth exists.
+    logAudit({
+        user: (req.body?.email as string) || 'unknown',
+        action: 'LOGIN',
+        resource: 'Admin Portal',
+        ip: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+        result: 'failed',
+    });
 
     try {
         const response = await fetch(`${BACKEND_URL}/api/auth/signin`, {
