@@ -115,15 +115,23 @@ app.get('/', (_req, res) => {
 // Origins allowed to call this API with credentials. Known Vercel deployments (prod +
 // preview) and local dev ports are listed explicitly; FRONTEND_URL and the legacy
 // comma-separated FRONTEND_ORIGIN are folded in too so a Railway env var can add one
-// without a code change or override what's hardcoded here.
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
+// without a code change or override what's hardcoded here. This exact list is still checked
+// first below — the *.vercel.app wildcard beneath it is what actually covers Vercel's
+// per-branch/per-PR preview URLs (they're not enumerable ahead of time), not this array.
+const ALLOWED_ORIGINS = [
     'https://socnovr.vercel.app',
     'https://novrsoc-prev.vercel.app',
+    'https://novr-soc.vercel.app',
+    'https://novrsoc.vercel.app',
     process.env.FRONTEND_URL,
-    ...(process.env.FRONTEND_ORIGIN?.split(',').map((o) => o.trim()) ?? []),
-].filter((o): o is string => Boolean(o));
+    process.env.FRONTEND_ORIGIN,
+    'http://localhost:3000',
+    'http://localhost:3001',
+]
+    // FRONTEND_ORIGIN has historically been documented/used as a comma-separated list (see the
+    // old allowedOrigins.push(...split(','))) — keep supporting that alongside a single value.
+    .flatMap((o) => (o ? o.split(',').map((s) => s.trim()) : []))
+    .filter(Boolean);
 
 // This backend only ever serves JSON, never HTML, so most of helmet's CSP directives are
 // inert here in practice (a browser only enforces a response's CSP against the document that
@@ -175,7 +183,19 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(cors({
-    origin: allowedOrigins,
+    // A callback instead of a static array so any *.vercel.app preview deployment is allowed
+    // without needing a code change per branch/PR — Vercel mints a new subdomain for each one,
+    // so ALLOWED_ORIGINS above can only ever cover the known, stable URLs. `!origin` allows
+    // non-browser/same-origin requests (curl, server-to-server, Postman) — those don't send an
+    // Origin header at all, and CORS is a browser-enforced check anyway, not an access control
+    // mechanism for such requests.
+    origin: (origin, cb) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) {
+            cb(null, true);
+            return;
+        }
+        cb(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
