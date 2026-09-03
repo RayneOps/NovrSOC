@@ -9,14 +9,14 @@ import { apiUrl, apiFetch } from '@/lib/api';
 // POSTs to routes/incidentResponse.ts's POST / and creates an actual incident with the
 // playbook's steps pre-filled as its containment checklist.
 
-interface PlaybookStep {
+export interface PlaybookStep {
     order: number;
     title: string;
     phase: string;
     est_mins: number;
     description: string;
 }
-interface Playbook {
+export interface Playbook {
     id: string;
     name: string;
     severity: 'critical' | 'high' | 'medium';
@@ -29,7 +29,9 @@ interface Playbook {
     steps?: PlaybookStep[];
 }
 
-const PLAYBOOKS: Playbook[] = [
+// Exported so IncidentResponse.tsx's "Attach Playbook" picker (in the incident slide-over) can
+// reuse the same library instead of maintaining a second copy.
+export const PLAYBOOKS: Playbook[] = [
     {
         id: 'pb_001', name: 'Ransomware Response', severity: 'critical', description: 'Step-by-step containment and recovery for ransomware attacks',
         steps_count: 12, avg_duration: '4-8 hours', last_used: '2026-08-12', use_count: 3, tags: ['ransomware', 'malware', 'encryption'],
@@ -164,6 +166,12 @@ export function Playbooks() {
                 <button className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors flex-shrink-0">
                     <Plus size={14} /> Create Playbook
                 </button>
+            </div>
+
+            <div className="bg-blue/5 border border-blue/20 rounded-xl p-4 text-xs text-foreground-muted leading-relaxed">
+                A playbook is a structured, step-by-step response procedure for a specific type of security incident.
+                When an incident occurs, the analyst attaches the relevant playbook to ensure no critical response step
+                is missed under pressure.
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

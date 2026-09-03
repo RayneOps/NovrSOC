@@ -39,6 +39,39 @@ export function ThreatHunting() {
     const [results, setResults] = useState<HuntEvent[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<HuntEvent | null>(null);
+    const [escalating, setEscalating] = useState(false);
+    const [escalateResult, setEscalateResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+    // Adds the event's source IP to the shared IOC intelligence table AND opens a TheHive case
+    // tagged 'threat-hunt' — see backend/src/routes/secops.ts's POST /hunting/escalate for both
+    // writes.
+    const addToThreats = async (event: HuntEvent) => {
+        if (!event.srcip) {
+            setEscalateResult({ ok: false, message: 'This event has no source IP to escalate.' });
+            return;
+        }
+        setEscalating(true);
+        setEscalateResult(null);
+        try {
+            const res = await apiFetch(apiUrl('/api/secops/hunting/escalate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ioc_value: event.srcip,
+                    ioc_type: 'ip',
+                    finding: `${event.description}\nAgent: ${event.agent}\nRule: ${event.rule_id ?? '—'} (level ${event.level})`,
+                    source_alert_id: event.rule_id != null ? String(event.rule_id) : undefined,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.success) throw new Error(data?.error || `HTTP ${res.status}`);
+            setEscalateResult({ ok: true, message: `Added to threat intel and case ${data.incident_id} created.` });
+        } catch (err) {
+            setEscalateResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to escalate' });
+        } finally {
+            setEscalating(false);
+        }
+    };
 
     const addCondition = () => setConditions((c) => [...c, { field: FIELDS[0], op: OPERATORS[0], value: '' }]);
     const updateCondition = (i: number, patch: Partial<Condition>) => setConditions((c) => c.map((cond, idx) => (idx === i ? { ...cond, ...patch } : cond)));
@@ -153,7 +186,7 @@ export function ThreatHunting() {
                             </thead>
                             <tbody className="divide-y divide-border text-sm">
                                 {results.map((r, i) => (
-                                    <tr key={i} className="hover:bg-card-muted cursor-pointer" onClick={() => setSelected(r)}>
+                                    <tr key={i} className="hover:bg-card-muted cursor-pointer" onClick={() => { setSelected(r); setEscalateResult(null); }}>
                                         <td className="px-4 py-3 text-foreground-muted whitespace-nowrap">{r.ts}</td>
                                         <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{r.agent}</td>
                                         <td className="px-4 py-3 font-mono text-foreground-muted">{r.rule_id ?? '—'}</td>
@@ -204,9 +237,19 @@ export function ThreatHunting() {
                         </pre>
                         <div className="flex flex-wrap gap-2 mt-4">
                             <button className="text-[10px] font-bold px-3 py-1.5 bg-blue hover:opacity-90 text-white rounded-lg transition-colors">Create Alert</button>
-                            <button className="text-[10px] font-bold px-3 py-1.5 border border-border text-foreground-muted rounded-lg hover:bg-card-muted transition-colors">Create Incident</button>
-                            <button className="text-[10px] font-bold px-3 py-1.5 border border-purple text-purple rounded-lg hover:bg-purple/5 transition-colors">Add to Watchlist</button>
+                            <button
+                                onClick={() => addToThreats(selected)}
+                                disabled={escalating}
+                                className="text-[10px] font-bold px-3 py-1.5 border border-purple text-purple rounded-lg hover:bg-purple/5 disabled:opacity-50 transition-colors"
+                            >
+                                {escalating ? 'Adding…' : 'Add to Threats'}
+                            </button>
                         </div>
+                        {escalateResult && (
+                            <div className={`mt-3 text-[11px] rounded-lg px-3 py-2 ${escalateResult.ok ? 'text-green bg-green/10 border border-green/30' : 'text-red bg-red/10 border border-red/30'}`}>
+                                {escalateResult.message}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

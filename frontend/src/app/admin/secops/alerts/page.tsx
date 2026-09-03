@@ -1,5 +1,5 @@
-import { AlertCommunication } from '@/components/features/AlertCommunication';
+import { ThreatManagement } from '@/components/features/ThreatManagement';
 
 export default function Page() {
-    return <AlertCommunication />;
+    return <ThreatManagement />;
 }

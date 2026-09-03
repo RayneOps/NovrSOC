@@ -201,11 +201,23 @@ export async function createCase(params: {
     }
 }
 
+// A NovrSOC-shaped display id (INC-{year}-{n}) — the real TheHive `_id` (a raw `~1234567`)
+// never gets shown to an analyst anywhere; see routes/incidentResponse.ts's Incident.
+// incident_number field comment for why. Shared here so every caller that needs a
+// display-friendly id (the workbench list/detail, escalation emails, …) derives the exact same
+// value for the same case instead of each inventing its own formatting.
+export function deriveIncidentNumber(c: TheHiveCase): string {
+    const createdYear = c._createdAt ? new Date(c._createdAt).getFullYear() : new Date().getFullYear();
+    const idDigits = (c._id.match(/\d+/g)?.join('') || '0').slice(-4).padStart(4, '0');
+    return `INC-${createdYear}-${idDigits}`;
+}
+
 /** Maps a TheHive case onto the shape routes/incidentResponse.ts's GET / already returns. */
 export function formatCaseForNovrSOC(c: TheHiveCase) {
     const severityMap: Record<number, 'low' | 'medium' | 'high' | 'critical'> = { 1: 'low', 2: 'medium', 3: 'high', 4: 'critical' };
     return {
         id: c._id,
+        incident_number: deriveIncidentNumber(c),
         title: c.title,
         severity: severityMap[c.severity] ?? 'medium',
         status: mapTheHiveStatusToNovrSOC(c.status),

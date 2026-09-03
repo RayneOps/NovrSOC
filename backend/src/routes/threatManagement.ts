@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { search } from '../lib/wazuh-indexer';
 import { sendCriticalAlertEmail } from '../services/email';
 import { isDemoMode } from '../lib/demoMode';
+import { createCase, isTheHiveConfigured, deriveIncidentNumber } from '../services/thehive';
 
 // SecOps Threat Management console — live security event stream from the Wazuh Indexer
 // (wazuh-alerts-4.x-*, same OpenSearch backend /api/wazuh/alerts-indexer queries), falling
@@ -248,10 +249,21 @@ interface IndexerSearchResponse {
 // default for anything freshly indexed. PATCH/create-incident below mutate whatever list is
 // currently cached here, live or mock, so triage actions still stick between requests even
 // though GET /alerts re-queries the indexer each time.
+// getAlertSeverity — level 13+ critical, 10+ high, 7+ medium, matching the Security Operations
+// redesign's spec exactly. LOW (below 7) is filtered out entirely in loadAlerts() below, not
+// just relabeled — this route no longer shows level 1-6 alerts at all; SOAR handles them
+// silently (autoClose.ts resolves the low-severity TheHive cases the Wazuh->TheHive pipeline
+// still opens for them).
+function getAlertSeverity(level: number): Severity {
+    if (level >= 13) return 'critical';
+    if (level >= 10) return 'high';
+    return 'medium'; // 7-9
+}
+
 function mapIndexerAlert(hit: IndexerAlertHit): ThreatAlert {
     const src = hit._source;
     const level = src.rule?.level ?? 0;
-    const severity: Severity = level >= 12 ? 'critical' : level >= 9 ? 'high' : level >= 6 ? 'medium' : 'low';
+    const severity: Severity = getAlertSeverity(level);
     return {
         id: hit._id,
         rule_id: src.rule?.id != null ? String(src.rule.id) : '',
@@ -310,8 +322,11 @@ let usingMockStats = true;
 // stays severity:'critical' by design and must never trigger a real send to ALERT_EMAIL_TO.
 const emailedAlertIds = new Set<string>();
 
+// CRITICAL and HIGH both email (via sendCriticalAlertEmail -> services/email.ts's sendEmail,
+// which tries Resend first — see that file's header comment for why). MEDIUM deliberately does
+// not email here — it's notification-bell-only, per the Security Operations redesign spec.
 function notifyCriticalAlerts(alerts: ThreatAlert[]): void {
-    const toNotify = alerts.filter((a) => a.severity === 'critical' && !emailedAlertIds.has(a.id));
+    const toNotify = alerts.filter((a) => (a.severity === 'critical' || a.severity === 'high') && !emailedAlertIds.has(a.id));
     for (const alert of toNotify) {
         emailedAlertIds.add(alert.id); // mark before send completes so a slow response can't duplicate-send on the next poll
         sendCriticalAlertEmail({
@@ -340,7 +355,9 @@ async function loadAlerts(limit: number): Promise<ThreatAlert[]> {
         const result = await search<IndexerSearchResponse>('wazuh-alerts-4.x-*', {
             size: limit,
             sort: [{ timestamp: { order: 'desc' } }],
-            query: { match_all: {} },
+            // level 7+ only — filtered at the query itself, not just relabeled after the fact,
+            // so a LOW alert never even counts against `limit` here.
+            query: { range: { 'rule.level': { gte: 7 } } },
         });
         const hits = result?.hits?.hits ?? [];
         if (hits.length > 0) {
@@ -403,13 +420,33 @@ router.patch('/alerts/:id', (req, res) => {
     res.json({ success: true, alert });
 });
 
-router.post('/alerts/:id/create-incident', (req, res) => {
+// Was entirely fake before this — returned a `INC-${Date.now()}` string without creating
+// anything anywhere. Now opens a real TheHive case, same as POST /api/incidents does for a
+// manually-created incident.
+router.post('/alerts/:id/create-incident', async (req, res) => {
     const alert = liveAlerts.find((a) => a.id === req.params.id);
     if (!alert) {
         res.status(404).json({ error: 'Alert not found' });
         return;
     }
-    res.json({ success: true, incident_id: `INC-${Date.now()}`, message: `Incident created from alert ${alert.rule_id}` });
+    if (!isTheHiveConfigured()) {
+        res.status(503).json({ error: 'TheHive not configured' });
+        return;
+    }
+
+    const newCase = await createCase({
+        title: alert.rule_description,
+        description: `Alert detected by Wazuh\nAgent: ${alert.agent_name}\nSource IP: ${alert.source_ip ?? 'N/A'}\nRule ID: ${alert.rule_id}\nLevel: ${alert.rule_level}`,
+        severity: alert.severity,
+        tags: ['wazuh', 'manual', `level-${alert.rule_level}`, alert.agent_name].filter(Boolean),
+    });
+    if (!newCase) {
+        res.status(502).json({ error: 'Failed to create TheHive case — see server logs' });
+        return;
+    }
+
+    alert.status = 'investigating';
+    res.json({ success: true, incident_id: newCase._id, incident_number: deriveIncidentNumber(newCase), message: `Incident ${deriveIncidentNumber(newCase)} created from alert ${alert.rule_id}` });
 });
 
 router.get('/stats', (_req, res) => {

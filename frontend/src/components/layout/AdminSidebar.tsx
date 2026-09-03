@@ -3,9 +3,9 @@
 import {
     LayoutDashboard, FileBarChart, Globe, Users, Shield, UserCheck, Smartphone, Code,
     Crosshair, AlertTriangle, Link as LinkIcon, Building, Building2, Server, Network, Cpu,
-    Mail, MessageSquare, ShieldAlert, Activity, Siren, ClipboardList, Briefcase, Zap,
+    Mail, MessageSquare, ShieldAlert, Activity, Siren, ClipboardList, Zap,
     HardDrive, BarChart, CreditCard, Settings, Database, BookOpen, FileText, ScrollText,
-    ClipboardCheck, Bot, WifiOff, Map, Landmark, Radio,
+    ClipboardCheck, Bot, WifiOff, Map, Landmark, Radio, Wrench,
 } from 'lucide-react';
 import { Sidebar, type NavGroup } from './Sidebar';
 
@@ -31,15 +31,17 @@ const adminNav: NavGroup[] = [
         collapsible: true,
         icon: Activity,
         groupLabel: 'Security Operations',
+        // Cases, Threat Hunting, Shift Handover, and Reports Center are off the nav per the
+        // Security Operations redesign — moved into Security Ops Management as tabs (Threat
+        // Hunting, Shift Handover, Reports) or, for Cases, just no longer linked (TheHive case
+        // management isn't surfaced to analysts as a separate concept from Incidents — see
+        // CasesPage.tsx). All four routes still work if visited directly; nothing was deleted.
         items: [
             { label: 'Incidents', href: '/admin/secops/incidents', icon: Siren },
-            { label: 'Alerts', href: '/admin/secops/threats', icon: Activity },
-            { label: 'Cases', href: '/admin/secops/cases', icon: Briefcase },
-            { label: 'Threat Hunting', href: '/admin/secops/hunting', icon: Crosshair },
+            { label: 'Alerts', href: '/admin/secops/alerts', icon: Activity },
+            { label: 'Security Ops Mgmt', href: '/admin/secops/management', icon: Wrench },
             { label: 'Playbooks', href: '/admin/secops/playbooks', icon: BookOpen },
             { label: 'SOAR Automation', href: '/admin/secops/soar', icon: Zap },
-            { label: 'Shift Handover', href: '/admin/secops/handover', icon: ClipboardList },
-            { label: 'Reports Center', href: '/admin/secops/reports', icon: FileText },
         ],
     },
     {

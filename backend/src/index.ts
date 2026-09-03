@@ -42,8 +42,11 @@ import emailRouter from './routes/email';
 import orgCTIRouter from './routes/orgCTI';
 import { runCTIWatcher } from './jobs/ctiWatcher';
 import { startAutoCloseJob } from './jobs/autoClose';
+import { startEscalationJob } from './jobs/incidentEscalation';
 import platformRouter from './routes/platform';
 import organisationsRouter from './routes/organisations';
+import secopsRouter from './routes/secops';
+import notificationsRouter from './routes/notifications';
 import novrAiRouter from './routes/novr-ai';
 
 const app = express();
@@ -302,6 +305,12 @@ app.use('/api/org-cti', orgCTIRouter);
 // scope for soc_manager per that role's spec ("Cannot access platform settings").
 app.use('/api/platform', requireAuth, requireRole('super_admin'), platformRouter);
 app.use('/api/organisations', requireAuth, requireRole('super_admin'), organisationsRouter);
+// admin-only — no client-portal component calls Threat Hunting or the Security Ops Management
+// tabs that use this (confirmed: no /client route imports either).
+app.use('/api/secops', requireAuth, secopsRouter);
+// Not gated — shared by the admin app and the client portal (Header.tsx's notification bell
+// polls this from both). See routes/notifications.ts's own header comment.
+app.use('/api/notifications', notificationsRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -336,3 +345,6 @@ setInterval(startCTIWatcher, 5 * 60 * 1000).unref();
 // Auto-close job for low/medium-severity TheHive cases — see jobs/autoClose.ts for the
 // resolve-after-30-minutes-idle logic. No-ops (with a log line) when TheHive isn't configured.
 startAutoCloseJob();
+// Escalation emails for unresolved HIGH/CRITICAL cases — see jobs/incidentEscalation.ts.
+// No-ops (with a log line) when TheHive isn't configured.
+startEscalationJob();

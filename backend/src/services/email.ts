@@ -675,7 +675,86 @@ export async function sendOnboardingEmail(params: {
     });
 }
 
-// 5. TEST EMAIL
+// 5. INCIDENT ESCALATION — jobs/incidentEscalation.ts
+export async function sendEscalationEmail(params: {
+    to: string[];
+    incident_number: string;
+    title: string;
+    severity: string;
+    assignee: string;
+    opened_at: string;
+}): Promise<void> {
+    if (!isEmailEnabled()) return;
+
+    const title = escapeHtml(params.title);
+    const assignee = escapeHtml(params.assignee);
+
+    const body = `
+    <tr>
+      <td style="background:#CC2B2B;padding:16px 32px;">
+        <p style="color:white;font-size:11px;font-weight:700;text-transform:uppercase;
+                  letter-spacing:1px;margin:0;">
+          🚨 Incident Escalation
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:32px;">
+        <h1 style="color:#1C1F2E;font-size:20px;font-weight:900;margin:0 0 4px;">${title}</h1>
+        <p style="color:#7A8099;font-size:13px;margin:0 0 24px;">
+          This incident has not been resolved within the expected SLA window.
+        </p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;color:#7A8099;font-size:12px;">INCIDENT</td>
+              <td style="padding:8px 0;font-weight:bold;color:#1C1F2E;font-size:13px;">${escapeHtml(params.incident_number)}</td></tr>
+          <tr><td style="padding:8px 0;color:#7A8099;font-size:12px;">SEVERITY</td>
+              <td style="padding:8px 0;color:#CC2B2B;font-weight:bold;font-size:13px;">${escapeHtml(params.severity.toUpperCase())}</td></tr>
+          <tr><td style="padding:8px 0;color:#7A8099;font-size:12px;">ASSIGNED TO</td>
+              <td style="padding:8px 0;color:#1C1F2E;font-size:13px;">${assignee}</td></tr>
+          <tr><td style="padding:8px 0;color:#7A8099;font-size:12px;">OPEN SINCE</td>
+              <td style="padding:8px 0;color:#1C1F2E;font-size:13px;">${escapeHtml(params.opened_at)}</td></tr>
+        </table>
+        <a href="https://socnovr.vercel.app/admin/secops/incidents"
+           style="display:inline-block;background:#520385;color:white;padding:12px 24px;
+                  border-radius:8px;text-decoration:none;font-weight:bold;margin-top:24px;font-size:13px;">
+          View in NovrSOC →
+        </a>
+      </td>
+    </tr>
+  `;
+
+    await sendEmail({
+        to: params.to,
+        subject: `🚨 [ESCALATION] ${params.severity.toUpperCase()} Incident Unresolved: ${params.title}`,
+        html: baseTemplate(`Incident Escalation: ${title}`, `${params.incident_number} has not been resolved within SLA`, body),
+    });
+}
+
+// 6. TEAM BROADCAST — Security Ops Management's "Team Communication" tab
+export async function sendBroadcastEmail(params: { to: string[]; from: string; message: string }): Promise<void> {
+    if (!isEmailEnabled()) throw new Error('Email not configured');
+
+    const message = escapeHtml(params.message);
+    const body = `
+      <tr>
+        <td style="padding:32px;">
+          <p style="color:#7A8099;font-size:11px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:1px;margin:0 0 8px;">
+            From ${escapeHtml(params.from)}
+          </p>
+          <p style="color:#1C1F2E;font-size:14px;line-height:1.6;margin:0;white-space:pre-wrap;">${message}</p>
+        </td>
+      </tr>
+    `;
+
+    await sendEmail({
+        to: params.to,
+        subject: '[NovrSOC] Team Broadcast',
+        html: baseTemplate('NovrSOC Team Broadcast', `Broadcast from ${params.from}`, body),
+    });
+}
+
+// 7. TEST EMAIL
 export async function sendTestEmail(to: string): Promise<void> {
     if (!isEmailEnabled()) throw new Error('Email not configured');
 

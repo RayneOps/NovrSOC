@@ -3,7 +3,7 @@ import type { AuthRequest } from '../middleware/auth';
 import { search } from '../lib/wazuh-indexer';
 import {
     getCases, createCase, getCase, updateCase, getCaseTasks, createTask, getCaseComments, addComment,
-    formatCaseForNovrSOC, isTheHiveConfigured, mapNovrSOCStatusToTheHive, isTheHiveStatusTerminal,
+    formatCaseForNovrSOC, isTheHiveConfigured, mapNovrSOCStatusToTheHive, isTheHiveStatusTerminal, deriveIncidentNumber,
 } from '../services/thehive';
 import { sendSlackAlert, sendSlackMessage } from '../services/slack';
 
@@ -128,19 +128,9 @@ function toWorkbenchIncident(
     c: ReturnType<typeof formatCaseForNovrSOC>,
     extra?: { tasks?: Incident['tasks']; notes?: AnalystNote[] },
 ): Incident {
-    // A NovrSOC-shaped display id — the real routing id (c.id, a raw TheHive `~1234567`) never
-    // gets shown in the UI; see the incident_number field comment on the Incident interface for
-    // why. Year comes from the case's own creation date when it parses, else falls back to now.
-    const createdYear = (() => {
-        const y = new Date(c.opened_at).getFullYear();
-        return Number.isFinite(y) ? y : new Date().getFullYear();
-    })();
-    const idDigits = (c.id.match(/\d+/g)?.join('') || '0').slice(-4).padStart(4, '0');
-    const incidentNumber = `INC-${createdYear}-${idDigits}`;
-
     return {
         id: c.id,
-        incident_number: incidentNumber,
+        incident_number: c.incident_number,
         title: c.title,
         severity: c.severity,
         // formatCaseForNovrSOC's 'open'/'investigating'/'resolved' collapses onto the frontend's
@@ -156,7 +146,7 @@ function toWorkbenchIncident(
         summary: c.summary,
         source_alert_id: c.id,
         timeline: [
-            { id: 't-1', timestamp: c.opened_at, actor: 'NovrSOC', action: 'Case Created', detail: `${incidentNumber} opened.` },
+            { id: 't-1', timestamp: c.opened_at, actor: 'NovrSOC', action: 'Case Created', detail: `${c.incident_number} opened.` },
         ],
         containment_actions: [],
         notes: extra?.notes ?? [],
@@ -195,15 +185,30 @@ router.get('/', async (_req: Request, res: Response) => {
     // down must not take the SecOps incident view down with it.
     if (isTheHiveConfigured()) {
         try {
-            const cases = await getCases(50);
+            // Incidents shows HIGH (3) and CRITICAL (4) TheHive cases only — LOW (1) and MEDIUM
+            // (2) still exist in TheHive and are still handled (SOAR's auto-close job resolves
+            // them after 30 idle minutes, jobs/autoClose.ts), they just don't clutter this list.
+            // This filter is local to this route — jobs/autoClose.ts and every other direct
+            // getCases() caller elsewhere in the backend still see every severity.
+            const cases = (await getCases(50)).filter((c) => c.severity >= 3);
             const incidents = cases.map((c) => toWorkbenchIncident(formatCaseForNovrSOC(c)));
+
+            // "Resolved today" needs today's Africa/Lagos (WAT) window — same fixed +1h,
+            // no-DST math as GET /automation-status below, so the two stay consistent.
+            const WAT_OFFSET_MS = 60 * 60 * 1000;
+            const shifted = new Date(Date.now() + WAT_OFFSET_MS);
+            const startOfTodayWAT = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - WAT_OFFSET_MS;
+            const resolvedToday = cases.filter((c) => c.status && isTheHiveStatusTerminal(c.status) && (c._updatedAt ?? 0) >= startOfTodayWAT).length;
+
             res.json({
                 incidents,
                 summary: {
                     total: incidents.length,
+                    open: incidents.filter((i) => i.status === 'new').length,
                     critical: incidents.filter((i) => i.severity === 'critical').length,
                     investigating: incidents.filter((i) => i.status === 'investigating').length,
                     resolved: incidents.filter((i) => i.status === 'resolved').length,
+                    resolvedToday,
                 },
                 source: 'thehive',
             });
@@ -364,9 +369,30 @@ router.get('/automation-status', async (_req: Request, res: Response) => {
         // — TheHive's case object carries no separate "resolved by automation" marker, and
         // checking each case's comments for the job's own note would mean an extra API call per
         // case, which this endpoint doesn't make.
-        const autoResolvedToday = cases.filter(
+        const autoResolvedCasesToday = cases.filter(
             (c) => c.severity <= 2 && isTheHiveStatusTerminal(c.status) && (c._updatedAt ?? 0) >= startOfTodayWAT,
-        ).length;
+        );
+        const autoResolvedToday = autoResolvedCasesToday.length;
+
+        // Recent SOAR activity log — real cases, not fabricated entries. Two event types, both
+        // best-effort for the same reason auto_resolved_today is (see its comment above): a
+        // "resolved" row can't be told apart from a manual resolve without an extra per-case
+        // comment fetch this endpoint doesn't make, and a "created" row doesn't know whether the
+        // Wazuh->TheHive webhook or an analyst opened it. Sorted newest first, capped at 10.
+        const recentLog = [
+            ...autoResolvedCasesToday.map((c) => ({
+                time: c._updatedAt ? new Date(c._updatedAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit' }) : '—',
+                ts: c._updatedAt ?? 0,
+                action: `${deriveIncidentNumber(c)} auto-resolved`,
+                reason: `30min inactivity, ${c.severity === 1 ? 'Low' : 'Medium'} severity`,
+            })),
+            ...createdToday.map((c) => ({
+                time: c._createdAt ? new Date(c._createdAt).toLocaleTimeString('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit' }) : '—',
+                ts: c._createdAt ?? 0,
+                action: `${deriveIncidentNumber(c)} created`,
+                reason: `Wazuh-triggered case — ${c.title}`,
+            })),
+        ].sort((a, b) => b.ts - a.ts).slice(0, 10).map(({ time, action, reason }) => ({ time, action, reason }));
 
         // Best-effort proxy for "response time": time between a case's creation and its most
         // recent update, for today's cases that have moved past New — i.e. "time to first
@@ -382,10 +408,11 @@ router.get('/automation-status', async (_req: Request, res: Response) => {
             cases_created_today: createdToday.length,
             auto_resolved_today: autoResolvedToday,
             avg_response_minutes: avgResponseMinutes,
+            recent_log: recentLog,
         });
     } catch (err) {
         console.error('[incidents] automation-status failed:', err instanceof Error ? err.message : err);
-        res.status(502).json({ active: true, cases_created_today: 0, auto_resolved_today: 0, avg_response_minutes: null });
+        res.status(502).json({ active: true, cases_created_today: 0, auto_resolved_today: 0, avg_response_minutes: null, recent_log: [] });
     }
 });
 
@@ -430,11 +457,20 @@ router.get('/:id', async (req: Request, res: Response) => {
 // in-memory override for Wazuh-derived ones, same as before TheHive auth was fixed.
 router.patch('/:id', async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { status } = req.body;
+    // Both optional and independent — the "Assign to analyst" dropdown sends only `assignee`,
+    // the status buttons send only `status`. Previously `status` was assumed always-present:
+    // mapNovrSOCStatusToTheHive(status) called .toLowerCase() on it unconditionally, so an
+    // assignee-only PATCH threw inside this async handler with nothing to catch it (Express 4
+    // doesn't route an async handler's rejection to the error middleware on its own) — the
+    // request would just hang. Fixed by only mapping/sending status when one was actually sent.
+    const { status, assignee } = req.body as { status?: string; assignee?: string };
 
     if (isTheHiveConfigured() && isTheHiveId(id)) {
-        const theHiveStatus = mapNovrSOCStatusToTheHive(status);
-        const updated = await updateCase(id, { status: theHiveStatus, assignee: req.user?.email });
+        const theHiveStatus = status ? mapNovrSOCStatusToTheHive(status) : undefined;
+        const updated = await updateCase(id, {
+            ...(theHiveStatus ? { status: theHiveStatus } : {}),
+            assignee: assignee ?? req.user?.email,
+        });
         if (!updated) {
             res.status(502).json({ error: 'TheHive case update failed — see server logs' });
             return;
@@ -446,7 +482,7 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
                 console.error('[Slack] Resolve notification failed (non-fatal):', err instanceof Error ? err.message : err);
             });
         }
-        res.json({ success: true, id, status, thehive_status: theHiveStatus });
+        res.json({ success: true, id, status, assignee: updated.assignee ?? null, thehive_status: theHiveStatus });
         return;
     }
 

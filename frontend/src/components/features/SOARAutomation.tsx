@@ -4,11 +4,17 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { apiUrl, apiFetch } from '@/lib/api';
 
+interface SoarLogEntry {
+    time: string;
+    action: string;
+    reason: string;
+}
 interface AutomationStatus {
     active: boolean;
     cases_created_today: number;
     auto_resolved_today: number;
     avg_response_minutes: number | null;
+    recent_log?: SoarLogEntry[];
 }
 
 export function SOARAutomation() {
@@ -51,6 +57,23 @@ export function SOARAutomation() {
                         <div className="text-xs text-foreground-muted mt-1">{s.label}</div>
                     </div>
                 ))}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-5">
+                <h2 className="font-bold text-sm text-foreground mb-4">Recent SOAR Activity</h2>
+                {!status?.recent_log || status.recent_log.length === 0 ? (
+                    <p className="text-xs text-foreground-muted">No SOAR activity yet today.</p>
+                ) : (
+                    <div className="space-y-1.5">
+                        {status.recent_log.map((entry, i) => (
+                            <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-border last:border-0">
+                                <span className="font-mono text-foreground-muted w-12 shrink-0">{entry.time}</span>
+                                <span className="font-bold text-foreground shrink-0">{entry.action}</span>
+                                <span className="text-foreground-muted truncate">{entry.reason}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="bg-card border border-border rounded-xl p-5">
