@@ -3,7 +3,13 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import { searchCode as githubSearch, isConfigured as githubConfigured, type GitHubCodeMatch } from '../services/github';
 import { searchCode as gitlabSearch, isConfigured as gitlabConfigured, type GitLabCodeMatch } from '../services/gitlab';
-import { searchBrandMentions, searchCounterfeitSites, isConfigured as googleConfigured } from '../services/google';
+import {
+    searchBrandMentions as serperSearchBrandMentions,
+    searchCounterfeitSites as serperSearchCounterfeitSites,
+    searchBreachMentions,
+    isConfigured as serperConfigured,
+} from '../services/serper';
+import { searchBrandMentions as googleSearchBrandMentions, searchCounterfeitSites as googleSearchCounterfeitSites, isConfigured as googleConfigured } from '../services/google';
 import { checkEmailBreach } from '../services/breachCheck';
 import { searchSocialMentions } from '../services/socialMonitor';
 import { logAudit } from '../lib/audit';
@@ -339,12 +345,15 @@ interface ExecScanResult {
     checked: boolean;
     sources: string[];
     breaches: ExecBreach[];
+    web_mentions?: Array<{ title: string; url: string; snippet: string }>;
     note?: string;
 }
 
 // POST /api/brand/executives/:id/scan — free breach check via XposedOrNot + BreachDirectory
-// (services/breachCheck.ts), replacing the paid HIBP dependency. Always runs — XposedOrNot
-// needs no key at all, so there's no "not configured" branch left the way HIBP had one.
+// (services/breachCheck.ts), replacing the paid HIBP dependency, plus a Serper web search for
+// breach/leak/paste-site mentions of the exec's name/email (services/serper.ts). XposedOrNot
+// needs no key at all, so there's no "not configured" branch for the structured check; the
+// Serper half silently contributes nothing without SERPER_API_KEY.
 router.post('/executives/:id/scan', async (req, res) => {
     const exec = executives.find((e) => e.id === req.params.id);
     if (!exec) {
@@ -362,7 +371,14 @@ router.post('/executives/:id/scan', async (req, res) => {
     };
 
     try {
-        const result = await checkEmailBreach(exec.email);
+        const [result, breachMentions] = await Promise.all([
+            checkEmailBreach(exec.email),
+            // Serper web search for the exec's name/email alongside breach/leak/paste-site
+            // phrasing — catches informal mentions (forum posts, paste dumps) that XposedOrNot's
+            // structured breach-name lookup below wouldn't surface. Silently empty when
+            // SERPER_API_KEY isn't set (serper.ts's own isConfigured() gate).
+            searchBreachMentions(exec.name, exec.email).catch(() => null),
+        ]);
         scanResult.checked = true;
         scanResult.sources = result.details.filter((d) => !d.error).map((d) => d.source);
         // Neither free source exposes a breach date, data classes, or a sensitivity flag the
@@ -376,6 +392,14 @@ router.post('/executives/:id/scan', async (req, res) => {
             is_sensitive: false,
             is_verified: true,
         }));
+        if (breachMentions?.results.length) {
+            scanResult.sources.push('serper');
+            scanResult.web_mentions = breachMentions.results.map((r) => ({
+                title: r.title,
+                url: r.url,
+                snippet: r.snippet,
+            }));
+        }
         exec.breach_count = scanResult.breaches.length;
         exec.breaches = scanResult.breaches;
         exec.last_scanned = scanResult.scanned_at;
@@ -652,7 +676,9 @@ router.post('/leaks/scan', async (req, res) => {
     res.json({ results, summary });
 });
 
-// POST /api/brand/search — Google Custom Search brand-mention monitoring
+// POST /api/brand/search — brand-mention monitoring. Prefers Serper (services/serper.ts); falls
+// back to Google Custom Search (services/google.ts) when SERPER_API_KEY isn't set, so an
+// already-working Google CSE key from before this change keeps working with no config change.
 router.post('/search', async (req, res) => {
     const { brand_name, official_domains = [], search_type = 'mentions' } = req.body ?? {};
 
@@ -661,7 +687,9 @@ router.post('/search', async (req, res) => {
         return;
     }
 
-    if (!googleConfigured()) {
+    const provider = serperConfigured() ? 'serper' : googleConfigured() ? 'google' : null;
+
+    if (!provider) {
         // Demo data — Web Intelligence Engine not yet configured for live results
         const lower = brand_name.toLowerCase();
         res.json({
@@ -701,11 +729,15 @@ router.post('/search', async (req, res) => {
     }
 
     try {
-        const result = search_type === 'counterfeit'
-            ? await searchCounterfeitSites(brand_name, official_domains)
-            : await searchBrandMentions(brand_name, official_domains);
+        const [searchMentions, searchCounterfeit] = provider === 'serper'
+            ? [serperSearchBrandMentions, serperSearchCounterfeitSites]
+            : [googleSearchBrandMentions, googleSearchCounterfeitSites];
 
-        res.json({ configured: true, ...(result ?? { results: [], total_results: 0 }) });
+        const result = search_type === 'counterfeit'
+            ? await searchCounterfeit(brand_name, official_domains)
+            : await searchMentions(brand_name, official_domains);
+
+        res.json({ configured: true, provider, ...(result ?? { results: [], total_results: 0 }) });
     } catch {
         res.status(500).json({ error: 'Brand search failed' });
     }

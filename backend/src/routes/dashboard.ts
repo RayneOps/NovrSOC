@@ -12,12 +12,17 @@ import { enrichIPBatch } from '../services/geoEnrichment';
 import { lookupASN } from '../services/ripeStat';
 import { checkBlock, type AbuseIPDBBlockReport } from '../services/abuseipdb';
 import { otxSearchPulses, type OTXPulse } from '../services/otx';
+import { getNigerianCyberNews, type NewsResult } from '../services/serper';
+import { getCountryExposure, isConfigured as shadowserverConfigured, type CountryExposureStats } from '../services/shadowserver';
 
 const router = Router();
 
 export interface SupplementalNigeriaData {
     abuse_reports: Array<AbuseIPDBBlockReport & { isp: string; asn: string }>;
     otx_pulses: OTXPulse[];
+    cyber_news: NewsResult[];
+    shadowserver: CountryExposureStats | null;
+    shadowserver_configured: boolean;
     fetched_at: string;
 }
 
@@ -28,13 +33,13 @@ let supplementalCache: { data: SupplementalNigeriaData; expires: number } | null
 async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
     if (supplementalCache && supplementalCache.expires > Date.now()) return supplementalCache.data;
 
-    const [abuseResults, otxPulses] = await Promise.all([
+    const [abuseResults, otxPulses, cyberNews, shadowserverStats] = await Promise.all([
         Promise.all(NIGERIAN_ISP_ASNS.map(async (asn) => {
             try {
                 const info = await lookupASN(asn);
                 const topPrefix = info.prefixes.find((p) => !p.includes(':'));
                 if (!topPrefix) return [];
-                
+
                 const [addr, maskStr] = topPrefix.split('/');
                 const mask = Number(maskStr);
                 const cidr = mask >= 24 ? topPrefix : `${addr}/24`;
@@ -47,11 +52,16 @@ async function getSupplementalNigeriaData(): Promise<SupplementalNigeriaData> {
             }
         })),
         otxSearchPulses('nigeria', 10).catch(() => [] as OTXPulse[]),
+        getNigerianCyberNews(10).catch(() => [] as NewsResult[]),
+        getCountryExposure('NG').catch(() => null as CountryExposureStats | null),
     ]);
 
     const data: SupplementalNigeriaData = {
         abuse_reports: abuseResults.flat().slice(0, 25),
         otx_pulses: otxPulses,
+        cyber_news: cyberNews,
+        shadowserver: shadowserverStats,
+        shadowserver_configured: shadowserverConfigured(),
         fetched_at: new Date().toISOString(),
     };
     supplementalCache = { data, expires: Date.now() + 15 * 60 * 1000 };
@@ -98,6 +108,15 @@ function getThreatLevel(count: number): ThreatLevel {
     if (count <= 100) return 'Severe';
     return 'Critical';
 }
+
+const emptySupplemental = (): SupplementalNigeriaData => ({
+    abuse_reports: [],
+    otx_pulses: [],
+    cyber_news: [],
+    shadowserver: null,
+    shadowserver_configured: false,
+    fetched_at: new Date().toISOString(),
+});
 
 const emptyStates = () =>
     Object.entries(NIGERIA_STATE_CODES).map(([name, code]) => ({
@@ -297,11 +316,7 @@ router.get('/nigeria-threats', async (req, res) => {
         const statesAffected = states.filter((s) => s.threats > 0).length;
         const topState = sortedByThreats[0]?.name ?? null;
 
-        const supplemental = await getSupplementalNigeriaData().catch(() => ({ 
-            abuse_reports: [], 
-            otx_pulses: [], 
-            fetched_at: new Date().toISOString() 
-        }));
+        const supplemental = await getSupplementalNigeriaData().catch(emptySupplemental);
 
         res.json({
             states,
@@ -345,18 +360,17 @@ router.get('/nigeria-threats', async (req, res) => {
             supplemental: {
                 abuse_reports: supplemental.abuse_reports,
                 otx_pulses: supplemental.otx_pulses.map((p) => ({ id: p.id, name: p.name, tags: p.tags, created: p.created })),
+                cyber_news: supplemental.cyber_news,
+                shadowserver: supplemental.shadowserver,
+                shadowserver_configured: supplemental.shadowserver_configured,
                 fetched_at: supplemental.fetched_at,
             },
             generated_at: now.toISOString(),
         });
     } catch (err) {
         console.error('Nigeria threats error:', err);
-        const supplemental = await getSupplementalNigeriaData().catch(() => ({ 
-            abuse_reports: [], 
-            otx_pulses: [], 
-            fetched_at: new Date().toISOString() 
-        }));
-        
+        const supplemental = await getSupplementalNigeriaData().catch(emptySupplemental);
+
         res.json({
             states: emptyStates(),
             summary: emptySummary('CLEAR', 'Wazuh indexer unavailable — showing zeros'),
@@ -370,6 +384,9 @@ router.get('/nigeria-threats', async (req, res) => {
             supplemental: {
                 abuse_reports: supplemental.abuse_reports,
                 otx_pulses: supplemental.otx_pulses.map((p) => ({ id: p.id, name: p.name, tags: p.tags, created: p.created })),
+                cyber_news: supplemental.cyber_news,
+                shadowserver: supplemental.shadowserver,
+                shadowserver_configured: supplemental.shadowserver_configured,
                 fetched_at: supplemental.fetched_at,
             },
             generated_at: new Date().toISOString(),

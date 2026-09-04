@@ -1,5 +1,7 @@
-// X/Twitter brand-mention monitoring via rsshub (no API key) + Google Custom Search (reuses the
-// existing, already-configured services/google.ts — not duplicated here).
+// X/Twitter brand-mention monitoring via rsshub (no API key) + web search across the social
+// platforms, preferring Serper (services/serper.ts) and falling back to Google Custom Search
+// (services/google.ts) when SERPER_API_KEY isn't set — same provider-preference pattern used in
+// routes/brand.ts's /search route, so an already-working Google CSE key keeps working unchanged.
 //
 // Verified live before writing this: the public rsshub.app instance's /twitter/search route is
 // dead — it 302-redirects to google.com/404, not real RSS content. That's most likely rsshub.app
@@ -9,7 +11,8 @@
 // starts returning real results with no code change; against the default public instance today
 // it will consistently come back empty.
 
-import { searchWeb } from './google';
+import { searchWeb as serperSearchWeb, isConfigured as serperConfigured } from './serper';
+import { searchWeb as googleSearchWeb } from './google';
 
 const RSSHUB_BASE = process.env.RSSHUB_URL || 'https://rsshub.app';
 
@@ -42,29 +45,30 @@ export async function searchXMentions(brandName: string): Promise<SocialMention[
     }
 }
 
-// Thin wrapper over services/google.ts's existing searchWeb() — scoped to the social platforms
-// this feature cares about, not a second Google CSE client.
+// Thin wrapper over services/serper.ts (or services/google.ts as fallback) searchWeb() — scoped
+// to the social platforms this feature cares about, not a second search client of its own.
 export async function searchGoogleMentions(brandName: string): Promise<SocialMention[]> {
     const query = `"${brandName}" (site:twitter.com OR site:x.com OR site:linkedin.com OR site:facebook.com OR site:instagram.com)`;
-    const result = await searchWeb(query);
+    const provider = serperConfigured() ? 'serper' : 'google';
+    const result = provider === 'serper' ? await serperSearchWeb(query) : await googleSearchWeb(query);
     if (!result) return [];
     return result.results.map((item) => ({
         title: item.title,
         link: item.url,
         date: item.date ?? '',
-        source: 'google',
+        source: provider,
         platform: item.domain,
         snippet: item.snippet,
     }));
 }
 
 export async function searchSocialMentions(brandName: string): Promise<{ mentions: SocialMention[]; sources: string[] }> {
-    const [x, google] = await Promise.allSettled([searchXMentions(brandName), searchGoogleMentions(brandName)]);
+    const [x, web] = await Promise.allSettled([searchXMentions(brandName), searchGoogleMentions(brandName)]);
     const xMentions = x.status === 'fulfilled' ? x.value : [];
-    const googleMentions = google.status === 'fulfilled' ? google.value : [];
+    const webMentions = web.status === 'fulfilled' ? web.value : [];
 
     return {
-        mentions: [...xMentions, ...googleMentions],
-        sources: [xMentions.length > 0 ? 'twitter' : null, googleMentions.length > 0 ? 'google' : null].filter((s): s is string => s !== null),
+        mentions: [...xMentions, ...webMentions],
+        sources: [xMentions.length > 0 ? 'twitter' : null, webMentions[0]?.source ?? null].filter((s): s is string => s !== null),
     };
 }
