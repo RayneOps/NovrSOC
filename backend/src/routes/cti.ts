@@ -98,7 +98,8 @@ router.get('/feed', async (req, res) => {
         if (error) throw error;
 
         res.json({ iocs: data || [], count: data?.length || 0 });
-    } catch {
+    } catch (err) {
+        console.error('[CTI] Feed fetch error:', err);
         res.status(500).json({ error: 'Feed fetch failed' });
     }
 });
@@ -109,7 +110,8 @@ router.get('/pulses', async (req, res) => {
         const limit = Number(req.query.limit) || 20;
         const pulses = await otxGetPulses(limit);
         res.json({ pulses, count: pulses.length });
-    } catch {
+    } catch (err) {
+        console.error('[CTI] Pulse fetch error:', err);
         res.status(500).json({ error: 'Pulse fetch failed' });
     }
 });
@@ -133,7 +135,8 @@ router.get('/stats', async (_req, res) => {
             suspicious: iocs.filter((i) => i.risk_score >= 30 && i.risk_score < 70).length,
             clean: iocs.filter((i) => i.risk_score < 30).length,
         });
-    } catch {
+    } catch (err) {
+        console.error('[CTI] Stats error:', err);
         res.status(500).json({ error: 'Stats failed' });
     }
 });

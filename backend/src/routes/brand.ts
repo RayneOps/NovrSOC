@@ -263,6 +263,8 @@ router.get('/executives', (_req, res) => {
             breach_count: e.breach_count,
             breaches: e.breaches,
             scan_status: e.scan_status,
+            auth_anomalies: e.auth_anomalies,
+            risk_level: e.risk_level,
             email_masked: maskEmail(e.email),
         })),
         capabilities: {
