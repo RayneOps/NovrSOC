@@ -302,10 +302,14 @@ app.use('/api/assets', assetsRouter);
 app.use('/api/dashboard', requireAuth, dashboardRouter);
 app.use('/api/handover', requireAuth, handoverRouter);
 app.use('/api/org-cti', orgCTIRouter);
-// super_admin only — platform infra health and org onboarding/settings are explicitly out of
-// scope for soc_manager per that role's spec ("Cannot access platform settings").
+// super_admin only — platform infra health is explicitly out of scope for soc_manager per that
+// role's spec ("Cannot access platform settings").
 app.use('/api/platform', requireAuth, requireRole('super_admin'), platformRouter);
-app.use('/api/organisations', requireAuth, requireRole('super_admin'), organisationsRouter);
+// Just requireAuth here, not requireRole — organisationsRouter's own routes each apply their own
+// role requirement (list/create orgs: super_admin only; update/team management: super_admin or
+// soc_manager per the customer-onboarding + multitenancy spec; a user reading their own org: any
+// authenticated role). A single router-level role would force all of those to the same tier.
+app.use('/api/organisations', requireAuth, organisationsRouter);
 // admin-only — no client-portal component calls Threat Hunting or the Security Ops Management
 // tabs that use this (confirmed: no /client route imports either).
 app.use('/api/secops', requireAuth, secopsRouter);

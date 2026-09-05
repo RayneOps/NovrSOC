@@ -7,6 +7,11 @@ import { ChevronRight, LogOut, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/shared/Logo';
 
+// Every role this app's nav ever branches on. Kept in sync with backend/src/middleware/auth.ts's
+// UserRole — the client portal's nav never sets `roles` on any item, so this union being wider
+// than what ClientSidebar uses is harmless there.
+export type NavRole = 'super_admin' | 'soc_manager' | 'analyst' | 'executive' | 'portal_user';
+
 export interface NavItem {
     label: string;
     href: string;
@@ -19,6 +24,12 @@ export interface NavItem {
     // two are mutually exclusive in practice (an adminOnly item ignores this either way, since
     // the adminOnly check below is checked first and is strictly narrower).
     managerOnly?: boolean;
+    // General allow-list for the 4-tier admin role matrix (super_admin/soc_manager/analyst/
+    // executive) — used where adminOnly/managerOnly's two-tier model can't express the required
+    // visibility (e.g. "everyone except executive", or "analyst but not executive"). Omit to
+    // show the item to every authenticated role; when present, ANDed with adminOnly/managerOnly
+    // if those are also set (they aren't, on any item that sets `roles`, in practice).
+    roles?: NavRole[];
 }
 
 export interface NavGroup {
@@ -49,7 +60,12 @@ export function Sidebar({ navGroups, user, onLogout }: SidebarProps) {
     const visibleGroups = navGroups
         .map((group) => ({
             ...group,
-            items: group.items.filter((item) => (!item.adminOnly || isAdmin) && (!item.managerOnly || isManagerOrAbove)),
+            items: group.items.filter(
+                (item) =>
+                    (!item.adminOnly || isAdmin) &&
+                    (!item.managerOnly || isManagerOrAbove) &&
+                    (!item.roles || item.roles.includes(user.role as NavRole))
+            ),
         }))
         .filter((group) => group.items.length > 0);
 

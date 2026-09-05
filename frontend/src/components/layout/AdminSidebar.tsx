@@ -15,6 +15,18 @@ import { Sidebar, type NavGroup } from './Sidebar';
 // Lookup is /admin/threat/cti not /admin/threat/ioc-lookup, URL Scanner is
 // /admin/threat/urlscan not /admin/threat/url) and were kept at their real, working paths
 // rather than moved, since renaming a route breaks bookmarks/links for no benefit.
+//
+// `roles` restrictions below (added for the customer-onboarding + multitenancy pass) follow
+// that spec's role matrix section-by-section: THREAT INTELLIGENCE (both threat-intel groups),
+// INFRASTRUCTURE, and SECURITY OPERATIONS are hidden from `executive`; COMPLIANCE and DATA
+// CONTINUITY are hidden from `analyst`; the individually-listed Sec Ops items (Sec Ops
+// Management, SOAR Automation) are additionally hidden from `analyst`. OVERVIEW's Dashboard,
+// BRAND PROTECTION, EMAIL SECURITY, and AI ANALYST are unrestricted (all four roles), matching
+// the matrix's all-✅ rows for those sections.
+const NOT_EXEC = ['super_admin', 'soc_manager', 'analyst'] as const;
+const MANAGER_PLUS_EXEC = ['super_admin', 'soc_manager', 'executive'] as const;
+const MANAGER_ONLY = ['super_admin', 'soc_manager'] as const;
+
 const adminNav: NavGroup[] = [
     {
         section: 'Overview',
@@ -23,7 +35,9 @@ const adminNav: NavGroup[] = [
         groupLabel: 'Overview',
         items: [
             { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-            { label: 'Executive Report', href: '/admin/executive', icon: FileBarChart },
+            // "Executive Dashboard" in the role matrix — analyst is the one role that doesn't
+            // get this view.
+            { label: 'Executive Report', href: '/admin/executive', icon: FileBarChart, roles: [...MANAGER_PLUS_EXEC] },
         ],
     },
     {
@@ -36,12 +50,15 @@ const adminNav: NavGroup[] = [
         // Hunting, Shift Handover, Reports) or, for Cases, just no longer linked (TheHive case
         // management isn't surfaced to analysts as a separate concept from Incidents — see
         // CasesPage.tsx). All four routes still work if visited directly; nothing was deleted.
+        //
+        // Whole section is executive: ❌ (NOT_EXEC on every item); Sec Ops Mgmt and SOAR are
+        // additionally analyst: ❌ (MANAGER_ONLY) per the matrix's per-item breakdown.
         items: [
-            { label: 'Incidents', href: '/admin/secops/incidents', icon: Siren },
-            { label: 'Alerts', href: '/admin/secops/alerts', icon: Activity },
-            { label: 'Security Ops Mgmt', href: '/admin/secops/management', icon: Wrench },
-            { label: 'Playbooks', href: '/admin/secops/playbooks', icon: BookOpen },
-            { label: 'SOAR Automation', href: '/admin/secops/soar', icon: Zap },
+            { label: 'Incidents', href: '/admin/secops/incidents', icon: Siren, roles: [...NOT_EXEC] },
+            { label: 'Alerts', href: '/admin/secops/alerts', icon: Activity, roles: [...NOT_EXEC] },
+            { label: 'Security Ops Mgmt', href: '/admin/secops/management', icon: Wrench, roles: [...MANAGER_ONLY] },
+            { label: 'Playbooks', href: '/admin/secops/playbooks', icon: BookOpen, roles: [...NOT_EXEC] },
+            { label: 'SOAR Automation', href: '/admin/secops/soar', icon: Zap, roles: [...MANAGER_ONLY] },
         ],
     },
     {
@@ -49,11 +66,13 @@ const adminNav: NavGroup[] = [
         collapsible: true,
         icon: Globe,
         groupLabel: 'Nigerian Threat Intel',
+        // THREAT INTELLIGENCE in the matrix covers both this section and Global Threat Intel
+        // below — executive: ❌ on both.
         items: [
-            { label: 'Nigeria Threat Map', href: '/admin/threat/nigeria-map', icon: Map },
-            { label: 'Nigerian Threat Feed', href: '/admin/threat/nigeria', icon: Globe },
-            { label: 'CBN Advisories', href: '/admin/threat/cbn', icon: Landmark },
-            { label: 'NCC Advisories', href: '/admin/threat/ncc', icon: Radio },
+            { label: 'Nigeria Threat Map', href: '/admin/threat/nigeria-map', icon: Map, roles: [...NOT_EXEC] },
+            { label: 'Nigerian Threat Feed', href: '/admin/threat/nigeria', icon: Globe, roles: [...NOT_EXEC] },
+            { label: 'CBN Advisories', href: '/admin/threat/cbn', icon: Landmark, roles: [...NOT_EXEC] },
+            { label: 'NCC Advisories', href: '/admin/threat/ncc', icon: Radio, roles: [...NOT_EXEC] },
         ],
     },
     {
@@ -62,13 +81,13 @@ const adminNav: NavGroup[] = [
         icon: Crosshair,
         groupLabel: 'Global Threat Intel',
         items: [
-            { label: 'IOC Lookup', href: '/admin/threat/cti', icon: Crosshair },
-            { label: 'Threat Feeds', href: '/admin/threat/feeds', icon: Database },
-            { label: 'MITRE ATT&CK', href: '/admin/threat/mitre', icon: ShieldAlert },
-            { label: 'Threat Advisory', href: '/admin/threat/advisory', icon: AlertTriangle },
-            { label: 'Threat Actors', href: '/admin/threat/actors', icon: Users },
-            { label: 'URL & Web Scanner', href: '/admin/threat/scanner', icon: LinkIcon },
-            { label: 'Vendor Assessments', href: '/admin/threat/vendor', icon: Building },
+            { label: 'IOC Lookup', href: '/admin/threat/cti', icon: Crosshair, roles: [...NOT_EXEC] },
+            { label: 'Threat Feeds', href: '/admin/threat/feeds', icon: Database, roles: [...NOT_EXEC] },
+            { label: 'MITRE ATT&CK', href: '/admin/threat/mitre', icon: ShieldAlert, roles: [...NOT_EXEC] },
+            { label: 'Threat Advisory', href: '/admin/threat/advisory', icon: AlertTriangle, roles: [...NOT_EXEC] },
+            { label: 'Threat Actors', href: '/admin/threat/actors', icon: Users, roles: [...NOT_EXEC] },
+            { label: 'URL & Web Scanner', href: '/admin/threat/scanner', icon: LinkIcon, roles: [...NOT_EXEC] },
+            { label: 'Vendor Assessments', href: '/admin/threat/vendor', icon: Building, roles: [...NOT_EXEC] },
         ],
     },
     {
@@ -90,12 +109,13 @@ const adminNav: NavGroup[] = [
         collapsible: true,
         icon: Server,
         groupLabel: 'Infrastructure & Assets',
+        // INFRASTRUCTURE in the matrix — executive: ❌.
         items: [
-            { label: 'Digital Assets', href: '/admin/infra/assets', icon: Server },
-            { label: 'Network Topology', href: '/admin/infra/topology', icon: Network },
-            { label: 'Vulnerability Management', href: '/admin/infra/vulnerabilities', icon: ShieldAlert },
-            { label: 'WebLogic Appliances', href: '/admin/infra/weblogic', icon: Cpu },
-            { label: 'Shadow IT', href: '/admin/infra/shadow', icon: WifiOff },
+            { label: 'Digital Assets', href: '/admin/infra/assets', icon: Server, roles: [...NOT_EXEC] },
+            { label: 'Network Topology', href: '/admin/infra/topology', icon: Network, roles: [...NOT_EXEC] },
+            { label: 'Vulnerability Management', href: '/admin/infra/vulnerabilities', icon: ShieldAlert, roles: [...NOT_EXEC] },
+            { label: 'WebLogic Appliances', href: '/admin/infra/weblogic', icon: Cpu, roles: [...NOT_EXEC] },
+            { label: 'Shadow IT', href: '/admin/infra/shadow', icon: WifiOff, roles: [...NOT_EXEC] },
         ],
     },
     {
@@ -115,13 +135,14 @@ const adminNav: NavGroup[] = [
         collapsible: true,
         icon: ClipboardCheck,
         groupLabel: 'Compliance',
+        // COMPLIANCE in the matrix — analyst: ❌.
         items: [
-            { label: 'Compliance Dashboard', href: '/admin/compliance', icon: ClipboardCheck },
-            { label: 'NDPA', href: '/admin/compliance/ndpa', icon: FileText },
-            { label: 'ISO 27001', href: '/admin/compliance/iso27001', icon: FileText },
-            { label: 'CBN Framework', href: '/admin/compliance/cbn', icon: FileText },
-            { label: 'PCI-DSS', href: '/admin/compliance/pcidss', icon: FileText },
-            { label: 'NCC Framework', href: '/admin/compliance/ncc', icon: FileText },
+            { label: 'Compliance Dashboard', href: '/admin/compliance', icon: ClipboardCheck, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'NDPA', href: '/admin/compliance/ndpa', icon: FileText, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'ISO 27001', href: '/admin/compliance/iso27001', icon: FileText, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'CBN Framework', href: '/admin/compliance/cbn', icon: FileText, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'PCI-DSS', href: '/admin/compliance/pcidss', icon: FileText, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'NCC Framework', href: '/admin/compliance/ncc', icon: FileText, roles: [...MANAGER_PLUS_EXEC] },
         ],
     },
     {
@@ -138,10 +159,11 @@ const adminNav: NavGroup[] = [
         collapsible: true,
         icon: HardDrive,
         groupLabel: 'Data Continuity',
+        // DATA CONTINUITY in the matrix — analyst: ❌.
         items: [
-            { label: 'Data Loss Recovery', href: '/admin/data/recovery', icon: HardDrive },
-            { label: 'Recovery Credit', href: '/admin/data/sla', icon: BarChart },
-            { label: 'Disaster Recovery Plan', href: '/admin/data/recovery-plan', icon: ClipboardList },
+            { label: 'Data Loss Recovery', href: '/admin/data/recovery', icon: HardDrive, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'Recovery Credit', href: '/admin/data/sla', icon: BarChart, roles: [...MANAGER_PLUS_EXEC] },
+            { label: 'Disaster Recovery Plan', href: '/admin/data/recovery-plan', icon: ClipboardList, roles: [...MANAGER_PLUS_EXEC] },
         ],
     },
     {

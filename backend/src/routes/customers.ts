@@ -1,43 +1,55 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth';
+import { getSupabase } from '../services/geoEnrichment';
 
 const router = Router();
-const BACKEND_URL = process.env.APP_API_BASE_URL || 'http://138.197.188.132:4000';
 
-// requireAuth is mounted on this router (see index.ts) — req.user is always populated here.
-// This route is a pure proxy with no local data of its own to filter, so real per-org
-// filtering still depends on APP_API_BASE_URL actually honouring the org_id param below —
-// that's outside this repo. What this DOES fix: an org user can no longer omit/spoof org_id
-// to pull every customer; a super_admin (full MSSP staff) still sees the unfiltered list.
+// Was a proxy to APP_API_BASE_URL (138.197.188.132) — that host is unreachable from Railway
+// (see PRODUCTION_NOTES.md's Known Issues #1), so this always 502'd in production. Now backed
+// by the `organisations` table directly (same table routes/organisations.ts's CRUD lives on).
+//
+// Response shape is kept identical to what this route already returned from the dead proxy
+// (customers: [{ id, name, industry, status, agentsTotal, activeIncidents, wazuhGroup }], plus
+// domain/plan now added) — GeneralDashboard.tsx's Onboarded Clients widget and ExecutiveReport.tsx
+// both still read this exact shape, and both already treat agentsTotal/activeIncidents as
+// fallback defaults only (the dashboard widget overwrites them with a live per-org Wazuh lookup
+// the moment its own effect runs) — so 0 here is honest, not a regression, and nothing needed to
+// change in either of those two files. `id` changes from a fake sequential number to the org's
+// real UUID; both call sites only ever use it as an opaque React/Record key, never arithmetically.
 router.get('/', async (req: AuthRequest, res) => {
-    try {
-        const url = new URL(`${BACKEND_URL}/api/customers`);
-        if (req.user?.role !== 'super_admin' && req.user?.org_id) {
-            url.searchParams.set('org_id', req.user.org_id);
-        }
-        const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
-        const data = await response.json();
-        res.status(response.status).json(data);
-    } catch {
-        res.status(502).json({ customers: [] });
+    const supabase = getSupabase();
+    if (!supabase) {
+        res.json({ customers: [], total: 0, source: 'unconfigured' });
+        return;
     }
-});
 
-router.post('/', async (req: AuthRequest, res) => {
     try {
-        const body = req.user?.role !== 'super_admin' && req.user?.org_id
-            ? { ...req.body, org_id: req.user.org_id }
-            : req.body;
-        const response = await fetch(`${BACKEND_URL}/api/customers`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(5000),
-        });
-        const data = await response.json();
-        res.status(response.status).json(data);
-    } catch {
-        res.status(502).json({ error: 'Failed to reach backend' });
+        const isAdmin = req.user?.role === 'super_admin';
+        let query = supabase.from('organisations').select('*').order('created_at', { ascending: false });
+        if (!isAdmin && req.user?.org_id) query = query.eq('slug', req.user.org_id);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const customers = (data || []).map((org: Record<string, unknown>) => ({
+            id: org.id,
+            name: org.name,
+            domain: org.domain ?? null,
+            industry: org.industry ?? null,
+            plan: org.plan ?? 'starter',
+            // `status` is a new column (see sql/2026-09-organisations-onboarding.sql) — falls
+            // back to the pre-existing `is_active` boolean for any row read before that
+            // migration runs, so this never renders blank.
+            status: org.status ?? (org.is_active ? 'active' : 'suspended'),
+            agentsTotal: 0,
+            activeIncidents: 0,
+            wazuhGroup: org.wazuh_group ?? null,
+        }));
+
+        res.json({ customers, total: customers.length, source: 'supabase' });
+    } catch (err) {
+        console.error('[customers] List error:', err);
+        res.status(500).json({ customers: [], total: 0, error: 'Failed to load customers' });
     }
 });
 

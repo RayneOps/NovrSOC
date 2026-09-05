@@ -19,7 +19,7 @@ export interface AuthRequest extends Request {
 // union — requireAuth reads whatever string is in the `role` claim), but this is every role
 // this app's authorization logic actually branches on. Keep it in sync with wherever a new
 // role is introduced.
-export type UserRole = 'super_admin' | 'soc_manager' | 'analyst' | 'portal_user';
+export type UserRole = 'super_admin' | 'soc_manager' | 'analyst' | 'executive' | 'portal_user';
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
     const header = req.headers.authorization;

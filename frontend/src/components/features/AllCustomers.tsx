@@ -1,21 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Building2 } from 'lucide-react';
+import Link from 'next/link';
+import { Building2, Plus, Eye, Wrench } from 'lucide-react';
 import { apiUrl, apiFetch } from '@/lib/api';
 
-// GET /api/customers — same real endpoint the dashboard's Onboarded Clients widget already
-// uses, just as its own dedicated page rather than a 5-row preview.
+// GET /api/customers — now backed by the `organisations` Supabase table (routes/customers.ts)
+// instead of the dead 138.197.188.132 proxy this used to hit.
 
 interface Customer {
-    id: number;
+    id: string;
     name: string;
+    domain: string | null;
     industry: string | null;
+    plan: string;
     status: string;
     agentsTotal: number;
     activeIncidents: number;
     wazuhGroup: string | null;
 }
+
+const PLAN_STYLE: Record<string, string> = {
+    starter: 'bg-card-muted text-foreground-muted',
+    professional: 'bg-blue/10 text-blue',
+    enterprise: 'bg-purple/10 text-purple',
+};
 
 export function AllCustomers() {
     const [customers, setCustomers] = useState<Customer[] | null>(null);
@@ -33,16 +42,21 @@ export function AllCustomers() {
 
     return (
         <div className="space-y-4">
-            <div>
-                <h1 className="text-lg font-black text-foreground">All Customers</h1>
-                <p className="text-xs text-foreground-muted">Every onboarded client organisation. Super admin only.</p>
+            <div className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-lg font-black text-foreground">All Customers</h1>
+                    <p className="text-xs text-foreground-muted">Every onboarded client organisation. Super admin only.</p>
+                </div>
+                <Link href="/admin/onboarding/new" className="flex items-center gap-2 bg-orange hover:bg-orange-hover text-white text-xs font-black px-4 py-2.5 rounded-lg transition-colors flex-shrink-0">
+                    <Plus size={14} /> Add New Client
+                </Link>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                     { label: 'Total Customers', value: customers?.length ?? 0 },
                     { label: 'Active', value: customers?.filter((c) => c.status === 'active').length ?? 0 },
-                    { label: 'Total Endpoints', value: customers?.reduce((s, c) => s + c.agentsTotal, 0) ?? 0 },
+                    { label: 'Enterprise Plan', value: customers?.filter((c) => c.plan === 'enterprise').length ?? 0 },
                     { label: 'Active Incidents', value: customers?.reduce((s, c) => s + c.activeIncidents, 0) ?? 0 },
                 ].map((s) => (
                     <div key={s.label} className="bg-card border border-border rounded-xl p-4">
@@ -61,14 +75,15 @@ export function AllCustomers() {
                 ) : filtered.length === 0 ? (
                     <div className="text-center py-16">
                         <Building2 size={28} className="text-border mx-auto mb-3" />
-                        <p className="text-xs text-foreground-muted">No customers onboarded yet.</p>
+                        <p className="text-xs text-foreground-muted mb-4">No customers onboarded yet.</p>
+                        <Link href="/admin/onboarding/new" className="inline-block text-[10px] font-bold px-3 py-1.5 bg-orange hover:bg-orange-hover text-white rounded-lg transition-colors">Onboard First Client</Link>
                     </div>
                 ) : (
                     <div className="overflow-x-auto scrollbar-thin">
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-grey-800">
-                                    {['Organisation', 'Industry', 'Endpoints', 'Active Incidents', 'Wazuh Group', 'Status'].map((h) => (
+                                    {['Organisation', 'Domain', 'Industry', 'Plan', 'Agents', 'Status', 'Actions'].map((h) => (
                                         <th key={h} className="px-4 py-3 text-[10px] font-semibold text-white uppercase tracking-widest whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
@@ -77,12 +92,24 @@ export function AllCustomers() {
                                 {filtered.map((c) => (
                                     <tr key={c.id} className="hover:bg-card-muted transition-colors">
                                         <td className="px-4 py-3 font-bold text-foreground whitespace-nowrap">{c.name === 'Cybernovr' ? '🛡️' : '🏢'} {c.name}</td>
+                                        <td className="px-4 py-3 text-foreground-muted font-mono">{c.domain ?? '—'}</td>
                                         <td className="px-4 py-3 text-foreground-muted">{c.industry ?? '—'}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${PLAN_STYLE[c.plan] ?? PLAN_STYLE.starter}`}>{c.plan}</span>
+                                        </td>
                                         <td className="px-4 py-3 text-foreground-muted">{c.agentsTotal.toLocaleString()}</td>
-                                        <td className="px-4 py-3 font-bold text-foreground">{c.activeIncidents}</td>
-                                        <td className="px-4 py-3 font-mono text-foreground-muted">{c.wazuhGroup ?? '—'}</td>
                                         <td className="px-4 py-3">
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${c.status === 'active' ? 'bg-blue/10 text-blue border-blue/30' : 'bg-card-muted text-foreground-muted border-border'}`}>{c.status}</span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-1 text-[10px] font-bold text-foreground border border-border rounded-lg px-2 py-1 hover:bg-card-muted transition-colors">
+                                                    <Eye size={11} /> View
+                                                </Link>
+                                                <Link href={`/admin/settings/organisations/${c.id}/setup`} className="flex items-center gap-1 text-[10px] font-bold text-purple border border-purple/30 bg-purple/5 rounded-lg px-2 py-1 hover:bg-purple/10 transition-colors">
+                                                    <Wrench size={11} /> Setup
+                                                </Link>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

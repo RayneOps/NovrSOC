@@ -359,7 +359,7 @@ function AlertsFeed({ alerts, source, loading }: { alerts: FeedAlert[]; source: 
 }
 
 /* ── Onboarded Clients Widget (kept from the previous dashboard — real /api/customers + per-client Wazuh data) ── */
-interface OnboardedClient { id: number; name: string; industry: string | null; status: string; agentsTotal: number; activeIncidents: number; wazuhGroup: string | null }
+interface OnboardedClient { id: string; name: string; industry: string | null; status: string; agentsTotal: number; activeIncidents: number; wazuhGroup: string | null }
 interface ClientLiveData { endpoints: number; incidents: number }
 
 function clientStatusBadge(orgStatus: string, endpoints: number): { label: string; classes: string } {
@@ -370,7 +370,7 @@ function clientStatusBadge(orgStatus: string, endpoints: number): { label: strin
 
 const OnboardedClientsWidget = ({ clients, loading }: { clients: OnboardedClient[] | null; loading: boolean }) => {
     const rows = (clients ?? []).slice(0, 5);
-    const [liveData, setLiveData] = useState<Record<number, ClientLiveData>>({});
+    const [liveData, setLiveData] = useState<Record<string, ClientLiveData>>({});
 
     useEffect(() => {
         if (!clients || clients.length === 0) return;

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { logAudit } from '../lib/audit';
+import { getSupabase } from '../services/geoEnrichment';
 
 const router = Router();
 const BACKEND_URL = process.env.APP_API_BASE_URL || 'http://138.197.188.132:4000';
@@ -48,9 +49,42 @@ router.post('/signin', async (req, res) => {
 
     const { email, password } = req.body ?? {};
     if (email === devEmail && password === devPassword) {
-        const name = process.env.DEV_ADMIN_NAME || 'Dev Admin';
-        const company = process.env.DEV_ADMIN_COMPANY || 'Cybernovr';
-        const role = process.env.DEV_ADMIN_ROLE || 'super_admin';
+        let name = process.env.DEV_ADMIN_NAME || 'Dev Admin';
+        let company = process.env.DEV_ADMIN_COMPANY || 'Cybernovr';
+        let role = process.env.DEV_ADMIN_ROLE || 'super_admin';
+        // Single-tenant placeholder unless overridden below — see routes/orgCTI.ts's header
+        // comment for the client-portal-token caveat this still doesn't solve.
+        let orgId = 'cybernovr';
+
+        // Look up this email's real role/org in platform_users when it's configured — lets the
+        // seeded super_admin (and, once other platform_users rows exist, any future non-bypass
+        // login built on top of this) carry its actual role and org instead of the hardcoded
+        // defaults above. org_id is deliberately the org's SLUG (organisations.slug), not its
+        // UUID primary key — every org-scoped table already live in this codebase (playbooks,
+        // org-cti's fallback) keys on the string 'cybernovr', not a UUID, so resolving to the
+        // slug here is what keeps this login compatible with that existing data instead of
+        // silently orphaning it. Falls back to the hardcoded defaults on any miss or error —
+        // this must never be the reason login itself fails.
+        try {
+            const supabase = getSupabase();
+            if (supabase) {
+                const { data: platformUser } = await supabase
+                    .from('platform_users')
+                    .select('name, role, organisations(slug, name)')
+                    .eq('email', email)
+                    .maybeSingle();
+                const org = platformUser?.organisations as unknown as { slug?: string; name?: string } | null;
+                if (platformUser) {
+                    name = platformUser.name || name;
+                    role = platformUser.role || role;
+                }
+                if (org?.slug) orgId = org.slug;
+                if (org?.name) company = org.name;
+            }
+        } catch (err) {
+            console.warn('[auth] platform_users lookup failed, using default dev-admin claims:', err);
+        }
+
         const nowSeconds = Math.floor(Date.now() / 1000);
         const token = issueDevToken({
             sub: 'dev-admin',
@@ -58,14 +92,7 @@ router.post('/signin', async (req, res) => {
             name,
             company,
             role,
-            // Single-tenant placeholder — see routes/orgCTI.ts's header comment for what's
-            // actually needed before this can be a real per-client value (short version:
-            // the client portal already issues its own org-scoped tokens via a separate
-            // external auth backend with its own signing secret, which this backend's
-            // requireAuth can't verify — org-cti's tenancy therefore isn't just "read
-            // org_id off the token," it needs to handle two structurally different token
-            // sources first).
-            org_id: 'cybernovr',
+            org_id: orgId,
             dev: true,
             iat: nowSeconds,
             exp: nowSeconds + 60 * 60 * 24, // 24h
